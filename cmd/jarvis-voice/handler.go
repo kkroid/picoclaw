@@ -211,6 +211,7 @@ func (s *session) run() {
 	for {
 		msgType, data, err := s.conn.ReadMessage()
 		if err != nil {
+			log.Printf("jarvis-voice: session %s (%s) read error: %v", s.connID, s.deviceID, err)
 			return
 		}
 		switch msgType {
