@@ -16,12 +16,17 @@
 - 阅读助手（发链接 → AI 总结回复）
 - 可扩展 MCP 接入任意业务能力
 
-**输出路由逻辑**（handler 层后处理，不依赖 LLM 判断）：
+**输出路由逻辑**（工具维度，不依赖响应长度/内容判断）：
 ```
-语音/消息进入 → LLM 生成完整回复
-含 URL/代码块/表格    → TTS 播"详情已发飞书" + 飞书发完整内容
-字数 > 150            → TTS 播首句（system prompt 要求首句为结论）+ 飞书发完整内容
-否则                  → 仅 TTS（消息渠道进来则仅消息回复）
+工具调用完成后，按工具所属分组决定输出目标：
+  channel-tool（股票/新闻/晨报/提醒/阅读助手...）
+      语音触发 → TTS 播提示语（"已发送到渠道"）+ 渠道发完整结果
+      渠道触发 → 渠道回复完整结果
+  voice-tool（天气/时间/简单查询...）
+      语音触发 → TTS 直接播报
+      渠道触发 → 渠道回复
+  无工具调用（纯对话）
+      哪个渠道进来就从哪个渠道回复
 ```
 
 ---
@@ -40,10 +45,23 @@
 | 调用哪个工具 | LLM 自己决定 | 根据工具描述和意图匹配，4B 够用 |
 | 走哪个通道 | 消息来源决定 | WebSocket 进来 → 语音；飞书 webhook 进来 → 消息，handler 层一行代码 |
 
-**双通道后处理规则**（LLM 输出后，handler 层字符串判断，无需额外 LLM 调用）：
-- 含 `http://` / ` ``` ` / `|`（表格）→ TTS 播"详情已发飞书" + 飞书发完整响应
-- 字数 > 150 → TTS 播首句 + 飞书发完整响应（system prompt 要求 LLM 首句为结论句）
-- 否则 → 仅当前通道（语音 → TTS，消息 → 消息回复）
+**输出路由规则**（工具维度，在 AgentLoop tool_call 完成后执行，与流式 TTS 不冲突）：
+
+维护两个工具列表（配置文件可覆盖）：
+```go
+// 结果发渠道，语音触发时播提示语
+var channelTools = []string{
+    "akshare", "stock_monitor", "rss_fetch", "morning_brief",
+    "web_fetch", "schedule_reminder", "read_article",
+}
+// 结果直接 TTS 播报
+var voiceTools = []string{
+    "get_weather", "get_time", "calculator",
+}
+// 不在列表 → 走调用来源渠道（语音→TTS，消息→消息回复）
+```
+
+**与流式 TTS 的兼容**：工具调用发生在流水线的工具执行阶段（非 token streaming 阶段），tool result 注入后 LLM 再次流式输出最终答案，此时再做路由判断，不影响流式体验。
 
 ### 引擎迁移路线（功能完成后再做）
 
@@ -82,28 +100,28 @@ picoclaw 原生支持 17 个渠道，无需额外开发。选型原则：国内�
 
 ## 服务部署方案
 
-### 当前开发环境（过渡方案，阶段一~五）
+### 当前开发环境（阶段一~五）
 
 ```
 Windows 主机
-├── llama-server port 8080：Qwen3-4B-Q4_K_M（全功能统一模型）
+├── Ollama（GPU 推理，OLLAMA_HOST=0.0.0.0，模型 qwen3:4b）
 └── WSL2 (ubuntu2404)
-    ├── jarvis-voice   api_base: http://10.255.255.254:8080/v1
-    └── picoclaw       api_base: http://10.255.255.254:8080/v1
+    ├── jarvis-voice   api_base: http://10.255.255.254:11434/v1
+    └── picoclaw       api_base: http://10.255.255.254:11434/v1
 
 JarvisCore（UE5，Windows）→ WSL jarvis-voice :18790
 ```
 
-> 注：当前仍用 Ollama 过渡（已配置 OLLAMA_HOST=0.0.0.0）。阶段六前期替换为 llama-server，API 完全兼容，只改端口，无需修改任何业务代码。
+> 阶段六前期替换为 llama-server（llama.cpp 内置，OpenAI 兼容），只改 `api_base` 端口，业务代码零改动。
 
 ### 中期生产环境（Docker，阶段五）
 
 ```
 Linux 服务器（有 GPU）
-├── llama-server 容器   GPU 推理（Qwen3-4B + Qwen2.5-7B），端口 8080/8081
-├── jarvis-voice 容器   连接 llama-server
-├── picoclaw 容器       连接 llama-server
-└── nginx 容器          TLS 终止，反向代理
+├── ollama 容器        GPU 推理，挂载模型目录
+├── jarvis-voice 容器  连接 ollama
+├── picoclaw 容器      连接 ollama
+└── nginx 容器         TLS 终止，反向代理
 ```
 
 ### 终态（All-in-One DLL，阶段六）
@@ -158,7 +176,7 @@ Windows / Linux（有 GPU）
     └── 长内容 → 转发 picoclaw 消息渠道
     ↕ 进程内直接调用（无 HTTP 跳转）
 [picoclaw] AI 引擎（Go，picoclaw fork feature/jarvis）
-    ├── 持久记忆（memory_id = device_id）
+    ├── 持久记忆（memory_id = owner_id，全渠道统一）
     ├── 工具：DuckDuckGo 搜索 / WebFetch / CronTool / MCP
     ├── 消息渠道：飞书 + Telegram 双向文字
     └── AgentLoop（RunStreamAgentLoop）
@@ -238,24 +256,19 @@ cmd/jarvis-voice/             ← 独立语音网关 module（新增）
 ```
 picoclaw/              (fork 根目录)
 ├── cmd/
-│   ├── picoclaw/      (现有，新增 /voice/stream 路由)
+│   ├── picoclaw/      (现有)
 │   └── jarvis-voice/  (新增，语音网关 binary)
 ├── pkg/
 │   ├── asr/           (新增)
-│   │   ├── provider.go    接口定义
-│   │   ├── xunfei/        讯飞 WebSocket
-│   │   └── aliyun/        阿里云 NLS WebSocket
+│   │   ├── provider.go    接口定义（四层：Provider/StreamingProvider/StreamingSession/RealtimeProvider）
+│   │   └── doubao/        豆包实时 ASR WebSocket（已实现）
 │   ├── tts/           (新增)
 │   │   ├── provider.go    接口定义
-│   │   ├── xunfei/        讯飞 WebSocket
-│   │   ├── huoshan/       火山引擎 WebSocket
-│   │   └── http/          通用 HTTP 流式 adapter (fish-speech 等本地 AI 服务)
-│   ├── admin/         (新增，阶段二)
-│   ├── configdb/      (新增，阶段二；SQLite)
+│   │   └── doubao/        豆包 TTS WebSocket 流式（已实现）
 │   ├── providers/     (修改：新增 StreamingProvider 接口)
 │   │   └── openai_compat/ (修改：实现 ChatStream)
 │   └── agent/         (修改：新增 stream.go)
-└── web/               (已有；React + shadcn/ui，阶段二扩展 ASR/TTS/设备页面)
+└── web/               (已有；React + shadcn/ui)
 ```
 
 ---
@@ -324,10 +337,8 @@ picoclaw/              (fork 根目录)
    type Factory func(cfg map[string]any) (Provider, error)
    ```
 
-8. `pkg/asr/xunfei/`：讯飞实时识别 WebSocket
-9. `pkg/asr/aliyun/`：阿里云 NLS WebSocket
-10. Provider 注册工厂：`asr.Register(name, factory)`，按 config.yaml 的 `asr.provider` 字段选择
-11. 云端 provider per-connection 实例
+8. `pkg/asr/doubao/`：豆包实时 ASR WebSocket（已实现）
+9. Provider 注册工厂：`asr.Register(name, factory)`，按 config 的 `asr.provider` 字段选择
 
 ### Sprint 1.3 — TTS 插件系统（2 天）✅
 
@@ -342,9 +353,7 @@ picoclaw/              (fork 根目录)
     type Factory func(cfg map[string]any) (Provider, error)
     ```
 
-13. `pkg/tts/xunfei/`：讯飞 TTS WebSocket 流式
-14. `pkg/tts/huoshan/`：火山引擎 TTS WebSocket 流式
-15. `pkg/tts/http/`：通用 HTTP chunked streaming adapter（给 fish-speech 等本地 AI 服务用，POST text → stream PCM 回）
+10. `pkg/tts/doubao/`：豆包 TTS WebSocket 流式（已实现）
 
 ### Sprint 1.4 — jarvis-voice 语音网关（3 天）✅
 
@@ -443,38 +452,32 @@ picoclaw/              (fork 根目录)
 27. 飞书自建应用申请，获取 App ID / Secret / Verification Token
 28. `~/.picoclaw/config.json` 配置 `channels.feishu`
 29. Telegram bot 同步配置（开发调试用）
-30. 验证：飞书发消息 → AI 回复文字
+30. **跨渠道记忆统一**：picoclaw config 设置全局 `owner_id`（如 "kkroid"），所有渠道 agent 调用强制使用同一 session_id，语音端同步改为 owner_id（不再用 device_id），确保语音和消息渠道共享同一记忆
+31. 验证：渠道发消息 → AI 回复（含历史记忆）
 
-### Sprint 2.2 — 双通道输出路由（2 天）
+### Sprint 2.2 — 工具维度输出路由（2 天）
 
-31. `cmd/jarvis-voice/handler.go` 新增 `routeOutput()` 方法，LLM 完整响应后执行：
+32. `cmd/jarvis-voice/handler.go` 维护两个工具列表，在 tool_call 完成后路由（不影响流式 TTS）：
     ```go
-    func routeOutput(resp string, fromVoice bool) (ttsText string, feishuText string) {
-        needDual := strings.Contains(resp, "http") ||
-                    strings.Contains(resp, "```") ||
-                    strings.Contains(resp, "|") ||   // 表格
-                    len([]rune(resp)) > 150
-        if needDual {
-            feishuText = resp
-            if fromVoice {
-                ttsText = firstSentence(resp) // system prompt 保证首句是结论
-            }
-        } else {
-            if fromVoice {
-                ttsText = resp
-            } else {
-                feishuText = resp
-            }
-        }
-        return
+    // 结果发渠道；语音触发时 TTS 播提示语
+    var channelTools = map[string]string{
+        "akshare":          "数据已发送到渠道",
+        "stock_monitor":    "监控结果已发送到渠道",
+        "rss_fetch":        "新闻已发送到渠道",
+        "morning_brief":    "晨报已发送到渠道",
+        "web_fetch":        "内容已发送到渠道",
+        "schedule_reminder":"提醒已设置，到时渠道通知",
+        "read_article":     "总结已发送到渠道",
     }
+    // 结果直接 TTS 播报；渠道触发时渠道回复
+    var voiceTools = []string{"get_weather", "get_time", "calculator"}
+    // 不在列表 → 来源渠道回复（语音→TTS，消息→消息）
     ```
-    - **摘要零延迟**：system prompt 写"回答先给一句话结论"，截首句即摘要，无需额外 LLM 调用
-    - **通道来源**：WebSocket 进来 `fromVoice=true`，飞书 webhook 进来 `fromVoice=false`
-32. 验证：语音问"帮我解释量化交易" → TTS 播首句结论 + 飞书收完整回复
-33. 验证：飞书发"总结这篇文章 https://..." → 飞书收总结（不触发 TTS）
+33. 验证：语音问"今天天气" → TTS 直接播报（voice-tool）
+34. 验证：语音问"苹果股价" → TTS 播"数据已发送到渠道" + 渠道收完整数据（channel-tool）
+35. 验证：渠道发"总结 https://..." → 渠道收总结（不触发 TTS）
 
-**阶段二交付物**：语音 + 飞书消息双通道打通，长内容/含链接自动走双通道。
+**阶段二交付物**：双渠道打通，跨渠道记忆统一，工具维度输出路由可用。
 
 ---
 
@@ -504,7 +507,7 @@ picoclaw/              (fork 根目录)
 39. `workspace/skills/morning-brief/` 新增晨报 skill：
     - CronTool `0 7 * * *` 触发
     - 抓取：天气 / 热点新闻 3 条 / 关注股票涨跌
-    - 输出：语音播 30 秒摘要 + 飞书发完整晨报
+    - **主动推送只走渠道**（CronTool 触发时无活跃语音 session）；当天首次开口时 jarvis-voice 检查待播队列，播报 30 秒摘要
 40. 热点订阅：用户指定关键词，每日推送 3 条摘要到飞书
 
 **阶段三交付物**：晨报自动送达，股票异动主动告警，关键词热点订阅。
@@ -680,6 +683,6 @@ type Provider interface {
 - [x] JarvisCore 重连退避策略 — 线性 1~10s，已提交 `3b1a6bf`
 - [ ] **Ollama 宿主机 IP 固定**：WSL2 每次重启后 `10.255.255.254` 是否稳定？若不稳定考虑写入 `/etc/hosts`
 - [ ] **飞书渠道权限**：个人版飞书 webhook 是否支持机器人主动推送，需实测
-- [ ] **语音 + 消息共享记忆**：确保飞书和语音端使用同一 `memory_id`（device_id），上下文连贯
-- [ ] **双通道阈值校准**：150 字阈值和首句截取的实际效果，跑通后根据体验调整
+- [ ] **跨渠道记忆**：已明确用 owner_id 统一，实现在 Sprint 2.1
+- [ ] **双通道阈值校准**：channelTools / voiceTools 列表在实际场景下的覆盖率，跑通后根据体验补充
 - [ ] **多模型路由（后期）**：功能全部验收后再决定是否引入云端，云端候选 DeepSeek V3 / 通义 qwen-plus
