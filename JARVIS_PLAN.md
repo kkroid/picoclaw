@@ -16,95 +16,50 @@
 - 阅读助手（发链接 → AI 总结回复）
 - 可扩展 MCP 接入任意业务能力
 
-**输出路由逻辑**（agent 自行判断）：
+**输出路由逻辑**（handler 层后处理，不依赖 LLM 判断）：
 ```
-语音短问答       → TTS 语音回复
-语音/消息长问答  → 语音播报摘要 + 消息发详情
-股票/新闻监控   → 消息推送（重要事件同时触发语音提醒）
-定时任务         → 消息通知
+语音/消息进入 → LLM 生成完整回复
+含 URL/代码块/表格    → TTS 播"详情已发飞书" + 飞书发完整内容
+字数 > 150            → TTS 播首句（system prompt 要求首句为结论）+ 飞书发完整内容
+否则                  → 仅 TTS（消息渠道进来则仅消息回复）
 ```
 
 ---
 
 ## 本地大模型选型
 
-### 引擎选型：llama.cpp
+### 当前阶段：Ollama + qwen3:4b，不引入任何路由
 
-Ollama 本质是 llama.cpp 的包装层。All-in-One 目标下，按三阶段向 llama.cpp 直接嵌入迁移：
+**功能实现阶段的唯一优先级是流程跑通**，模型好坏、延迟高低都是后话。先用现有 Ollama 跑完所有功能（工具调用、记忆、渠道、订阅），全部验收后再做模型优化。
 
-| 方案 | 集成方式 | 独立进程 | 分发 | 阶段 |
-|---|---|---|---|---|
-| Ollama | HTTP（守护进程） | 是 | 高（需安装） | 当前过渡 |
-| **llama-server** | HTTP（OpenAI 兼容） | 是（单 exe） | 中（单文件） | 阶段六前期 |
-| **go-llama CGo** | in-process | 否 | 低（随 DLL）| 阶段六后期 ← 终态 |
+**三个关键判断，全部不需要额外逻辑**：
 
-- **llama-server**：llama.cpp 内置服务器，Windows 原生 exe，与 Ollama API 完全兼容，替换时只改 `api_base` 端口，代码零改动
-- **go-llama**：llama.cpp 的 Go CGo 绑定，直接嵌入 `jarvis_ai.dll`，消除独立进程，实现真正 All-in-One
+| 问题 | 答案 | 依据 |
+|---|---|---|
+| 是否调用工具 | LLM 自己决定 | function calling 机制，qwen3:4b 原生支持 |
+| 调用哪个工具 | LLM 自己决定 | 根据工具描述和意图匹配，4B 够用 |
+| 走哪个通道 | 消息来源决定 | WebSocket 进来 → 语音；飞书 webhook 进来 → 消息，handler 层一行代码 |
 
-### 模型推荐（GGUF 格式，RTX 4090 24GB）
+**双通道后处理规则**（LLM 输出后，handler 层字符串判断，无需额外 LLM 调用）：
+- 含 `http://` / ` ``` ` / `|`（表格）→ TTS 播"详情已发飞书" + 飞书发完整响应
+- 字数 > 150 → TTS 播首句 + 飞书发完整响应（system prompt 要求 LLM 首句为结论句）
+- 否则 → 仅当前通道（语音 → TTS，消息 → 消息回复）
 
-**单模型方案**：`Qwen3-4B-Q4_K_M`（~2.3GB，RTX 4090 全量 GPU offload，首字 ~150ms）
+### 引擎迁移路线（功能完成后再做）
 
-语音对话和分析任务用同一个模型，150ms 首字延迟完全满足实时对话，晨报/投研等异步场景更不在意。双模型只增加复杂度，等真正遇到质量瓶颈再引入第二个模型。
+Ollama 是 llama.cpp 的包装层，All-in-One DLL 终态需要去掉这层包装：
 
-```json
-// config.json（llama-server 替换 Ollama 后）
-{
-  "model_list": [
-    {"model_name": "default", "model": "openai/qwen3-4b", "api_base": "http://127.0.0.1:8080/v1", "api_key": "none"}
-  ]
-}
-```
+| 阶段 | 方案 | 说明 |
+|---|---|---|
+| 当前（功能阶段） | Ollama | 现有，不动 |
+| 阶段六前期 | llama-server | llama.cpp 内置服务器，OpenAI 兼容，只改 `api_base` 端口 |
+| 阶段六后期（终态） | go-llama CGo | in-process，嵌入 `jarvis_ai.dll`，无独立进程 |
 
-### Agent 路由：任务 vs 闲聊
+**模型**：`qwen3:4b`（Ollama）→ `Qwen3-4B-Q4_K_M.gguf`（llama 阶段），~2.3GB，RTX 4090 全量 offload，首字 ~150ms。
 
-**结论**：任务场景本地 4B 够用；闲聊/知识问答本地模型质量不足，按需切云端大模型。
+### 多模型路由（后期备忘，当前不实现）
 
-**为什么任务场景够用**：文档中所有任务（股票、天气、提醒、搜索、晨报、阅读助手）本质是工具调用——模型只需识别意图、格式化 JSON 参数、拼接工具返回结果。这是 pattern matching + JSON 生成，4B 完全胜任。
-
-**为什么闲聊不够**：闲聊/深度知识问答需要大量知识密度、长对话连贯性和复杂推理，这恰恰是小模型的短板。
-
-**路由方案**：picoclaw 支持 per-agent 配置不同模型，在 `jarvis-voice/handler.go` 中调用前做关键词路由，0ms 额外延迟：
-
-```go
-// handler.go
-func routeAgent(text string) string {
-    taskKeywords := []string{
-        "股票", "天气", "提醒", "设置", "查询", "搜索", "新闻",
-        "总结", "链接", "今天", "明天", "多少", "涨跌", "晨报",
-    }
-    for _, kw := range taskKeywords {
-        if strings.Contains(text, kw) {
-            return "jarvis-task" // 本地 4B
-        }
-    }
-    return "jarvis-chat" // 云端大模型
-}
-```
-
-```json
-// config.json 双 agent 配置（尚未固化云端选型，模型名待定）
-{
-  "model_list": [
-    {"model_name": "local", "model": "openai/qwen3-4b",    "api_base": "http://127.0.0.1:8080/v1",      "api_key": "none"},
-    {"model_name": "cloud", "model": "openai/TO_BE_DECIDED", "api_base": "https://api.TO_BE_DECIDED/v1", "api_key": "sk-xxx"}
-  ],
-  "agents": {
-    "jarvis-task": {"model_name": "local"},
-    "jarvis-chat": {"model_name": "cloud"}
-  }
-}
-```
-
-**云端选型候选**（尚未决定，参考）：
-
-| 供应商 | 模型 | 需代理 | 价格参考 | 备注 |
-|---|---|---|---|---|
-| DeepSeek | deepseek-v3 | 否 | 极低 | 国内直连，中文强，OpenAI 兼容 |
-| 通义千问 | qwen-plus | 否 | 有免费额度 | 国内直连，OpenAI 兼容 |
-| Claude | haiku-3.5 | 是 | 低 | 速度快 |
-
-> 此方案当前**不实现**，待任务场景稳定后再引入。关键词路由准确率约 85%，误判代价低（多调几次云端 API），是务实起点。规则不够时可升级为本地小分类模型（fasttext，~1MB）。
+当出现质量瓶颈时，按 channel 切分：语音 → 本地 4B（延迟优先），消息 → 云端（质量优先）。云端候选：DeepSeek V3（国内直连，极低价格），通义 qwen-plus（有免费额度）。切换时 picoclaw per-agent 配置，handler 一行判断，无需架构改动。
 
 ---
 
@@ -490,16 +445,36 @@ picoclaw/              (fork 根目录)
 29. Telegram bot 同步配置（开发调试用）
 30. 验证：飞书发消息 → AI 回复文字
 
-### Sprint 2.2 — 输出路由逻辑（2 天）
+### Sprint 2.2 — 双通道输出路由（2 天）
 
-31. `cmd/jarvis-voice/handler.go` 新增 `routeOutput()` 方法：
-    - 回复字数 ≤ 50 字 → TTS 语音
-    - 回复字数 > 50 字 → 语音播短摘要 + picoclaw MessageTool 发飞书详情
-    - 含 URL / 代码 / 表格 → 直接发消息，不走语音
-32. agent system prompt 加入路由提示，输出 `[route:voice]` / `[route:message]` 标记
-33. 验证：语音问"帮我解释量化交易" → 语音说摘要 + 飞书收完整回复
+31. `cmd/jarvis-voice/handler.go` 新增 `routeOutput()` 方法，LLM 完整响应后执行：
+    ```go
+    func routeOutput(resp string, fromVoice bool) (ttsText string, feishuText string) {
+        needDual := strings.Contains(resp, "http") ||
+                    strings.Contains(resp, "```") ||
+                    strings.Contains(resp, "|") ||   // 表格
+                    len([]rune(resp)) > 150
+        if needDual {
+            feishuText = resp
+            if fromVoice {
+                ttsText = firstSentence(resp) // system prompt 保证首句是结论
+            }
+        } else {
+            if fromVoice {
+                ttsText = resp
+            } else {
+                feishuText = resp
+            }
+        }
+        return
+    }
+    ```
+    - **摘要零延迟**：system prompt 写"回答先给一句话结论"，截首句即摘要，无需额外 LLM 调用
+    - **通道来源**：WebSocket 进来 `fromVoice=true`，飞书 webhook 进来 `fromVoice=false`
+32. 验证：语音问"帮我解释量化交易" → TTS 播首句结论 + 飞书收完整回复
+33. 验证：飞书发"总结这篇文章 https://..." → 飞书收总结（不触发 TTS）
 
-**阶段二交付物**：语音 + 飞书消息双通道打通，长内容自动路由到消息。
+**阶段二交付物**：语音 + 飞书消息双通道打通，长内容/含链接自动走双通道。
 
 ---
 
@@ -703,16 +678,8 @@ type Provider interface {
 
 - [x] xiaozhi 协议消息格式 — 已对照 JarvisCore 源码确认并实现
 - [x] JarvisCore 重连退避策略 — 线性 1~10s，已提交 `3b1a6bf`
-- [ ] **Ollama 宿主机 IP 固定**：WSL2 每次重启后 `10.255.255.254` 是否稳定？若不稳定考虑写入 `/etc/hosts` 或用 `host.docker.internal`
-- [ ] **飞书渠道权限**：个人版飞书 webhook 是否支持机器人主动推送，需实测权限范围
+- [ ] **Ollama 宿主机 IP 固定**：WSL2 每次重启后 `10.255.255.254` 是否稳定？若不稳定考虑写入 `/etc/hosts`
+- [ ] **飞书渠道权限**：个人版飞书 webhook 是否支持机器人主动推送，需实测
 - [ ] **语音 + 消息共享记忆**：确保飞书和语音端使用同一 `memory_id`（device_id），上下文连贯
-- [ ] **输出路由边界**：50 字分界是否合理，或改为由 agent 输出 `[route:xxx]` 标记来控制
-- [ ] **闲聊路由云端选型**：DeepSeek V3 vs 通义 qwen-plus，确定后填入 config.json `cloud` model_list；当前保持纯本地，任务稳定后再引入
-- [ ] **akshare MCP**：Python 依赖较重，考虑用 Go 实现轻量版或独立 Docker 容器隔离
-- [ ] **TLS 支持**：内网开发可暂用 HTTP，服务器上线后需 WSS/HTTPS
-- [ ] JarvisCore `refactor/v4-provider-redesign` 分支何时合入 master？合入前需联调验证 barge-in + AEC 路径
-- [ ] `deps/` 目录（libhv/opus 共 38MB）是否纳入 git 管理，或改用 CMake FetchContent
-- [ ] **go-llama 绑定选型**：`go-llama.cpp` vs `llama-go` vs 自写 CGo wrapper，确认维护活跃度后固化
-- [ ] **Go DLL CGo 工具链**：MinGW-w64（MSYS2）vs LLVM/Clang，确认与 UE5 MSVC 编译环境无冲突
-- [ ] **llama-server 分发方式**：纳入项目 `ThirdParty/` 还是文档引导手动下载；确定后写启动脚本（替换 Ollama）
-- [ ] **jarvis_ai.dll API 版本管理**：C API 一旦固化，UE 侧与 Go 侧需同步版本号，考虑加 `jarvis_api_version()` 接口防止版本漂移
+- [ ] **双通道阈值校准**：150 字阈值和首句截取的实际效果，跑通后根据体验调整
+- [ ] **多模型路由（后期）**：功能全部验收后再决定是否引入云端，云端候选 DeepSeek V3 / 通义 qwen-plus
