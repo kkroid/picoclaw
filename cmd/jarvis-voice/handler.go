@@ -147,7 +147,8 @@ type session struct {
 	registry  *deviceRegistry
 	// connCancel 由 deviceRegistry.register 在设备重连时调用，强制关闭本连接。
 	connCancel context.CancelFunc
-	// llmSessOverride：通过 JARVIS_LLM_SESSION 强制指定的 LLM 记忆 session，优先级最高
+	// llmSessOverride：通过 JARVIS_LLM_SESSION 设置的 owner_id（如 "kkroid"），优先级最高。
+	// 同时作为 connID 基础和强制 memoryID，确保所有渠道共享同一记忆上下文（跨渠道记忆统一）。
 	llmSessOverride string
 	// deviceID：从 hello 消息提取的设备标识（MAC 或 device_id）
 	deviceID string
@@ -275,8 +276,11 @@ func (s *session) handleText(data []byte) {
 				s.turnID = s.connID + "_" + ts
 				log.Printf("jarvis-voice: turn_id=%s (server-generated)", s.turnID)
 			}
-			// memory_id
-			if msg.MemoryID != "" {
+			// memory_id：owner_id 优先级最高，确保跨渠道记忆统一；
+	// 未设置时依次回退：客户端指定 > device_id > connID
+			if s.llmSessOverride != "" {
+				s.memoryID = s.llmSessOverride
+			} else if msg.MemoryID != "" {
 				s.memoryID = msg.MemoryID
 			} else if s.deviceID != "" {
 				s.memoryID = s.deviceID
