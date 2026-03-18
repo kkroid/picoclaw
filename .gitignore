@@ -13,6 +13,9 @@ build/
 # jarvis-voice binary (cmd/jarvis-voice/ module)
 /jarvis-voice
 cmd/jarvis-voice/jarvis-voice
+# picoclaw-voice binary (cmd/picoclaw-voice/ module)
+/picoclaw-voice
+cmd/picoclaw-voice/picoclaw-voice
 cmd/**/workspace
 
 # Picoclaw specific
@@ -28,6 +31,7 @@ build/
 # Secrets & Config (keep templates, ignore actual secrets)
 .env
 config/config.json
+config/config.yaml
 
 # Test
 coverage.txt

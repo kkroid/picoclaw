@@ -98,10 +98,15 @@ func newProvider(cfg map[string]any) (*provider, error) {
 
 func (p *provider) Name() string { return "doubao" }
 
-// Transcribe sends PCM to Doubao streaming ASR and returns the final text.
-func (p *provider) Transcribe(ctx context.Context, pcm []int16) (string, error) {
+// AudioFormat 声明 doubao ASR 期望收到原始 PCM 字节（网关透传，无需 Opus 解码）。
+func (p *provider) AudioFormat() asr.AudioFormat {
+	return asr.AudioFormat{Codec: "pcm", SampleRate: 16000, Channels: 1}
+}
+
+// Transcribe sends PCM frames to Doubao streaming ASR and returns the final text.
+func (p *provider) Transcribe(ctx context.Context, frames [][]byte) (string, error) {
 	var final string
-	err := p.transcribeInternal(ctx, pcm, func(text string, isDef bool) {
+	err := p.transcribeInternal(ctx, asr.MergeFrames(frames), func(text string, isDef bool) {
 		if isDef {
 			final = text
 		}
@@ -109,11 +114,11 @@ func (p *provider) Transcribe(ctx context.Context, pcm []int16) (string, error) 
 	return final, err
 }
 
-// TranscribeStream sends PCM to Doubao streaming ASR and calls callback for each
+// TranscribeStream sends PCM frames to Doubao streaming ASR and calls callback for each
 // incremental result. callback is invoked only when recognized text changes, and
 // final=true when recognition is complete.
-func (p *provider) TranscribeStream(ctx context.Context, pcm []int16, callback asr.ResultCallback) error {
-	return p.transcribeInternal(ctx, pcm, callback)
+func (p *provider) TranscribeStream(ctx context.Context, frames [][]byte, callback asr.ResultCallback) error {
+	return p.transcribeInternal(ctx, asr.MergeFrames(frames), callback)
 }
 
 // connect 建立到豆包 ASR 服务的 WebSocket 连接并完成握手。
@@ -155,11 +160,11 @@ func (p *provider) connect(ctx context.Context) (*websocket.Conn, error) {
 	// 发送初始化帧（协议握手）
 	// Model 2.0（seedasr）：鉴权纯靠 HTTP Header，body 里不需要 app 节。
 	initReq := map[string]any{
-		"user": map[string]any{"uid": "jarvis"},
+		"user": map[string]any{"uid": "picoclaw"},
 		"request": map[string]any{
 			"model_name":      "bigmodel",
 			"show_utterances": true,
-			"result_type":     "single",
+			"result_type":     "stream",
 			"end_window_size": 200,
 		},
 		"audio": map[string]any{
@@ -193,27 +198,27 @@ func (p *provider) connect(ctx context.Context) (*websocket.Conn, error) {
 }
 
 // transcribeInternal is the core implementation shared by Transcribe and TranscribeStream.
-func (p *provider) transcribeInternal(ctx context.Context, pcm []int16, callback asr.ResultCallback) error {
+// pcmBytes: 16kHz 16-bit mono PCM, little-endian, raw bytes（由 MergeFrames 合并后传入）。
+func (p *provider) transcribeInternal(ctx context.Context, pcmBytes []byte, callback asr.ResultCallback) error {
 	conn, err := p.connect(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	// Send PCM in 100ms chunks, last chunk has flagLastFrame
-	const chunkSamples = 1600 // 100ms at 16kHz
-	for i := 0; i < len(pcm); {
-		end := i + chunkSamples
-		if end > len(pcm) {
-			end = len(pcm)
+	// Send PCM in 100ms chunks（3200 bytes = 1600 samples × 2 bytes），last chunk has flagLastFrame
+	const chunkBytes = 3200
+	for i := 0; i < len(pcmBytes); {
+		end := i + chunkBytes
+		if end > len(pcmBytes) {
+			end = len(pcmBytes)
 		}
-		isLast := end >= len(pcm)
+		isLast := end >= len(pcmBytes)
 		flags := byte(flagNormal)
 		if isLast {
 			flags = flagLastFrame
 		}
-		raw := int16ToBytes(pcm[i:end])
-		audioFrame, err := buildAudioFrame(flags, raw)
+		audioFrame, err := buildAudioFrame(flags, pcmBytes[i:end])
 		if err != nil {
 			return fmt.Errorf("doubao asr: build audio frame: %w", err)
 		}
@@ -327,8 +332,9 @@ func (p *provider) OpenSession(ctx context.Context, callback asr.ResultCallback)
 	return sess, nil
 }
 
-// SendAudio pushes a PCM chunk to the live ASR session.
-func (ss *streamingSession) SendAudio(pcm []int16, isLast bool) error {
+// SendAudio pushes a raw PCM frame to the live ASR session.
+// frame: 16kHz 16-bit mono PCM bytes（与 AudioFormat 声明一致）。
+func (ss *streamingSession) SendAudio(frame []byte, isLast bool) error {
 	select {
 	case <-ss.closedCh:
 		return asr.ErrSessionClosed
@@ -338,14 +344,13 @@ func (ss *streamingSession) SendAudio(pcm []int16, isLast bool) error {
 	if isLast {
 		flags = flagLastFrame
 	}
-	raw := int16ToBytes(pcm)
-	frame, err := buildAudioFrame(flags, raw)
+	audioFrame, err := buildAudioFrame(flags, frame)
 	if err != nil {
 		return err
 	}
 	ss.sendMu.Lock()
 	defer ss.sendMu.Unlock()
-	return ss.conn.WriteMessage(websocket.BinaryMessage, frame)
+	return ss.conn.WriteMessage(websocket.BinaryMessage, audioFrame)
 }
 
 // Wait blocks until the final ASR result is available, ctx is cancelled,
@@ -492,12 +497,4 @@ func gzipBytes(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
-}
-
-func int16ToBytes(pcm []int16) []byte {
-	buf := make([]byte, len(pcm)*2)
-	for i, s := range pcm {
-		binary.LittleEndian.PutUint16(buf[i*2:], uint16(s))
-	}
-	return buf
 }

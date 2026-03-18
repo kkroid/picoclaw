@@ -124,24 +124,6 @@ func TestBuildAudioFrame_LastFlag(t *testing.T) {
 	}
 }
 
-// ---- int16ToBytes ----
-
-func TestInt16ToBytes_LittleEndian(t *testing.T) {
-	pcm := []int16{0x0102, -1}
-	b := int16ToBytes(pcm)
-	if len(b) != 4 {
-		t.Fatalf("len = %d, want 4", len(b))
-	}
-	// 0x0102 little-endian → 0x02 0x01
-	if b[0] != 0x02 || b[1] != 0x01 {
-		t.Errorf("sample[0] bytes = [%02x %02x], want [02 01]", b[0], b[1])
-	}
-	// -1 = 0xFFFF little-endian → 0xFF 0xFF
-	if b[2] != 0xFF || b[3] != 0xFF {
-		t.Errorf("sample[1] bytes = [%02x %02x], want [FF FF]", b[2], b[3])
-	}
-}
-
 // ---- parseASRResult ----
 
 func buildMockResponse(code int, text string, definite bool) []byte {
@@ -163,9 +145,12 @@ func buildMockResponse(code int, text string, definite bool) []byte {
 
 func TestParseASRResult_DefiniteUtterance(t *testing.T) {
 	data := buildMockResponse(1000, "你好世界", true)
-	text, done := parseASRResult(data)
+	text, definite, done := parseASRResult(data)
 	if text != "你好世界" {
 		t.Errorf("text = %q, want '你好世界'", text)
+	}
+	if !definite {
+		t.Error("definite = false, want true")
 	}
 	if !done {
 		t.Error("done = false, want true")
@@ -174,9 +159,12 @@ func TestParseASRResult_DefiniteUtterance(t *testing.T) {
 
 func TestParseASRResult_IndefiniteUtterance(t *testing.T) {
 	data := buildMockResponse(1000, "你好", false)
-	text, done := parseASRResult(data)
-	if text != "" {
-		t.Errorf("text = %q, want empty (not definite)", text)
+	text, definite, done := parseASRResult(data)
+	if text != "你好" {
+		t.Errorf("text = %q, want '你好' (intermediate result)", text)
+	}
+	if definite {
+		t.Error("definite = true, want false for non-definite")
 	}
 	if done {
 		t.Error("done = true, want false for non-definite")
@@ -185,14 +173,14 @@ func TestParseASRResult_IndefiniteUtterance(t *testing.T) {
 
 func TestParseASRResult_NoSpeechCode(t *testing.T) {
 	data := buildMockResponse(1013, "", false)
-	text, done := parseASRResult(data)
+	text, _, done := parseASRResult(data)
 	if text != "" || !done {
 		t.Errorf("got text=%q done=%v, want empty/true for code 1013 (silent, session ends)", text, done)
 	}
 }
 
 func TestParseASRResult_TooShort(t *testing.T) {
-	_, done := parseASRResult([]byte{0x11, 0x00})
+	_, _, done := parseASRResult([]byte{0x11, 0x00})
 	if done {
 		t.Error("expected done=false for short frame")
 	}
@@ -201,7 +189,7 @@ func TestParseASRResult_TooShort(t *testing.T) {
 func TestParseASRResult_ServerError(t *testing.T) {
 	// msgType 0x0F in byte[1] upper nibble
 	data := []byte{0x11, (msgTypeServerError << 4), 0x00, 0x00, 0, 0, 0, 42, 0, 0, 0, 0}
-	_, done := parseASRResult(data)
+	_, _, done := parseASRResult(data)
 	if !done {
 		t.Error("expected done=true for server error frame")
 	}

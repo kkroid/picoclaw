@@ -11,25 +11,49 @@ import (
 	"fmt"
 )
 
+// AudioFormat describes the audio wire format a provider expects from the device.
+// The gateway uses this to populate helloReply.audio_params; devices must send accordingly.
+type AudioFormat struct {
+	Codec      string // "pcm" | "opus"
+	SampleRate int    // Hz, e.g. 16000
+	Channels   int    // 1 = mono
+}
+
+// MergeFrames concatenates audio frames into a single byte slice.
+// Useful for batch-mode providers that process all audio at once.
+func MergeFrames(frames [][]byte) []byte {
+	total := 0
+	for _, f := range frames {
+		total += len(f)
+	}
+	merged := make([]byte, 0, total)
+	for _, f := range frames {
+		merged = append(merged, f...)
+	}
+	return merged
+}
+
 // Provider is the ASR interface.
-// Audio format: 16kHz 16-bit mono PCM (全局约定不传 sampleRate).
 type Provider interface {
 	Name() string
-	// Transcribe converts PCM audio to text.
-	// pcm: 16kHz 16-bit mono samples (端侧 VAD 已过滤，只传有效语音段)
-	Transcribe(ctx context.Context, pcm []int16) (string, error)
+	// AudioFormat returns the audio format this provider expects from the device.
+	// The gateway advertises this via helloReply so the device sends the correct format.
+	AudioFormat() AudioFormat
+	// Transcribe converts audio frames to text.
+	// frames: raw audio bytes in the format declared by AudioFormat().
+	Transcribe(ctx context.Context, frames [][]byte) (string, error)
 }
 
 // ResultCallback receives incremental ASR results.
 // final=true 表示识别完成（definite），后续不再有回调。
 type ResultCallback func(text string, final bool)
 
-// StreamingProvider extends Provider with streaming (incremental) ASR support.
+// StreamingProvider extends Provider with batch streaming ASR support.
 // The callback is invoked each time the recognized text changes, and once more
 // with final=true when recognition is complete.
 type StreamingProvider interface {
 	Provider
-	TranscribeStream(ctx context.Context, pcm []int16, callback ResultCallback) error
+	TranscribeStream(ctx context.Context, frames [][]byte, callback ResultCallback) error
 }
 
 // ErrSessionClosed is returned by StreamingSession.Wait when the session
@@ -40,8 +64,9 @@ var ErrSessionClosed = errors.New("asr: session closed")
 // Open with RealtimeProvider.OpenSession; feed audio with SendAudio;
 // signal end-of-audio by passing isLast=true; then call Wait for the result.
 type StreamingSession interface {
-	// SendAudio pushes a PCM chunk. Set isLast=true on the final chunk.
-	SendAudio(pcm []int16, isLast bool) error
+	// SendAudio pushes a raw audio frame. Set isLast=true on the final frame.
+	// frame: raw audio bytes in the format declared by the provider's AudioFormat().
+	SendAudio(frame []byte, isLast bool) error
 	// Wait blocks until the final recognition result is available.
 	Wait(ctx context.Context) (string, error)
 	// Close aborts the session and releases all resources.
