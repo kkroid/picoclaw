@@ -28,6 +28,7 @@ import (
 	_ "github.com/sipeed/picoclaw/pkg/channels/wecom"
 	_ "github.com/sipeed/picoclaw/pkg/channels/whatsapp"
 	_ "github.com/sipeed/picoclaw/pkg/channels/whatsapp_native"
+	_ "github.com/sipeed/picoclaw/pkg/channels/xiaozhi"
 	"github.com/sipeed/picoclaw/pkg/config"
 	"github.com/sipeed/picoclaw/pkg/cron"
 	"github.com/sipeed/picoclaw/pkg/devices"
@@ -219,6 +220,13 @@ func setupAndStartServices(
 	// Inject channel manager and media store into agent loop
 	agentLoop.SetChannelManager(services.ChannelManager)
 	agentLoop.SetMediaStore(services.MediaStore)
+
+	// 注入 AgentLoop 到需要直接流式调用的 channel（如 xiaozhi 语音通道）
+	if ch, ok := services.ChannelManager.GetChannel("xiaozhi"); ok {
+		if setter, ok := ch.(interface{ SetAgentLoop(*agent.AgentLoop) }); ok {
+			setter.SetAgentLoop(agentLoop)
+		}
+	}
 
 	// Wire up voice transcription if a supported provider is configured.
 	if transcriber := voice.DetectTranscriber(cfg); transcriber != nil {

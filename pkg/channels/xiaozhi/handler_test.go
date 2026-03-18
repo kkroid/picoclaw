@@ -3,7 +3,7 @@
 //
 // Copyright (c) 2026 PicoClaw contributors
 
-package main
+package xiaozhi
 
 import (
 	"strings"

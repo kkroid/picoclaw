@@ -272,6 +272,7 @@ type ChannelsConfig struct {
 	WeComApp   WeComAppConfig   `json:"wecom_app"`
 	WeComAIBot WeComAIBotConfig `json:"wecom_aibot"`
 	Pico       PicoConfig       `json:"pico"`
+	Xiaozhi    XiaozhiConfig    `json:"xiaozhi"`
 	IRC        IRCConfig        `json:"irc"`
 }
 
@@ -471,6 +472,38 @@ type PicoConfig struct {
 	MaxConnections  int                 `json:"max_connections,omitempty"`
 	AllowFrom       FlexibleStringSlice `json:"allow_from"                  env:"PICOCLAW_CHANNELS_PICO_ALLOW_FROM"`
 	Placeholder     PlaceholderConfig   `json:"placeholder,omitempty"`
+}
+
+// XiaozhiConfig 是 xiaozhi 语音 WebSocket 通道的配置。
+// 通过 ASR+LLM+TTS 三阶段流水线为 xiaozhi-esp32 等客户端提供实时语音对话。
+type XiaozhiConfig struct {
+	Enabled bool   `json:"enabled"            env:"PICOCLAW_CHANNELS_XIAOZHI_ENABLED"`
+	OwnerID string `json:"owner_id,omitempty" env:"PICOCLAW_CHANNELS_XIAOZHI_OWNER_ID"`
+
+	// 共享凭证（doubao ASR/TTS 共用同一火山引擎账号时，只需填这两项）
+	AppID string `json:"appid,omitempty" env:"PICOCLAW_CHANNELS_XIAOZHI_APPID"`
+	Token string `json:"token,omitempty" env:"PICOCLAW_CHANNELS_XIAOZHI_TOKEN"`
+
+	// ASR 配置
+	ASRProvider   string `json:"asr_provider,omitempty"    env:"PICOCLAW_CHANNELS_XIAOZHI_ASR_PROVIDER"`
+	ASRAppID      string `json:"asr_appid,omitempty"       env:"PICOCLAW_CHANNELS_XIAOZHI_ASR_APPID"`
+	ASRToken      string `json:"asr_token,omitempty"       env:"PICOCLAW_CHANNELS_XIAOZHI_ASR_TOKEN"`
+	ASRCluster    string `json:"asr_cluster,omitempty"     env:"PICOCLAW_CHANNELS_XIAOZHI_ASR_CLUSTER"`
+	ASRResourceID string `json:"asr_resource_id,omitempty" env:"PICOCLAW_CHANNELS_XIAOZHI_ASR_RESOURCE_ID"`
+	ASRWsURL      string `json:"asr_ws_url,omitempty"      env:"PICOCLAW_CHANNELS_XIAOZHI_ASR_WS_URL"`
+	ASRMode       string `json:"asr_mode,omitempty"        env:"PICOCLAW_CHANNELS_XIAOZHI_ASR_MODE"`
+
+	// TTS 配置
+	TTSProvider    string `json:"tts_provider,omitempty"     env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_PROVIDER"`
+	TTSAPIURL      string `json:"tts_api_url,omitempty"      env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_API_URL"`
+	TTSAPIKey      string `json:"tts_api_key,omitempty"      env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_API_KEY"`
+	TTSReferenceID string `json:"tts_reference_id,omitempty" env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_REFERENCE_ID"`
+	TTSSampleRate  int    `json:"tts_sample_rate,omitempty"  env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_SAMPLE_RATE"`
+	TTSSeed        int    `json:"tts_seed,omitempty"         env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_SEED"`
+	TTSAppID       string `json:"tts_appid,omitempty"        env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_APPID"`
+	TTSToken       string `json:"tts_token,omitempty"        env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_TOKEN"`
+	TTSCluster     string `json:"tts_cluster,omitempty"      env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_CLUSTER"`
+	TTSVoice       string `json:"tts_voice,omitempty"        env:"PICOCLAW_CHANNELS_XIAOZHI_TTS_VOICE"`
 }
 
 type IRCConfig struct {

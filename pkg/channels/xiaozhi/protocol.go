@@ -3,9 +3,9 @@
 //
 // Copyright (c) 2026 PicoClaw contributors
 
-package main
+package xiaozhi
 
-// protocol.go 定义 picoclaw-voice 与客户端之间的 WebSocket 消息协议。
+// protocol.go 定义 xiaozhi 语音通道与客户端之间的 WebSocket 消息协议。
 //
 // 基础协议：xiaozhi（https://github.com/78/xiaozhi-esp32）
 // 扩展协议：picoclaw 在 xiaozhi 基础上新增若干字段和消息类型，统一标注为 [picoclaw 扩展]。
