@@ -14,6 +14,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/sipeed/picoclaw/pkg/providers/common"
 )
 
 // ChatStream implements providers.StreamingProvider on *Provider.
@@ -34,14 +36,14 @@ func (p *Provider) ChatStream(
 
 	requestBody := map[string]any{
 		"model":    model,
-		"messages": serializeMessages(messages),
+		"messages": common.SerializeMessages(messages),
 		"stream":   true,
 	}
 	if len(tools) > 0 {
 		requestBody["tools"] = tools
 		requestBody["tool_choice"] = "auto"
 	}
-	if maxTokens, ok := asInt(options["max_tokens"]); ok {
+	if maxTokens, ok := common.AsInt(options["max_tokens"]); ok {
 		fieldName := p.maxTokensField
 		if fieldName == "" {
 			lm := strings.ToLower(model)
@@ -53,7 +55,7 @@ func (p *Provider) ChatStream(
 		}
 		requestBody[fieldName] = maxTokens
 	}
-	if temperature, ok := asFloat(options["temperature"]); ok {
+	if temperature, ok := common.AsFloat(options["temperature"]); ok {
 		lm := strings.ToLower(model)
 		if strings.Contains(lm, "kimi") && strings.Contains(lm, "k2") {
 			requestBody["temperature"] = 1.0
@@ -67,7 +69,12 @@ func (p *Provider) ChatStream(
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.apiBase+"/chat/completions", bytes.NewReader(jsonData))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		p.apiBase+"/chat/completions",
+		bytes.NewReader(jsonData),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -86,7 +93,11 @@ func (p *Provider) ChatStream(
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
-		return nil, fmt.Errorf("API request failed: status=%d body=%s", resp.StatusCode, responsePreview(body, 128))
+		return nil, fmt.Errorf(
+			"API request failed: status=%d body=%s",
+			resp.StatusCode,
+			common.ResponsePreview(body, 128),
+		)
 	}
 
 	return parseStreamResponse(resp.Body, onToken)

@@ -11,20 +11,21 @@ import (
 )
 
 // AudioFormat 描述 TTS provider 的输出音频格式，由 provider 自身声明。
-// 网关通过 helloReply.tts_params 下发给客户端，客户端据此初始化解码器。
+// 网关通过 helloReply.tts_params 下发给客户端，客户端据此初始化播放器/解封装器/解码器。
 type AudioFormat struct {
-	Codec      string // 编码格式，如 "opus"、"pcm"
+	Format     string // 容器或线格式，如 "ogg"、"pcm"
+	Codec      string // 编码格式，如 "opus"、"raw"
 	SampleRate int    // 采样率，如 16000
 	Channels   int    // 声道数，1 = 单声道
 }
 
 // Provider is the TTS interface.
-// AudioFormat 由 provider 自身声明；SynthesizeFrames 输出与之对应格式的帧。
+// AudioFormat 由 provider 自身声明；SynthesizeFrames 输出与之对应格式的字节块。
 type Provider interface {
 	Name() string
-	// AudioFormat 返回本 provider 的输出格式，用于向客户端协商解码参数。
+	// AudioFormat 返回本 provider 的输出格式，用于向客户端声明播放参数。
 	AudioFormat() AudioFormat
-	// SynthesizeFrames 将文本合成为音频，每帧通过 onFrame 回调返回。
+	// SynthesizeFrames 将文本合成为音频，并按 provider 原始输出顺序回调字节块。
 	// 帧格式由 AudioFormat() 声明；voice 为空时使用 provider 默认音色。
 	SynthesizeFrames(ctx context.Context, text, voice string, onFrame func([]byte)) error
 }

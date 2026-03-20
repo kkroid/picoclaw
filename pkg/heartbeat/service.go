@@ -19,6 +19,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/constants"
 	"github.com/sipeed/picoclaw/pkg/fileutil"
 	"github.com/sipeed/picoclaw/pkg/logger"
+	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/state"
 	"github.com/sipeed/picoclaw/pkg/tools"
 )
@@ -35,14 +36,15 @@ type HeartbeatHandler func(prompt, channel, chatID string) *tools.ToolResult
 
 // HeartbeatService manages periodic heartbeat checks
 type HeartbeatService struct {
-	workspace string
-	bus       *bus.MessageBus
-	state     *state.Manager
-	handler   HeartbeatHandler
-	interval  time.Duration
-	enabled   bool
-	mu        sync.RWMutex
-	stopChan  chan struct{}
+	workspace     string
+	bus           *bus.MessageBus
+	state         *state.Manager
+	handler       HeartbeatHandler
+	interval      time.Duration
+	enabled       bool
+	pendingWriter *memory.DefaultOwnerVoicePendingWriter
+	mu            sync.RWMutex
+	stopChan      chan struct{}
 }
 
 // NewHeartbeatService creates a new heartbeat service
@@ -76,6 +78,12 @@ func (hs *HeartbeatService) SetHandler(handler HeartbeatHandler) {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
 	hs.handler = handler
+}
+
+func (hs *HeartbeatService) SetPendingWriter(writer *memory.DefaultOwnerVoicePendingWriter) {
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
+	hs.pendingWriter = writer
 }
 
 // Start begins the heartbeat service
@@ -288,12 +296,8 @@ Add your heartbeat tasks below this line:
 func (hs *HeartbeatService) sendResponse(response string) {
 	hs.mu.RLock()
 	msgBus := hs.bus
+	pendingWriter := hs.pendingWriter
 	hs.mu.RUnlock()
-
-	if msgBus == nil {
-		hs.logInfof("No message bus configured, heartbeat result not sent")
-		return
-	}
 
 	// Get last channel from state
 	lastChannel := hs.state.GetLastChannel()
@@ -309,13 +313,27 @@ func (hs *HeartbeatService) sendResponse(response string) {
 		return
 	}
 
+	if pendingWriter != nil {
+		if err := pendingWriter.Enqueue("心跳任务", "", response, platform, userID); err != nil {
+			hs.logErrorf("Failed to mirror heartbeat result to voice pending: %v", err)
+		}
+	}
+
+	if msgBus == nil {
+		hs.logInfof("No message bus configured, heartbeat result not sent")
+		return
+	}
+
 	pubCtx, pubCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer pubCancel()
-	msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
+	if err := msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
 		Channel: platform,
 		ChatID:  userID,
 		Content: response,
-	})
+	}); err != nil {
+		hs.logErrorf("Failed to publish heartbeat result: %v", err)
+		return
+	}
 
 	hs.logInfof("Heartbeat result sent to %s", platform)
 }

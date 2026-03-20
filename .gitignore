@@ -10,12 +10,6 @@ build/
 *.out
 /picoclaw
 /picoclaw-test
-# jarvis-voice binary (cmd/jarvis-voice/ module)
-/jarvis-voice
-cmd/jarvis-voice/jarvis-voice
-# picoclaw-voice binary (cmd/picoclaw-voice/ module)
-/picoclaw-voice
-cmd/picoclaw-voice/picoclaw-voice
 cmd/**/workspace
 
 # Picoclaw specific

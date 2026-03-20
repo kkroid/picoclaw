@@ -469,6 +469,13 @@ func (cb *ContextBuilder) buildDynamicContext(channel, chatID string) string {
 		fmt.Fprintf(&sb, "\n\n## Current Session\nChannel: %s\nChat ID: %s", channel, chatID)
 	}
 
+	if channel == "xiaozhi" {
+		fmt.Fprintf(
+			&sb,
+			"\n\n## Xiaozhi Response Style\nThis client is usually voice-first. Prefer concise, spoken Chinese by default. Avoid markdown, bullet lists, headings, and long enumerations unless the user explicitly asks for a structured answer. For ordinary conversational requests, aim for 1-3 short sentences that can be read aloud naturally.",
+		)
+	}
+
 	return sb.String()
 }
 

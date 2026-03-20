@@ -1,4 +1,12 @@
 {
+  "session": {
+    "dm_scope": "per-peer",
+    "identity_links": {
+      "YOUR_OWNER_ID": [
+        "telegram:YOUR_USER_ID"
+      ]
+    }
+  },
   "agents": {
     "defaults": {
       "workspace": "~/.picoclaw/workspace",
@@ -81,7 +89,31 @@
       "allow_from": [
         "YOUR_USER_ID"
       ],
+      "group_trigger": {
+        "mention_only": false
+      },
+      "typing": {
+        "enabled": true
+      },
+      "placeholder": {
+        "enabled": true,
+        "text": "Thinking..."
+      },
       "reasoning_channel_id": ""
+    },
+    "xiaozhi": {
+      "enabled": false,
+      "default_owner_id": "YOUR_OWNER_ID",
+      "session_scope": "per-owner-device",
+      "appid": "YOUR_DOUBAO_APP_ID",
+      "token": "YOUR_DOUBAO_ACCESS_TOKEN",
+      "asr_provider": "doubao",
+      "asr_cluster": "bigmodel_transcribe",
+      "asr_resource_id": "YOUR_DOUBAO_ASR_RESOURCE_ID",
+      "_comment_asr_resource_id": "ASR 1.0 小时版用 volc.bigasr.sauc.duration；ASR 2.0 小时版用 volc.seedasr.sauc.duration",
+      "tts_provider": "doubao",
+      "tts_cluster": "volcano_tts",
+      "tts_voice": "zh_female_wanwanxiaohe_moon_bigtts"
     },
     "discord": {
       "enabled": false,

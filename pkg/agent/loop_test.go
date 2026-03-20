@@ -14,6 +14,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/channels"
 	"github.com/sipeed/picoclaw/pkg/config"
 	"github.com/sipeed/picoclaw/pkg/media"
+	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/providers"
 	"github.com/sipeed/picoclaw/pkg/routing"
 	"github.com/sipeed/picoclaw/pkg/tools"
@@ -179,6 +180,115 @@ func TestToolContext_Updates(t *testing.T) {
 	// Empty context returns empty strings
 	if got := tools.ToolChannel(context.Background()); got != "" {
 		t.Errorf("expected empty channel from bare context, got %q", got)
+	}
+}
+
+func TestMessageTool_SendCallback_QueuesVoicePendingToLinkedOwner(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "agent-message-pending-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = tmpDir
+	cfg.Agents.Defaults.Model = "test-model"
+	cfg.Channels.Xiaozhi.DefaultOwnerID = "fallback-owner"
+	cfg.Session.IdentityLinks = map[string][]string{
+		"kkroid": {"telegram:chat-1"},
+	}
+
+	msgBus := bus.NewMessageBus()
+	al := NewAgentLoop(cfg, msgBus, &mockProvider{})
+	defaultAgent := al.registry.GetDefaultAgent()
+	if defaultAgent == nil {
+		t.Fatal("expected default agent")
+	}
+
+	result := defaultAgent.Tools.ExecuteWithContext(
+		context.Background(),
+		"message",
+		map[string]any{"content": "完整内容已推送"},
+		"telegram",
+		"chat-1",
+		nil,
+	)
+	if result.IsError {
+		t.Fatalf("message tool returned error: %s", result.ForLLM)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	outbound, ok := msgBus.SubscribeOutbound(ctx)
+	if !ok {
+		t.Fatal("expected outbound message")
+	}
+	if outbound.Channel != "telegram" || outbound.ChatID != "chat-1" {
+		t.Fatalf("unexpected outbound target: %+v", outbound)
+	}
+	if outbound.Content != "完整内容已推送" {
+		t.Fatalf("unexpected outbound content: %q", outbound.Content)
+	}
+
+	queue, err := memory.NewVoicePendingStore(tmpDir).Load("kkroid")
+	if err != nil {
+		t.Fatalf("Load queue: %v", err)
+	}
+	if len(queue.Items) != 1 {
+		t.Fatalf("queue items len = %d, want 1", len(queue.Items))
+	}
+	if queue.Items[0].Source != "消息工具" {
+		t.Fatalf("queue source = %q, want 消息工具", queue.Items[0].Source)
+	}
+	if queue.Items[0].Content != "完整内容已推送" {
+		t.Fatalf("queue content = %q, want 完整内容已推送", queue.Items[0].Content)
+	}
+}
+
+func TestMessageTool_SendCallback_QueuesVoicePendingEvenIfOutboundFails(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "agent-message-pending-failed-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = tmpDir
+	cfg.Agents.Defaults.Model = "test-model"
+	cfg.Channels.Xiaozhi.DefaultOwnerID = "fallback-owner"
+	cfg.Session.IdentityLinks = map[string][]string{
+		"kkroid": {"telegram:chat-1"},
+	}
+
+	msgBus := bus.NewMessageBus()
+	msgBus.Close()
+	al := NewAgentLoop(cfg, msgBus, &mockProvider{})
+	defaultAgent := al.registry.GetDefaultAgent()
+	if defaultAgent == nil {
+		t.Fatal("expected default agent")
+	}
+
+	result := defaultAgent.Tools.ExecuteWithContext(
+		context.Background(),
+		"message",
+		map[string]any{"content": "外桥失败也要待播"},
+		"telegram",
+		"chat-1",
+		nil,
+	)
+	if !result.IsError {
+		t.Fatal("expected message tool to surface outbound failure")
+	}
+
+	queue, err := memory.NewVoicePendingStore(tmpDir).Load("kkroid")
+	if err != nil {
+		t.Fatalf("Load queue: %v", err)
+	}
+	if len(queue.Items) != 1 {
+		t.Fatalf("queue items len = %d, want 1", len(queue.Items))
+	}
+	if queue.Items[0].Content != "外桥失败也要待播" {
+		t.Fatalf("queue content = %q, want 外桥失败也要待播", queue.Items[0].Content)
 	}
 }
 

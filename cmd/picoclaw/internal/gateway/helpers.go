@@ -28,6 +28,7 @@ import (
 	_ "github.com/sipeed/picoclaw/pkg/channels/wecom"
 	_ "github.com/sipeed/picoclaw/pkg/channels/whatsapp"
 	_ "github.com/sipeed/picoclaw/pkg/channels/whatsapp_native"
+	_ "github.com/sipeed/picoclaw/pkg/channels/xiaozhi"
 	"github.com/sipeed/picoclaw/pkg/config"
 	"github.com/sipeed/picoclaw/pkg/cron"
 	"github.com/sipeed/picoclaw/pkg/devices"
@@ -35,6 +36,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/heartbeat"
 	"github.com/sipeed/picoclaw/pkg/logger"
 	"github.com/sipeed/picoclaw/pkg/media"
+	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/providers"
 	"github.com/sipeed/picoclaw/pkg/state"
 	"github.com/sipeed/picoclaw/pkg/tools"
@@ -170,6 +172,11 @@ func setupAndStartServices(
 		cfg.Heartbeat.Enabled,
 	)
 	services.HeartbeatService.SetBus(msgBus)
+	services.HeartbeatService.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(
+		cfg.WorkspacePath(),
+		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
+		cfg.Session.IdentityLinks,
+	))
 	services.HeartbeatService.SetHandler(func(prompt, channel, chatID string) *tools.ToolResult {
 		// Use cli:direct as fallback if no valid channel
 		if channel == "" || chatID == "" {
@@ -220,6 +227,13 @@ func setupAndStartServices(
 	agentLoop.SetChannelManager(services.ChannelManager)
 	agentLoop.SetMediaStore(services.MediaStore)
 
+	// Inject AgentLoop into channels that perform direct streaming invocations.
+	if ch, ok := services.ChannelManager.GetChannel("xiaozhi"); ok {
+		if setter, ok := ch.(interface{ SetAgentLoop(*agent.AgentLoop) }); ok {
+			setter.SetAgentLoop(agentLoop)
+		}
+	}
+
 	// Wire up voice transcription if a supported provider is configured.
 	if transcriber := voice.DetectTranscriber(cfg); transcriber != nil {
 		agentLoop.SetTranscriber(transcriber)
@@ -251,6 +265,11 @@ func setupAndStartServices(
 		MonitorUSB: cfg.Devices.MonitorUSB,
 	}, stateManager)
 	services.DeviceService.SetBus(msgBus)
+	services.DeviceService.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(
+		cfg.WorkspacePath(),
+		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
+		cfg.Session.IdentityLinks,
+	))
 	if err := services.DeviceService.Start(context.Background()); err != nil {
 		logger.ErrorCF("device", "Error starting device service", map[string]any{"error": err.Error()})
 	} else if cfg.Devices.Enabled {
@@ -416,6 +435,11 @@ func restartServices(
 		cfg.Heartbeat.Enabled,
 	)
 	services.HeartbeatService.SetBus(msgBus)
+	services.HeartbeatService.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(
+		cfg.WorkspacePath(),
+		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
+		cfg.Session.IdentityLinks,
+	))
 	services.HeartbeatService.SetHandler(func(prompt, channel, chatID string) *tools.ToolResult {
 		if channel == "" || chatID == "" {
 			channel, chatID = "cli", "direct"
@@ -464,6 +488,11 @@ func restartServices(
 		return fmt.Errorf("error recreating channel manager: %w", err)
 	}
 	al.SetChannelManager(services.ChannelManager)
+	if ch, ok := services.ChannelManager.GetChannel("xiaozhi"); ok {
+		if setter, ok := ch.(interface{ SetAgentLoop(*agent.AgentLoop) }); ok {
+			setter.SetAgentLoop(al)
+		}
+	}
 
 	enabledChannels := services.ChannelManager.GetEnabledChannels()
 	if len(enabledChannels) > 0 {
@@ -493,6 +522,11 @@ func restartServices(
 		MonitorUSB: cfg.Devices.MonitorUSB,
 	}, stateManager)
 	services.DeviceService.SetBus(msgBus)
+	services.DeviceService.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(
+		cfg.WorkspacePath(),
+		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
+		cfg.Session.IdentityLinks,
+	))
 	if err := services.DeviceService.Start(ctx); err != nil {
 		logger.WarnCF("device", "Failed to restart device service", map[string]any{"error": err.Error()})
 	} else if cfg.Devices.Enabled {

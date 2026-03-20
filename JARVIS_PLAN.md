@@ -106,10 +106,11 @@ picoclaw 原生支持 17 个渠道，无需额外开发。选型原则：国内�
 Windows 主机
 ├── Ollama（GPU 推理，OLLAMA_HOST=0.0.0.0，模型 qwen3:4b）
 └── WSL2 (ubuntu2404)
-    ├── jarvis-voice   api_base: http://10.255.255.254:11434/v1
-    └── picoclaw       api_base: http://10.255.255.254:11434/v1
+    └── picoclaw
+        ├── gateway + xiaozhi channel   api_base: http://10.255.255.254:11434/v1
+        └── channels.feishu / telegram  api_base: http://10.255.255.254:11434/v1
 
-JarvisCore（UE5，Windows）→ WSL jarvis-voice :18790
+JarvisCore（UE5，Windows）→ WSL picoclaw `/xiaozhi/v1/`
 ```
 
 > 阶段六前期替换为 llama-server（llama.cpp 内置，OpenAI 兼容），只改 `api_base` 端口，业务代码零改动。
@@ -119,8 +120,10 @@ JarvisCore（UE5，Windows）→ WSL jarvis-voice :18790
 ```
 Linux 服务器（有 GPU）
 ├── ollama 容器        GPU 推理，挂载模型目录
-├── jarvis-voice 容器  连接 ollama
-├── picoclaw 容器      连接 ollama
+├── picoclaw 容器
+│   ├── gateway + xiaozhi channel
+│   ├── 飞书 / Telegram / MCP / Cron
+│   └── 连接 ollama
 └── nginx 容器         TLS 终止，反向代理
 ```
 
@@ -148,19 +151,20 @@ Windows / Linux（有 GPU）
 
 ---
 
-## 当前进度（2026-03-12）
+## 当前进度（2026-03-20）
 
-| 阶段 | 状态 | Commit |
+| 阶段 | 状态 | 说明 |
 |---|---|---|
-| 一：MVP 语音对话 | ✅ 完成 | `de8755c` (picoclaw) |
-| 一 Sprint 1.6：真正流式 ASR | ✅ 完成 | `de8755c` (picoclaw) |
+| 一：MVP 语音对话 | ✅ 完成 | xiaozhi 协议已在主进程内跑通 ASR → LLM → TTS |
+| 一 Sprint 1.6：真正流式 ASR | ✅ 完成 | `listen.start` 建连，音频逐帧推送 |
+| 一补充：xiaozhi 内嵌化 | ✅ 完成 | 独立语音网关已并入 `pkg/channels/xiaozhi` |
 | JarvisCore 重构 v4 + 重连退避 | ✅ 完成 | `da975de` / `3b1a6bf` |
-| 二：消息渠道接入（飞书 / Telegram 双向） | 下一步 | — |
+| 二：消息渠道接入（飞书 / Telegram 双向） | 下一步 | 重点是 owner 统一与路由策略验收 |
 | 三：信息订阅（股票 / 新闻 / 晨报） | 待做 | — |
 | 四：个人效率（提醒 / 速记 / 阅读助手） | 待做 | — |
-| 五：Docker 部署 | 待做 | — |
+| 五：Docker 部署 | 待做 | 单容器主进程承载 xiaozhi + 消息渠道 |
 
-**下一步**：阶段二——配置飞书渠道，实现语音→消息的输出路由
+**下一步**：阶段二——配置飞书渠道，完成语音 owner 与消息渠道 owner 的统一验收
 
 ---
 
@@ -169,17 +173,16 @@ Windows / Linux（有 GPU）
 ```
 [JarvisCore] UE5 C++ 数字人客户端（端侧 VAD，xiaozhi WebSocket 协议）
     ↕
-[jarvis-voice] 语音网关（Go，cmd/jarvis-voice/）
-    ├── ASR 豆包云端流式 → 文字
-    ├── LLM qwen3:4b 本地（Ollama）→ 流式 token
-    ├── TTS 豆包云端流式 → Opus 音频帧 → JarvisCore
-    └── 长内容 → 转发 picoclaw 消息渠道
-    ↕ 进程内直接调用（无 HTTP 跳转）
-[picoclaw] AI 引擎（Go，picoclaw fork feature/jarvis）
-    ├── 持久记忆（memory_id = owner_id，全渠道统一）
-    ├── 工具：DuckDuckGo 搜索 / WebFetch / CronTool / MCP
+[picoclaw gateway] 主进程（Go）
+    ├── pkg/channels/xiaozhi
+    │   ├── owner / device / session 解析
+    │   ├── ASR provider（doubao / funasr）
+    │   ├── AgentLoop.RunStreamAgentLoopWithKeys
+    │   ├── TTS provider（doubao / fishspeech）
+    │   └── voice_pending 首次开口摘要播报
+    ├── 工具：DuckDuckGo 搜索 / WebFetch / CronTool / MCP / Message
     ├── 消息渠道：飞书 + Telegram 双向文字
-    └── AgentLoop（RunStreamAgentLoop）
+    └── workspace memory / state / queues
     ↕
 [Ollama] 本地大模型
     ├── qwen3:4b    语音对话（延迟优先）
@@ -189,39 +192,51 @@ Windows / Linux（有 GPU）
     └── 可视化编辑 config.json（LLM 凭证 / 模型 / 渠道 / 日志）
 ```
 
-> **以上为当前（阶段一完成）架构**，多进程分布式方案。All-in-One 目标（阶段六）是将上图全量逻辑收入 `jarvis_ai.dll`，随 OneJarvis 插件分发，消除所有独立进程，与 `libonelive.dll`、`mm_vad.dll` 同等地位。
+> 当前主线已经没有独立 `jarvis-voice` 或 `picoclaw-voice` 进程，语音入口就是 picoclaw 主 gateway 内置的 xiaozhi channel。All-in-One 目标（阶段六）仍是将上述逻辑进一步收入 `jarvis_ai.dll`。
 
 ---
 
 ## PicoClaw 侵入性分析
 
-PicoClaw 仍在快速迭代，所有修改遵循 **"只增不改"** 原则，最大限度降低合并冲突风险。
+PicoClaw 仍在快速迭代，但当前语音能力已经从“外挂语音网关”演进为“主进程内嵌 channel”。因此这里不再强调早期的 **"只增不改"**，而改为以下实际原则：
+
+1. **能放子包就放子包**：xiaozhi 相关实现集中在 `pkg/channels/xiaozhi/`
+2. **必须改核心时只改编排层**：仅在 `manager` / `gateway` / `config` / `agent` / `tools` 等接缝层打孔
+3. **先把协议和状态模型做对，再谈兼容旧实现**
+4. **所有关键链路都补测试**：尤其是 channel handler、provider 协议和 owner/session 状态逻辑
 
 ### 现有文件改动清单（最终实现）
 
-| 文件 | 改动量 | 原因 |
+| 分类 | 文件 | 原因 |
 |---|---|---|
-| `pkg/providers/http_provider.go` | **+11 行** | `HTTPProvider` bug fix：缺少 `ChatStream()` 转发，导致 `StreamingProvider` type assertion 失败。**PR 候选**，合并后可从 fork 删除 |
-| `go.sum` | +若干行 | 新增包的哈希，不可避免 |
+| 新增 | `pkg/channels/xiaozhi/*` | xiaozhi 协议、owner/device/session、文本/语音流水线 |
+| 新增 | `pkg/memory/voice_pending.go` | 渠道结果转语音待播摘要 |
+| 新增 | `pkg/agent/stream.go` / 测试 | 流式 AgentLoop 与 owner memory 双键 |
+| 修改 | `cmd/picoclaw/internal/gateway/helpers.go` | 注册 xiaozhi、注入 AgentLoop、接入待播写入器 |
+| 修改 | `pkg/channels/manager.go` | 初始化 xiaozhi channel |
+| 修改 | `pkg/config/config.go` | 新增 `channels.xiaozhi` 与 `session.identity_links` |
+| 修改 | `pkg/agent/loop.go` / `pkg/tools/cron.go` / `pkg/tools/message.go` | 语音待播与渠道输出接缝 |
+| 修改 | `pkg/devices/service.go` / `pkg/heartbeat/service.go` | 主动消息镜像到待播队列 |
+| 移除 | `cmd/picoclaw-voice/*` / `docker/docker-compose.voice.yml` / `pkg/tts/ogg.go` | 废弃独立语音网关与旧解包路径 |
 
-**`helpers.go`、所有 gateway 文件：零改动。**
+### 当前架构的核心判断
 
-### 为什么能做到近零改动？
+1. **语音入口必须是 channel，而不是旁路进程**  
+    否则 owner / memory / tools / channels / workspace 状态都会重复实现一套。
 
-1. **`openai_compat.Provider` struct 是导出类型**（`type Provider struct`）  
-   → 在同包新文件 `openai_compat/streaming.go` 里直接给它加 `ChatStream()` 方法，不动 `provider.go`
+2. **owner 才是跨渠道统一记忆主键，device 只是语音侧的连接附属物**
 
-2. **`StreamingProvider` 接口** 放新文件 `pkg/providers/streaming.go`，同包，不动 `types.go`
+3. **音频格式必须显式化，不再依赖“默认就是 Opus/PCM”这种隐式约定**
 
-3. **`RunStreamAgentLoop()`** 放新文件 `pkg/agent/stream.go`，不动任何现有 agent 文件
+4. **长内容转渠道、首次开口播摘要应该是统一的 owner 级行为，不应该散落在客户端或独立进程里**
 
-4. **`jarvis-voice` 直接托管 AgentLoop**：通过公开 API（`pkg/config.LoadConfig` + `agent.NewAgentLoop`）在进程内初始化，完全消除对 picoclaw HTTP 端点的依赖，无需在 `helpers.go` 注册任何路由
+### 当前改动边界
 
-### jarvis-voice 独立 Go Module
+当前主线只保留一个 `picoclaw` 主程序：
 
-`cmd/jarvis-voice/` 是独立的 Go module（`github.com/sipeed/picoclaw/jarvis-voice`），有自己的 `go.mod`：
-- 通过 `replace github.com/sipeed/picoclaw => ../../` 引用本地 fork
-- Opus CGo 依赖（`hraban/opus.v2`）隔离在此 module，picoclaw 主 module 保持 `CGO_ENABLED=0` 纯 Go
+- xiaozhi 语音能力在 `pkg/channels/xiaozhi/` 内聚实现
+- gateway 只负责注册 channel、注入 AgentLoop 和共享服务
+- 没有额外的独立语音 gateway module，也不再维护第二套独立启动脚本
 
 ### 新增文件清单
 
@@ -231,15 +246,11 @@ pkg/providers/
 pkg/providers/openai_compat/
     streaming.go              ← ChatStream() 实现（新增，同包扩展 Provider struct）
 pkg/agent/
-    stream.go                 ← RunStreamAgentLoop()（新增）
-pkg/asr/                      ← ASR 接口 + mock + doubao provider（新增）
-pkg/tts/                      ← TTS 接口 + mock + doubao provider（新增）
-cmd/jarvis-voice/             ← 独立语音网关 module（新增）
-    go.mod / go.sum
-    main.go                   ← AgentLoop 初始化 + WebSocket server
-    handler.go                ← session 生命周期 + ASR→LLM→TTS pipeline
-    handler_test.go           ← lastSentenceBreak 单元测试（9 cases，全绿）
-    .env.example
+    stream.go                 ← RunStreamAgentLoopWithKeys()（新增）
+pkg/asr/                      ← ASR 接口 + doubao / funasr provider（新增）
+pkg/tts/                      ← TTS 接口 + doubao / fishspeech provider（新增）
+pkg/channels/xiaozhi/         ← 主进程内置语音 channel（新增）
+pkg/memory/voice_pending.go   ← owner 级待播摘要队列（新增）
 ```
 
 ### 合并策略
@@ -256,18 +267,16 @@ cmd/jarvis-voice/             ← 独立语音网关 module（新增）
 ```
 picoclaw/              (fork 根目录)
 ├── cmd/
-│   ├── picoclaw/      (现有)
-│   └── jarvis-voice/  (新增，语音网关 binary)
+│   ├── picoclaw/      (主 gateway / CLI)
+│   └── picoclaw-launcher-tui/
 ├── pkg/
-│   ├── asr/           (新增)
-│   │   ├── provider.go    接口定义（四层：Provider/StreamingProvider/StreamingSession/RealtimeProvider）
-│   │   └── doubao/        豆包实时 ASR WebSocket（已实现）
-│   ├── tts/           (新增)
-│   │   ├── provider.go    接口定义
-│   │   └── doubao/        豆包 TTS WebSocket 流式（已实现）
-│   ├── providers/     (修改：新增 StreamingProvider 接口)
-│   │   └── openai_compat/ (修改：实现 ChatStream)
-│   └── agent/         (修改：新增 stream.go)
+│   ├── agent/         (流式 agent loop + owner memory 双键)
+│   ├── asr/           (doubao / funasr)
+│   ├── channels/
+│   │   └── xiaozhi/   (内置语音 channel)
+│   ├── memory/        (voice_pending 等 owner 级状态)
+│   ├── providers/     (StreamingProvider + openai_compat streaming)
+│   └── tts/           (doubao / fishspeech)
 └── web/               (已有；React + shadcn/ui)
 ```
 
@@ -355,7 +364,7 @@ picoclaw/              (fork 根目录)
 
 10. `pkg/tts/doubao/`：豆包 TTS WebSocket 流式（已实现）
 
-### Sprint 1.4 — jarvis-voice 语音网关（3 天）✅
+### Sprint 1.4 — xiaozhi 内置语音通道（3 天）✅
 
 16. WebSocket 服务器，路径 `/xiaozhi/v1/`，完整实现 xiaozhi 消息协议：
     ```
@@ -365,18 +374,18 @@ picoclaw/              (fork 根目录)
                       | {type:"llm", emotion, text} | audio binary (Opus 帧)
     ```
 
-17. `hello` 消息中提取 `device-id`（MAC 地址），作为 PicoClaw `session_id`（持久记忆键）；按 YAML 配置选 ASR/TTS/LLM provider
-18. 接收二进制音频帧 → Opus 解码（`pion/opus`，固定 16kHz mono）→ PCM `[]int16`；端侧 VAD 已过滤，无需服务端 VAD
-19. 收到 `listen.state="end"` 时：PCM → ASR → text → 直接调用 `agentLoop.RunStreamAgentLoop()`（进程内，无 HTTP 跳转）
+17. `hello` 消息中提取 `device-id` / `owner_id`，按当前 owner / device / session 规则建立语音上下文
+18. 接收二进制音频帧，严格按 `hello.asr_params` 声明的格式透传给 ASR provider；端侧 VAD 已过滤，无需服务端 VAD
+19. 收到 `listen.state="end"` 时：音频 → ASR → text → 直接调用 `agentLoop.RunStreamAgentLoopWithKeys()`（进程内，无 HTTP 跳转）
 20. `onToken` 回调内实时断句（`。？！！
 .!?`） → 逐句触发 TTS
-21. TTS 首帧到达 → 先推 `tts.state=sentence_start` → Opus 编码帧 → 推回 JarvisCore
+21. TTS 首帧到达 → 先推 `tts.state=sentence_start` → 按 `hello.tts_params` 约定的格式推回 JarvisCore
 22. abort 消息：`context.CancelFunc` 取消 ASR/LLM/TTS 全链路 goroutine，清空状态
 
 ### Sprint 1.5 — MVP 验收（1 天）✅
 
-23. `cmd/jarvis-voice/.env.example` 配置样例文件 ✅
-24. 单元测试：`handler_test.go` 覆盖 `lastSentenceBreak`（9 cases）+ thinking 状态机（5 cases），共 15 个测试全绿 ✅
+23. xiaozhi 协议文档与配置样例已沉淀到主仓库配置与文档体系 ✅
+24. 单元测试：`pkg/channels/xiaozhi/*_test.go` 覆盖 `lastSentenceBreak`、thinking 状态机、文本/语音输出策略、owner/session/pending 状态 ✅
 25. 全链路延迟日志 ✅（ASR latency / llm_first_token latency / llm sentence / llm done / tts skip）
 26. MVP checklist：开口说话 → ASR 识别 → LLM 流式回复（有跨会话记忆）→ TTS 流式播放 ✅
 
@@ -393,9 +402,8 @@ picoclaw/              (fork 根目录)
 | device_id 未传到服务端 | `CreateHelloMessage` 未将 device_id 写入 JSON | `message_handler.cpp`：hello JSON 加 `device_id` 字段 |
 
 **阶段一交付物**：
-- `picoclaw` binary（零功能改动，仅 bug fix）
-- `jarvis-voice` binary（xiaozhi 协议语音网关，自托管 AgentLoop）✅
-- `config.yaml` 配置文件
+- `picoclaw` binary（主 gateway + 内置 xiaozhi channel）✅
+- `config.yaml` / `config.json` 配置文件
 - 语音对话完整跑通 ✅，全链路 ASR+LLM+TTS 端到端验证通过
 
 ### Sprint 1.6 — 真正流式 ASR（事后追加）✅
@@ -420,7 +428,7 @@ picoclaw/              (fork 根目录)
   - 提取 `connect()` 消除 `transcribeInternal` 和 `OpenSession` 的重复初始化代码
   - `lastText` 去重：相同片段不重复回调/日志
   - `partial`/`final` 分级日志
-- `cmd/jarvis-voice/handler.go` 全面重构：
+- `pkg/channels/xiaozhi/handler.go` 全面重构：
   - `listen start` → 立即 `OpenSession`，启动 `processStreamSpeech` goroutine
   - `handleAudio` → 有 `asrFeedCh` 时直接推帧（实时模式），否则缓冲（批量 fallback）
   - `listen end` → 实时模式只发结束帧；批量 fallback 走原有 `processSpeech`
@@ -457,7 +465,7 @@ picoclaw/              (fork 根目录)
 
 ### Sprint 2.2 — 工具维度输出路由（2 天）
 
-32. `cmd/jarvis-voice/handler.go` 维护两个工具列表，在 tool_call 完成后路由（不影响流式 TTS）：
+32. `pkg/channels/xiaozhi/handler.go` 维护两个工具列表，在 tool_call 完成后路由（不影响流式 TTS）：
     ```go
     // 结果发渠道；语音触发时 TTS 播提示语
     var channelTools = map[string]string{
@@ -507,7 +515,7 @@ picoclaw/              (fork 根目录)
 39. `workspace/skills/morning-brief/` 新增晨报 skill：
     - CronTool `0 7 * * *` 触发
     - 抓取：天气 / 热点新闻 3 条 / 关注股票涨跌
-    - **主动推送只走渠道**（CronTool 触发时无活跃语音 session）；当天首次开口时 jarvis-voice 检查待播队列，播报 30 秒摘要
+    - **主动推送只走渠道**（CronTool 触发时无活跃语音 session）；当天首次开口时 xiaozhi channel 检查待播队列，播报 30 秒摘要
 40. 热点订阅：用户指定关键词，每日推送 3 条摘要到飞书
 
 **阶段三交付物**：晨报自动送达，股票异动主动告警，关键词热点订阅。
@@ -534,11 +542,11 @@ picoclaw/              (fork 根目录)
 **目标**：`docker-compose up` 一键在 Linux 服务器启动全套服务。
 **工期估算：3 天**
 
-46. 多阶段 Dockerfile（jarvis-voice + picoclaw）：
-    - builder stage：`CGO_ENABLED=0` 纯 Go 静态编译（jarvis-voice 含 Opus CGo，需 gcc）
+46. 多阶段 Dockerfile（picoclaw 单服务）：
+    - builder stage：主构建只编译 `picoclaw`
     - runtime stage：distroless 极简镜像
-47. `docker-compose.yml`：ollama + jarvis-voice + picoclaw 三服务，共享 workspace volume
-48. 环境变量支持：`OLLAMA_BASE_URL`、`JARVIS_VOICE_PORT`、`FEISHU_APP_ID` 等
+47. `docker-compose.yml`：ollama + picoclaw + nginx 三服务，共享 workspace volume
+48. 环境变量支持：`OLLAMA_BASE_URL`、`PICOCLAW_CHANNELS_XIAOZHI_*`、`FEISHU_APP_ID` 等
 49. 健康检查 endpoint（`/healthz`）+ 自动重启（`restart: unless-stopped`）
 50. 部署文档：含 GPU 直通配置（`nvidia-container-toolkit`）
 
@@ -617,7 +625,7 @@ type StreamToken struct {
 
 ### 音频格式约定
 
-> 全局固定：**16kHz 16-bit mono PCM**。ASR 输入、TTS 输出、Opus 编解码均以此为准。所有接口不再传递 sampleRate，消除格式不一致风险。
+> 当前不再使用“全局固定 PCM”这一旧约定，而是显式声明 `Format + Codec + SampleRate + Channels`，并以服务端 `hello.asr_params` / `hello.tts_params` 为准。
 
 ### ASR（扩展为四层接口，Sprint 1.6 后）
 
@@ -625,20 +633,20 @@ type StreamToken struct {
 // pkg/asr/provider.go
 type Provider interface {
     Name() string
-    Transcribe(ctx context.Context, pcm []int16) (string, error)
+    Transcribe(ctx context.Context, frames [][]byte) (string, error)
 }
 
 type ResultCallback func(text string, final bool)
 
 type StreamingProvider interface {
     Provider
-    TranscribeStream(ctx context.Context, pcm []int16, cb ResultCallback) error
+    TranscribeStream(ctx context.Context, frames [][]byte, cb ResultCallback) error
 }
 
 var ErrSessionClosed = errors.New("asr: session closed")
 
 type StreamingSession interface {
-    SendAudio(pcm []int16, isLast bool) error
+    SendAudio(frame []byte, isLast bool) error
     Wait(ctx context.Context) (string, error)
     Close() error
 }
@@ -656,8 +664,8 @@ type RealtimeProvider interface {
 // pkg/tts/provider.go
 type Provider interface {
     Name() string
-    SynthesizeStream(ctx context.Context, text, voice string,
-        onChunk func(pcm []int16)) error
+    SynthesizeFrames(ctx context.Context, text, voice string,
+        onFrame func(data []byte)) error
 }
 ```
 
@@ -667,11 +675,11 @@ type Provider interface {
 
 | 阶段 | 内容 | 估算工期 | 状态 |
 |---|---|---|---|
-| 一 | MVP：语音对话跑通 | 2.5 周 | ✅ 完成 |
+| 一 | MVP：语音对话跑通 + xiaozhi 内嵌化 | 2.5 周 | ✅ 完成 |
 | 二 | 消息渠道接入（飞书/Telegram + 输出路由） | 3 天 | 下一步 |
 | 三 | 信息订阅（股票监控 / 新闻 / 晨报） | 1.5 周 | 待做 |
 | 四 | 个人效率（提醒 / 速记 / 阅读助手 / 价格监控） | 1 周 | 待做 |
-| 五 | Docker 部署（中期生产环境） | 3 天 | 待做 |
+| 五 | Docker 部署（单主进程 + xiaozhi） | 3 天 | 待做 |
 | 六 | All-in-One DLL 封装（jarvis_ai.dll + go-llama）| 2 周 | 待做 |
 | **合计（剩余）** | | **约 5.5 周** | |
 
@@ -679,10 +687,13 @@ type Provider interface {
 
 ## 待确认/优化事项
 
-- [x] xiaozhi 协议消息格式 — 已对照 JarvisCore 源码确认并实现
-- [x] JarvisCore 重连退避策略 — 线性 1~10s，已提交 `3b1a6bf`
-- [ ] **Ollama 宿主机 IP 固定**：WSL2 每次重启后 `10.255.255.254` 是否稳定？若不稳定考虑写入 `/etc/hosts`
+- [x] xiaozhi 协议消息格式 — 已按当前主线实现并更新文档
+- [x] JarvisCore 重连退避策略 — 线性 1~10s，已完成
+- [x] 语音链路内嵌化 — 独立 `jarvis-voice` / `picoclaw-voice` 已淘汰
+- [x] owner / device / session / 待播摘要模型 — 已落到 workspace 状态文件
 - [ ] **飞书渠道权限**：个人版飞书 webhook 是否支持机器人主动推送，需实测
-- [ ] **跨渠道记忆**：已明确用 owner_id 统一，实现在 Sprint 2.1
-- [ ] **双通道阈值校准**：channelTools / voiceTools 列表在实际场景下的覆盖率，跑通后根据体验补充
-- [ ] **多模型路由（后期）**：功能全部验收后再决定是否引入云端，云端候选 DeepSeek V3 / 通义 qwen-plus
+- [ ] **owner 映射验收**：`session.identity_links` 在真实语音 + 飞书 + Telegram 环境下继续压测
+- [ ] **双通道阈值校准**：voice-tool / channel-tool 列表按真实体验补充
+- [ ] **Docker 单服务部署**：补生产 compose 与部署文档
+- [ ] **Ollama 宿主机 IP 固定**：WSL2 每次重启后 `10.255.255.254` 是否稳定；如不稳定则切 `llama-server` 或写入 hosts
+- [ ] **多模型路由（后期）**：功能全部验收后再决定是否引入云端，候选 DeepSeek V3 / 通义 qwen-plus

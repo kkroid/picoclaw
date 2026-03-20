@@ -69,12 +69,14 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]any) *ToolRes
 
 	channel, _ := args["channel"].(string)
 	chatID, _ := args["chat_id"].(string)
+	sourceChannel := ToolChannel(ctx)
+	sourceChatID := ToolChatID(ctx)
 
 	if channel == "" {
-		channel = ToolChannel(ctx)
+		channel = sourceChannel
 	}
 	if chatID == "" {
-		chatID = ToolChatID(ctx)
+		chatID = sourceChatID
 	}
 
 	if channel == "" || chatID == "" {

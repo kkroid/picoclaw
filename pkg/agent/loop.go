@@ -26,6 +26,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/constants"
 	"github.com/sipeed/picoclaw/pkg/logger"
 	"github.com/sipeed/picoclaw/pkg/media"
+	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/providers"
 	"github.com/sipeed/picoclaw/pkg/routing"
 	"github.com/sipeed/picoclaw/pkg/skills"
@@ -175,15 +176,38 @@ func registerSharedTools(
 
 		// Message tool
 		if cfg.Tools.IsToolEnabled("message") {
+			pendingWriter := memory.NewIdentityLinkedVoicePendingWriter(
+				agent.Workspace,
+				cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
+				cfg.Session.IdentityLinks,
+			)
 			messageTool := tools.NewMessageTool()
 			messageTool.SetSendCallback(func(channel, chatID, content string) error {
+				if pendingWriter != nil && !constants.IsInternalChannel(channel) &&
+					strings.TrimSpace(channel) != "xiaozhi" {
+					if err := pendingWriter.Enqueue("消息工具", "", content, channel, chatID); err != nil {
+						logger.WarnCF("agent", "Failed to mirror message tool output to voice pending", map[string]any{
+							"channel": channel,
+							"chat_id": chatID,
+							"error":   err.Error(),
+						})
+					}
+				}
+
+				if msgBus == nil {
+					return bus.ErrBusClosed
+				}
+
 				pubCtx, pubCancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer pubCancel()
-				return msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
+				if err := msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
 					Channel: channel,
 					ChatID:  chatID,
 					Content: content,
-				})
+				}); err != nil {
+					return err
+				}
+				return nil
 			})
 			agent.Tools.Register(messageTool)
 		}

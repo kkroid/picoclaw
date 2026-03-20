@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
 	"github.com/sipeed/picoclaw/pkg/asr"
 )
 
@@ -68,7 +69,7 @@ func newProvider(cfg map[string]any) (*provider, error) {
 func (p *provider) Name() string { return "funasr" }
 
 func (p *provider) AudioFormat() asr.AudioFormat {
-	return asr.AudioFormat{Codec: "pcm", SampleRate: 16000, Channels: 1}
+	return asr.AudioFormat{Format: "pcm", Codec: "raw", SampleRate: 16000, Channels: 1}
 }
 
 // Transcribe 批量模式：将所有帧合并后一次性送识别。

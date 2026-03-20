@@ -5,7 +5,7 @@
 
 // Package doubao implements the Doubao (火山引擎) streaming ASR provider.
 // Protocol: binary WebSocket with a 4-byte header + gzip-compressed payloads.
-// Docs: https://www.volcengine.com/docs/6561/80818
+// Docs: https://www.volcengine.com/docs/6561/1354869?lang=zh
 package doubao
 
 import (
@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+
 	"github.com/sipeed/picoclaw/pkg/asr"
 )
 
@@ -39,6 +40,14 @@ const defaultASRURL = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel"
 // 模型1.0: volc.bigasr.sauc.duration  模型2.0(Seed): volc.seedasr.sauc.duration
 const defaultResourceID = "volc.bigasr.sauc.duration"
 
+const (
+	defaultAudioFormat   = "ogg"
+	defaultAudioCodec    = "opus"
+	defaultAudioRate     = 16000
+	defaultAudioBits     = 16
+	defaultAudioChannels = 1
+)
+
 // header byte layout (4 bytes):
 //
 //	[0]: (version=0x01 << 4) | header_size=0x01
@@ -53,6 +62,7 @@ const (
 	flagNormal    = 0x00
 	flagLastFrame = 0x02
 
+	serialNone  = 0x00
 	serialJSON  = 0x01
 	compressGZP = 0x01
 )
@@ -98,15 +108,21 @@ func newProvider(cfg map[string]any) (*provider, error) {
 
 func (p *provider) Name() string { return "doubao" }
 
-// AudioFormat 声明 doubao ASR 期望收到原始 PCM 字节（网关透传，无需 Opus 解码）。
+// AudioFormat 声明 doubao ASR 默认接收 16 kHz / mono Ogg Opus 字节流。
 func (p *provider) AudioFormat() asr.AudioFormat {
-	return asr.AudioFormat{Codec: "pcm", SampleRate: 16000, Channels: 1}
+	return asr.AudioFormat{
+		Format:     defaultAudioFormat,
+		Codec:      defaultAudioCodec,
+		SampleRate: defaultAudioRate,
+		Channels:   defaultAudioChannels,
+	}
 }
 
-// Transcribe sends PCM frames to Doubao streaming ASR and returns the final text.
+// Transcribe sends frames in the declared provider format to Doubao streaming ASR
+// and returns the final text.
 func (p *provider) Transcribe(ctx context.Context, frames [][]byte) (string, error) {
 	var final string
-	err := p.transcribeInternal(ctx, asr.MergeFrames(frames), func(text string, isDef bool) {
+	err := p.transcribeInternal(ctx, frames, func(text string, isDef bool) {
 		if isDef {
 			final = text
 		}
@@ -114,32 +130,18 @@ func (p *provider) Transcribe(ctx context.Context, frames [][]byte) (string, err
 	return final, err
 }
 
-// TranscribeStream sends PCM frames to Doubao streaming ASR and calls callback for each
+// TranscribeStream sends frames in the declared provider format to Doubao streaming ASR and calls callback for each
 // incremental result. callback is invoked only when recognized text changes, and
 // final=true when recognition is complete.
 func (p *provider) TranscribeStream(ctx context.Context, frames [][]byte, callback asr.ResultCallback) error {
-	return p.transcribeInternal(ctx, asr.MergeFrames(frames), callback)
+	return p.transcribeInternal(ctx, frames, callback)
 }
 
 // connect 建立到豆包 ASR 服务的 WebSocket 连接并完成握手。
 // 返回已握手的 conn，调用方负责关闭。
 // ctx 取消时会异步关闭连接，使阻塞的 ReadMessage 立即返回。
 func (p *provider) connect(ctx context.Context) (*websocket.Conn, error) {
-	var headers http.Header
-	if p.appID == "" {
-		headers = http.Header{
-			"Authorization":     {"Bearer " + p.token},
-			"X-Api-Resource-Id": {p.resourceID},
-			"X-Api-Connect-Id":  {uuid.New().String()},
-		}
-	} else {
-		headers = http.Header{
-			"X-Api-App-Key":     {p.appID},
-			"X-Api-Access-Key":  {p.token},
-			"X-Api-Resource-Id": {p.resourceID},
-			"X-Api-Connect-Id":  {uuid.New().String()},
-		}
-	}
+	headers := p.authHeaders(uuid.New().String())
 
 	conn, resp, err := p.dialer.DialContext(ctx, p.wsURL, headers)
 	if err != nil {
@@ -157,25 +159,8 @@ func (p *provider) connect(ctx context.Context) (*websocket.Conn, error) {
 		conn.Close()
 	}()
 
-	// 发送初始化帧（协议握手）
-	// Model 2.0（seedasr）：鉴权纯靠 HTTP Header，body 里不需要 app 节。
-	initReq := map[string]any{
-		"user": map[string]any{"uid": "picoclaw"},
-		"request": map[string]any{
-			"model_name":      "bigmodel",
-			"show_utterances": true,
-			"result_type":     "stream",
-			"end_window_size": 200,
-		},
-		"audio": map[string]any{
-			"format":      "pcm",
-			"codec":       "pcm",
-			"rate":        16000,
-			"bits":        16,
-			"channel":     1,
-			"sample_rate": 16000,
-		},
-	}
+	// 发送初始化帧（协议握手）。
+	initReq := p.initRequest(uuid.New().String())
 	frame, err := buildJSONFrame(msgTypeFullClientRequest, flagNormal, initReq)
 	if err != nil {
 		conn.Close()
@@ -197,42 +182,56 @@ func (p *provider) connect(ctx context.Context) (*websocket.Conn, error) {
 	return conn, nil
 }
 
+func (p *provider) authHeaders(connectID string) http.Header {
+	if p.appID == "" {
+		return http.Header{
+			"Authorization":     {"Bearer " + p.token},
+			"X-Api-Resource-Id": {p.resourceID},
+			"X-Api-Connect-Id":  {connectID},
+		}
+	}
+	return http.Header{
+		"X-Api-App-Key":     {p.appID},
+		"X-Api-Access-Key":  {p.token},
+		"X-Api-Resource-Id": {p.resourceID},
+		"X-Api-Connect-Id":  {connectID},
+	}
+}
+
+func (p *provider) initRequest(reqID string) map[string]any {
+	return map[string]any{
+		"user": map[string]any{"uid": "picoclaw"},
+		"audio": map[string]any{
+			"format":      defaultAudioFormat,
+			"codec":       defaultAudioCodec,
+			"rate":        defaultAudioRate,
+			"bits":        defaultAudioBits,
+			"channel":     defaultAudioChannels,
+			"sample_rate": defaultAudioRate,
+		},
+		"request": map[string]any{
+			"reqid":           reqID,
+			"sequence":        1,
+			"model_name":      "bigmodel",
+			"show_utterances": true,
+			"result_type":     "stream",
+			"end_window_size": 200,
+			"workflow":        "audio_in,resample,partition,vad,fe,decode",
+		},
+	}
+}
+
 // transcribeInternal is the core implementation shared by Transcribe and TranscribeStream.
-// pcmBytes: 16kHz 16-bit mono PCM, little-endian, raw bytes（由 MergeFrames 合并后传入）。
-func (p *provider) transcribeInternal(ctx context.Context, pcmBytes []byte, callback asr.ResultCallback) error {
+// frames contain raw audio bytes in the format declared by AudioFormat().
+func (p *provider) transcribeInternal(ctx context.Context, frames [][]byte, callback asr.ResultCallback) error {
 	conn, err := p.connect(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	// Send PCM in 100ms chunks（3200 bytes = 1600 samples × 2 bytes），last chunk has flagLastFrame
-	const chunkBytes = 3200
-	for i := 0; i < len(pcmBytes); {
-		end := i + chunkBytes
-		if end > len(pcmBytes) {
-			end = len(pcmBytes)
-		}
-		isLast := end >= len(pcmBytes)
-		flags := byte(flagNormal)
-		if isLast {
-			flags = flagLastFrame
-		}
-		audioFrame, err := buildAudioFrame(flags, pcmBytes[i:end])
-		if err != nil {
-			return fmt.Errorf("doubao asr: build audio frame: %w", err)
-		}
-		if err := conn.WriteMessage(websocket.BinaryMessage, audioFrame); err != nil {
-			return fmt.Errorf("doubao asr: send audio: %w", err)
-		}
-		i = end
-
-		// Check for context cancellation mid-stream
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
+	if err := p.sendAudioFrames(ctx, conn, frames); err != nil {
+		return err
 	}
 
 	// Read responses until we get a definite utterance or connection closes.
@@ -266,6 +265,41 @@ func (p *provider) transcribeInternal(ctx context.Context, pcmBytes []byte, call
 	if lastText == "" {
 		log.Printf("doubao asr: no final text (silent or unrecognized)")
 	}
+	return nil
+}
+
+func (p *provider) sendAudioFrames(ctx context.Context, conn *websocket.Conn, frames [][]byte) error {
+	if len(frames) == 0 {
+		audioFrame, err := buildAudioFrame(flagLastFrame, nil)
+		if err != nil {
+			return fmt.Errorf("doubao asr: build audio frame: %w", err)
+		}
+		if err := conn.WriteMessage(websocket.BinaryMessage, audioFrame); err != nil {
+			return fmt.Errorf("doubao asr: send audio: %w", err)
+		}
+		return nil
+	}
+
+	for i, frame := range frames {
+		flags := byte(flagNormal)
+		if i == len(frames)-1 {
+			flags = flagLastFrame
+		}
+		audioFrame, err := buildAudioFrame(flags, frame)
+		if err != nil {
+			return fmt.Errorf("doubao asr: build audio frame: %w", err)
+		}
+		if err := conn.WriteMessage(websocket.BinaryMessage, audioFrame); err != nil {
+			return fmt.Errorf("doubao asr: send audio: %w", err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+	}
+
 	return nil
 }
 
@@ -304,7 +338,15 @@ func (p *provider) OpenSession(ctx context.Context, callback asr.ResultCallback)
 		for {
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
-				sess.resultCh <- asrResult{err: err}
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+					if lastText == "" {
+						sess.resultCh <- asrResult{err: asr.ErrSessionClosed}
+					} else {
+						sess.resultCh <- asrResult{text: lastText}
+					}
+				} else {
+					sess.resultCh <- asrResult{err: err}
+				}
 				return
 			}
 			text, definite, done := parseASRResult(msg)
@@ -332,8 +374,8 @@ func (p *provider) OpenSession(ctx context.Context, callback asr.ResultCallback)
 	return sess, nil
 }
 
-// SendAudio pushes a raw PCM frame to the live ASR session.
-// frame: 16kHz 16-bit mono PCM bytes（与 AudioFormat 声明一致）。
+// SendAudio pushes a raw audio frame to the live ASR session.
+// frame 格式必须与 AudioFormat() 声明一致。
 func (ss *streamingSession) SendAudio(frame []byte, isLast bool) error {
 	select {
 	case <-ss.closedCh:
@@ -387,13 +429,13 @@ func buildJSONFrame(msgType, flags byte, payload any) ([]byte, error) {
 	return buildFrame(msgType, flags, serialJSON, compressGZP, compressed), nil
 }
 
-// buildAudioFrame wraps raw PCM bytes in the doubao binary frame format.
-func buildAudioFrame(flags byte, pcmBytes []byte) ([]byte, error) {
-	compressed, err := gzipBytes(pcmBytes)
+// buildAudioFrame wraps raw audio bytes in the doubao binary frame format.
+func buildAudioFrame(flags byte, audioBytes []byte) ([]byte, error) {
+	compressed, err := gzipBytes(audioBytes)
 	if err != nil {
 		return nil, err
 	}
-	return buildFrame(msgTypeAudioOnly, flags, serialJSON, compressGZP, compressed), nil
+	return buildFrame(msgTypeAudioOnly, flags, serialNone, compressGZP, compressed), nil
 }
 
 func buildFrame(msgType, flags, serial, compress byte, payload []byte) []byte {

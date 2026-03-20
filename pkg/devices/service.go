@@ -11,17 +11,19 @@ import (
 	"github.com/sipeed/picoclaw/pkg/devices/events"
 	"github.com/sipeed/picoclaw/pkg/devices/sources"
 	"github.com/sipeed/picoclaw/pkg/logger"
+	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/state"
 )
 
 type Service struct {
-	bus     *bus.MessageBus
-	state   *state.Manager
-	sources []events.EventSource
-	enabled bool
-	ctx     context.Context
-	cancel  context.CancelFunc
-	mu      sync.RWMutex
+	bus           *bus.MessageBus
+	state         *state.Manager
+	sources       []events.EventSource
+	enabled       bool
+	pendingWriter *memory.DefaultOwnerVoicePendingWriter
+	ctx           context.Context
+	cancel        context.CancelFunc
+	mu            sync.RWMutex
 }
 
 type Config struct {
@@ -48,6 +50,12 @@ func (s *Service) SetBus(msgBus *bus.MessageBus) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.bus = msgBus
+}
+
+func (s *Service) SetPendingWriter(writer *memory.DefaultOwnerVoicePendingWriter) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pendingWriter = writer
 }
 
 func (s *Service) Start(ctx context.Context) error {
@@ -108,33 +116,56 @@ func (s *Service) handleEvents(kind events.Kind, eventCh <-chan *events.DeviceEv
 func (s *Service) sendNotification(ev *events.DeviceEvent) {
 	s.mu.RLock()
 	msgBus := s.bus
+	pendingWriter := s.pendingWriter
 	s.mu.RUnlock()
 
-	if msgBus == nil {
-		return
-	}
+	msg := ev.FormatMessage()
 
 	lastChannel := s.state.GetLastChannel()
+	platform, userID := parseLastChannel(lastChannel)
+
 	if lastChannel == "" {
-		logger.DebugCF("devices", "No last channel, skipping notification", map[string]any{
-			"event": ev.FormatMessage(),
+		logger.DebugCF("devices", "No last channel, skipping outbound notification", map[string]any{
+			"event": msg,
 		})
 		return
 	}
-
-	platform, userID := parseLastChannel(lastChannel)
 	if platform == "" || userID == "" || constants.IsInternalChannel(platform) {
 		return
 	}
 
-	msg := ev.FormatMessage()
+	if pendingWriter != nil {
+		if err := pendingWriter.Enqueue("设备事件", "", msg, platform, userID); err != nil {
+			logger.WarnCF("devices", "Failed to mirror device notification to voice pending", map[string]any{
+				"channel": platform,
+				"chat_id": userID,
+				"error":   err.Error(),
+			})
+		}
+	}
+
+	if msgBus == nil {
+		logger.WarnCF("devices", "No message bus configured, skipping outbound device notification", map[string]any{
+			"channel": platform,
+			"chat_id": userID,
+		})
+		return
+	}
+
 	pubCtx, pubCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer pubCancel()
-	msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
+	if err := msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
 		Channel: platform,
 		ChatID:  userID,
 		Content: msg,
-	})
+	}); err != nil {
+		logger.WarnCF("devices", "Failed to publish device notification", map[string]any{
+			"channel": platform,
+			"chat_id": userID,
+			"error":   err.Error(),
+		})
+		return
+	}
 
 	logger.InfoCF("devices", "Device notification sent", map[string]any{
 		"kind":   ev.Kind,

@@ -10,6 +10,8 @@ import (
 	"github.com/sipeed/picoclaw/pkg/config"
 	"github.com/sipeed/picoclaw/pkg/constants"
 	"github.com/sipeed/picoclaw/pkg/cron"
+	"github.com/sipeed/picoclaw/pkg/logger"
+	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/utils"
 )
 
@@ -20,10 +22,11 @@ type JobExecutor interface {
 
 // CronTool provides scheduling capabilities for the agent
 type CronTool struct {
-	cronService *cron.CronService
-	executor    JobExecutor
-	msgBus      *bus.MessageBus
-	execTool    *ExecTool
+	cronService   *cron.CronService
+	executor      JobExecutor
+	msgBus        *bus.MessageBus
+	execTool      *ExecTool
+	pendingWriter *memory.DefaultOwnerVoicePendingWriter
 }
 
 // NewCronTool creates a new CronTool
@@ -32,6 +35,15 @@ func NewCronTool(
 	cronService *cron.CronService, executor JobExecutor, msgBus *bus.MessageBus, workspace string, restrict bool,
 	execTimeout time.Duration, config *config.Config,
 ) (*CronTool, error) {
+	var pendingWriter *memory.DefaultOwnerVoicePendingWriter
+	if config != nil {
+		pendingWriter = memory.NewIdentityLinkedVoicePendingWriter(
+			workspace,
+			config.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
+			config.Session.IdentityLinks,
+		)
+	}
+
 	execTool, err := NewExecToolWithConfig(workspace, restrict, config)
 	if err != nil {
 		return nil, fmt.Errorf("unable to configure exec tool: %w", err)
@@ -39,10 +51,11 @@ func NewCronTool(
 
 	execTool.SetTimeout(execTimeout)
 	return &CronTool{
-		cronService: cronService,
-		executor:    executor,
-		msgBus:      msgBus,
-		execTool:    execTool,
+		cronService:   cronService,
+		executor:      executor,
+		msgBus:        msgBus,
+		execTool:      execTool,
+		pendingWriter: pendingWriter,
 	}, nil
 }
 
@@ -311,6 +324,7 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 			ChatID:  chatID,
 			Content: output,
 		})
+		t.enqueueVoicePending(channel, chatID, job.Name, output)
 		return "ok"
 	}
 
@@ -323,6 +337,7 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 			ChatID:  chatID,
 			Content: job.Payload.Message,
 		})
+		t.enqueueVoicePending(channel, chatID, job.Name, job.Payload.Message)
 		return "ok"
 	}
 
@@ -340,8 +355,33 @@ func (t *CronTool) ExecuteJob(ctx context.Context, job *cron.CronJob) string {
 	if err != nil {
 		return fmt.Sprintf("Error: %v", err)
 	}
+	t.enqueueVoicePending(channel, chatID, job.Name, response)
 
 	// Response is automatically sent via MessageBus by AgentLoop
 	_ = response // Will be sent by AgentLoop
 	return "ok"
+}
+
+func (t *CronTool) enqueueVoicePending(channel, chatID, title, content string) {
+	if t.pendingWriter == nil {
+		return
+	}
+	channel = strings.TrimSpace(channel)
+	chatID = strings.TrimSpace(chatID)
+	content = strings.TrimSpace(content)
+	if channel == "" || chatID == "" || content == "" {
+		return
+	}
+	if channel == "xiaozhi" || constants.IsInternalChannel(channel) {
+		return
+	}
+
+	err := t.pendingWriter.Enqueue("定时任务", strings.TrimSpace(title), content, channel, chatID)
+	if err != nil {
+		logger.WarnCF("cron", "Enqueue voice pending failed", map[string]any{
+			"channel": channel,
+			"chat_id": chatID,
+			"error":   err.Error(),
+		})
+	}
 }

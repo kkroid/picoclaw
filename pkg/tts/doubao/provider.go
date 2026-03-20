@@ -8,7 +8,7 @@
 //
 // 服务端帧类型（data[1]>>4）：
 //
-//	0x0B（音频帧）：4字节头 + 4字节seq + 4字节载荷长度 + Ogg Opus 数据
+//	0x0B（音频帧）：4字节头 + 4字节seq + 4字节载荷长度 + Ogg Opus 字节块
 //	0x0C（合成结束）/0x0F（错误）：4字节头 + 4字节载荷长度 + gzip JSON
 //
 // 鉴权：Authorization: Bearer;{token}（火山引擎非标准分号格式）
@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+
 	"github.com/sipeed/picoclaw/pkg/tts"
 )
 
@@ -103,12 +104,12 @@ func newProvider(cfg map[string]any) (*provider, error) {
 func (p *provider) Name() string { return "doubao" }
 
 func (p *provider) AudioFormat() tts.AudioFormat {
-	return tts.AudioFormat{Codec: "opus", SampleRate: 16000, Channels: 1}
+	return tts.AudioFormat{Format: "ogg", Codec: "opus", SampleRate: 16000, Channels: 1}
 }
 
 // SynthesizeFrames 通过豆包 TTS WebSocket 流式接口合成语音。
-// 连接建立后立即发送合成请求（含文字），服务端边合成边推送原始 Opus 帧，
-// 每帧到达即触发 onFrame 回调，无需等待整句合成完成。
+// 连接建立后立即发送合成请求（含文字），服务端边合成边推送 Ogg Opus 字节块，
+// 收到后按原样透传给 onFrame，无需等待整句合成完成。
 func (p *provider) SynthesizeFrames(ctx context.Context, text, voice string, onFrame func([]byte)) error {
 	if voice == "" {
 		voice = p.defaultVoice
@@ -150,9 +151,7 @@ func (p *provider) SynthesizeFrames(ctx context.Context, text, voice string, onF
 		"user": map[string]any{"uid": "picoclaw"},
 		"audio": map[string]any{
 			"voice_type": voice,
-			// ogg_opus：服务端推送 Ogg 容器包装的 Opus 数据；
-			// 服务端 API encoding 与内部 AudioFormat codec 解耦，
-			// 此处通过 io.Pipe + ParseOggOpusPackets 流式解包后回调原始 Opus 帧。
+			// 直接请求 ogg_opus，并把返回的 Ogg Opus 字节流原样透传给客户端。
 			"encoding": "ogg_opus",
 			"rate":     16000,
 			"channel":  1,
@@ -174,46 +173,31 @@ func (p *provider) SynthesizeFrames(ctx context.Context, text, voice string, onF
 		return fmt.Errorf("tts/doubao: send request: %w", err)
 	}
 
-	// 用 io.Pipe 将流式 Ogg 载荷接入 ParseOggOpusPackets：
-	// 主循环写 → 解析协程读，边收 WS 帧边解包 Opus，实现真正流式回调。
-	pr, pw := io.Pipe()
-	parseErrCh := make(chan error, 1)
-	go func() {
-		parseErrCh <- tts.ParseOggOpusPackets(pr, onFrame)
-	}()
-
-	frameCount := 0
+	chunkCount := 0
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			if ctx.Err() != nil {
-				pw.CloseWithError(ctx.Err())
 				return ctx.Err()
 			}
-			pw.CloseWithError(err)
-			break
+			return err
 		}
-		audio, isLast, parseErr := parseTTSFrame(frameCount, msg)
+		audio, isLast, parseErr := parseTTSFrame(chunkCount, msg)
 		if parseErr != nil {
-			pw.CloseWithError(parseErr)
 			return parseErr
 		}
 		if len(audio) > 0 {
-			frameCount++
-			if _, werr := pw.Write(audio); werr != nil {
-				return werr
+			chunkCount++
+			if onFrame != nil {
+				onFrame(audio)
 			}
 		}
 		if isLast {
-			pw.Close()
 			break
 		}
 	}
 
-	if err := <-parseErrCh; err != nil && ctx.Err() == nil {
-		return err
-	}
-	log.Printf("tts/doubao: streamed %d ogg pages for %q", frameCount, truncate(text, 20))
+	log.Printf("tts/doubao: streamed %d ogg chunks for %q", chunkCount, truncate(text, 20))
 	return nil
 }
 

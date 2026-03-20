@@ -144,6 +144,12 @@ func normalizeChannel(channel string) string {
 	return c
 }
 
+// ResolveLinkedPeerID resolves a channel peer to the canonical owner key
+// declared in session.identity_links.
+func ResolveLinkedPeerID(identityLinks map[string][]string, channel, peerID string) string {
+	return resolveLinkedPeerID(identityLinks, channel, peerID)
+}
+
 func resolveLinkedPeerID(identityLinks map[string][]string, channel, peerID string) string {
 	if len(identityLinks) == 0 {
 		return ""
