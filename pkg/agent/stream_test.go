@@ -41,13 +41,15 @@ func (m *streamingMockProvider) ChatStream(
 	tools []providers.ToolDefinition,
 	model string,
 	options map[string]any,
-	onToken func(string),
+	onChunk func(accumulated string),
 ) (*providers.LLMResponse, error) {
 	m.streamInvoked++
 	m.lastMessages = append([]providers.Message(nil), messages...)
+	var accum string
 	for _, chunk := range m.streamChunks {
-		if onToken != nil {
-			onToken(chunk)
+		accum += chunk
+		if onChunk != nil {
+			onChunk(accum)
 		}
 	}
 	return &providers.LLMResponse{Content: m.response}, nil
@@ -112,7 +114,7 @@ func (m *noTokenStreamingProvider) ChatStream(
 	tools []providers.ToolDefinition,
 	model string,
 	options map[string]any,
-	onToken func(string),
+	onChunk func(accumulated string),
 ) (*providers.LLMResponse, error) {
 	m.streamCalls++
 	m.lastMessages = append([]providers.Message(nil), messages...)
@@ -139,14 +141,16 @@ func (m *streamingSequenceProvider) ChatStream(
 	tools []providers.ToolDefinition,
 	model string,
 	options map[string]any,
-	onToken func(string),
+	onChunk func(accumulated string),
 ) (*providers.LLMResponse, error) {
 	step := m.steps[m.calls]
 	m.calls++
 	m.lastMessages = append(m.lastMessages, append([]providers.Message(nil), messages...))
+	var accum string
 	for _, chunk := range step.chunks {
-		if onToken != nil {
-			onToken(chunk)
+		accum += chunk
+		if onChunk != nil {
+			onChunk(accum)
 		}
 	}
 	return step.response, nil
@@ -392,8 +396,11 @@ func TestRunStreamAgentLoopWithKeys_StreamsFollowUpWithoutExternalChannelFallbac
 
 	outCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	if outbound, ok := msgBus.SubscribeOutbound(outCtx); ok {
+	select {
+	case outbound := <-msgBus.OutboundChan():
 		t.Fatalf("unexpected outbound message: %+v", outbound)
+	case <-outCtx.Done():
+		// expected: no outbound message
 	}
 }
 

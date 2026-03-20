@@ -128,7 +128,7 @@ func (al *AgentLoop) RunStreamAgentLoopWithKeys(
 		agentInst.Sessions.GetSummary(keys.MemoryKey),
 	)
 	messages := agentInst.ContextBuilder.BuildMessages(
-		history, summary, userText, nil, channel, chatID,
+		history, summary, userText, nil, channel, chatID, "", "",
 	)
 
 	addMessageToStreamKeys(agentInst, keys, "user", userText)
@@ -146,16 +146,23 @@ func (al *AgentLoop) RunStreamAgentLoopWithKeys(
 		var resp *providers.LLMResponse
 		var err error
 		tokenObserved := false
-		tokenCb := onToken
-		if onToken != nil {
-			tokenCb = func(token string) {
-				tokenObserved = true
-				onToken(token)
-			}
-		}
 
 		if streamCapable {
-			resp, err = sp.ChatStream(ctx, messages, toolDefs, agentInst.Model, llmOpts, tokenCb)
+			// 上游 ChatStream 的 onChunk 回调传递的是累积文本，
+			// 而 onToken 期望的是增量 token，这里做差值提取。
+			var prevLen int
+			var chunkCb func(string)
+			if onToken != nil {
+				chunkCb = func(accumulated string) {
+					if len(accumulated) > prevLen {
+						delta := accumulated[prevLen:]
+						prevLen = len(accumulated)
+						tokenObserved = true
+						onToken(delta)
+					}
+				}
+			}
+			resp, err = sp.ChatStream(ctx, messages, toolDefs, agentInst.Model, llmOpts, chunkCb)
 		} else {
 			resp, err = agentInst.Provider.Chat(ctx, messages, toolDefs, agentInst.Model, llmOpts)
 		}

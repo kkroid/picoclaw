@@ -15,7 +15,7 @@ func DefaultConfig() *Config {
 	// Determine the base path for the workspace.
 	// Priority: $PICOCLAW_HOME > ~/.picoclaw
 	var homePath string
-	if picoclawHome := os.Getenv("PICOCLAW_HOME"); picoclawHome != "" {
+	if picoclawHome := os.Getenv(EnvHome); picoclawHome != "" {
 		homePath = picoclawHome
 	} else {
 		userHome, _ := os.UserHomeDir()
@@ -35,6 +35,10 @@ func DefaultConfig() *Config {
 				MaxToolIterations:         50,
 				SummarizeMessageThreshold: 20,
 				SummarizeTokenPercent:     75,
+				ToolFeedback: ToolFeedbackConfig{
+					Enabled:       true,
+					MaxArgsLength: 300,
+				},
 			},
 		},
 		Bindings: []AgentBinding{},
@@ -58,6 +62,8 @@ func DefaultConfig() *Config {
 					Enabled: true,
 					Text:    "Thinking... 💭",
 				},
+				Streaming:     StreamingConfig{Enabled: true, ThrottleSeconds: 3, MinGrowthChars: 200},
+				UseMarkdownV2: false,
 			},
 			Feishu: FeishuConfig{
 				Enabled:           false,
@@ -80,11 +86,12 @@ func DefaultConfig() *Config {
 				AllowFrom: FlexibleStringSlice{},
 			},
 			QQ: QQConfig{
-				Enabled:          false,
-				AppID:            "",
-				AppSecret:        "",
-				AllowFrom:        FlexibleStringSlice{},
-				MaxMessageLength: 2000,
+				Enabled:              false,
+				AppID:                "",
+				AppSecret:            "",
+				AllowFrom:            FlexibleStringSlice{},
+				MaxMessageLength:     2000,
+				MaxBase64FileSizeMiB: 0,
 			},
 			DingTalk: DingTalkConfig{
 				Enabled:      false,
@@ -157,14 +164,15 @@ func DefaultConfig() *Config {
 				ReplyTimeout:   5,
 			},
 			WeComAIBot: WeComAIBotConfig{
-				Enabled:        false,
-				Token:          "",
-				EncodingAESKey: "",
-				WebhookPath:    "/webhook/wecom-aibot",
-				AllowFrom:      FlexibleStringSlice{},
-				ReplyTimeout:   5,
-				MaxSteps:       10,
-				WelcomeMessage: "Hello! I'm your AI assistant. How can I help you today?",
+				Enabled:           false,
+				Token:             "",
+				EncodingAESKey:    "",
+				WebhookPath:       "/webhook/wecom-aibot",
+				AllowFrom:         FlexibleStringSlice{},
+				ReplyTimeout:      5,
+				MaxSteps:          10,
+				WelcomeMessage:    "Hello! I'm your AI assistant. How can I help you today?",
+				ProcessingMessage: DefaultWeComAIBotProcessingMessage,
 			},
 			Pico: PicoConfig{
 				Enabled:        false,
@@ -395,8 +403,9 @@ func DefaultConfig() *Config {
 			},
 		},
 		Gateway: GatewayConfig{
-			Host: "127.0.0.1",
-			Port: 18790,
+			Host:      "127.0.0.1",
+			Port:      18790,
+			HotReload: false,
 		},
 		Tools: ToolsConfig{
 			MediaCleanup: MediaCleanupConfig{
@@ -410,8 +419,10 @@ func DefaultConfig() *Config {
 				ToolConfig: ToolConfig{
 					Enabled: true,
 				},
+				PreferNative:    true,
 				Proxy:           "",
 				FetchLimitBytes: 10 * 1024 * 1024, // 10MB by default
+				Format:          "plaintext",
 				Brave: BraveConfig{
 					Enabled:    false,
 					APIKey:     "",
@@ -452,6 +463,7 @@ func DefaultConfig() *Config {
 					Enabled: true,
 				},
 				ExecTimeoutMinutes: 5,
+				AllowCommand:       true,
 			},
 			Exec: ExecConfig{
 				ToolConfig: ToolConfig{
@@ -520,6 +532,9 @@ func DefaultConfig() *Config {
 			},
 			Spawn: ToolConfig{
 				Enabled: true,
+			},
+			SpawnStatus: ToolConfig{
+				Enabled: false,
 			},
 			SPI: ToolConfig{
 				Enabled: false, // Hardware tool - Linux only
