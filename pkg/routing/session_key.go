@@ -144,8 +144,7 @@ func normalizeChannel(channel string) string {
 	return c
 }
 
-// ResolveLinkedPeerID resolves a channel peer to the canonical owner key
-// declared in session.identity_links.
+// [KKROID FORK] ResolveLinkedPeerID 导出内部函数供 xiaozhi owner 解析使用。
 func ResolveLinkedPeerID(identityLinks map[string][]string, channel, peerID string) string {
 	return resolveLinkedPeerID(identityLinks, channel, peerID)
 }

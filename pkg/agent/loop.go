@@ -26,7 +26,6 @@ import (
 	"github.com/sipeed/picoclaw/pkg/constants"
 	"github.com/sipeed/picoclaw/pkg/logger"
 	"github.com/sipeed/picoclaw/pkg/media"
-	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/providers"
 	"github.com/sipeed/picoclaw/pkg/routing"
 	"github.com/sipeed/picoclaw/pkg/skills"
@@ -186,24 +185,8 @@ func registerSharedTools(
 
 		// Message tool
 		if cfg.Tools.IsToolEnabled("message") {
-			pendingWriter := memory.NewIdentityLinkedVoicePendingWriter(
-				agent.Workspace,
-				cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
-				cfg.Session.IdentityLinks,
-			)
 			messageTool := tools.NewMessageTool()
 			messageTool.SetSendCallback(func(channel, chatID, content string) error {
-				if pendingWriter != nil && !constants.IsInternalChannel(channel) &&
-					strings.TrimSpace(channel) != "xiaozhi" {
-					if err := pendingWriter.Enqueue("消息工具", "", content, channel, chatID); err != nil {
-						logger.WarnCF("agent", "Failed to mirror message tool output to voice pending", map[string]any{
-							"channel": channel,
-							"chat_id": chatID,
-							"error":   err.Error(),
-						})
-					}
-				}
-
 				if msgBus == nil {
 					return bus.ErrBusClosed
 				}
@@ -1150,10 +1133,13 @@ func (al *AgentLoop) runLLMIteration(
 
 			// Use streaming when available (streamer obtained, provider supports it)
 			if streamer != nil && streamProvider != nil {
+				// [KKROID FORK] onChunk 传递的是增量 delta，需自行累积给 streamer
+				var accumulated strings.Builder
 				return streamProvider.ChatStream(
 					ctx, messages, providerToolDefs, activeModel, llmOpts,
-					func(accumulated string) {
-						streamer.Update(ctx, accumulated)
+					func(delta string) {
+						accumulated.WriteString(delta)
+						streamer.Update(ctx, accumulated.String())
 					},
 				)
 			}

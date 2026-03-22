@@ -11,7 +11,6 @@ import (
 	"github.com/sipeed/picoclaw/pkg/devices/events"
 	"github.com/sipeed/picoclaw/pkg/devices/sources"
 	"github.com/sipeed/picoclaw/pkg/logger"
-	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/state"
 )
 
@@ -20,7 +19,6 @@ type Service struct {
 	state         *state.Manager
 	sources       []events.EventSource
 	enabled       bool
-	pendingWriter *memory.DefaultOwnerVoicePendingWriter
 	ctx           context.Context
 	cancel        context.CancelFunc
 	mu            sync.RWMutex
@@ -50,12 +48,6 @@ func (s *Service) SetBus(msgBus *bus.MessageBus) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.bus = msgBus
-}
-
-func (s *Service) SetPendingWriter(writer *memory.DefaultOwnerVoicePendingWriter) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.pendingWriter = writer
 }
 
 func (s *Service) Start(ctx context.Context) error {
@@ -116,7 +108,6 @@ func (s *Service) handleEvents(kind events.Kind, eventCh <-chan *events.DeviceEv
 func (s *Service) sendNotification(ev *events.DeviceEvent) {
 	s.mu.RLock()
 	msgBus := s.bus
-	pendingWriter := s.pendingWriter
 	s.mu.RUnlock()
 
 	msg := ev.FormatMessage()
@@ -132,16 +123,6 @@ func (s *Service) sendNotification(ev *events.DeviceEvent) {
 	}
 	if platform == "" || userID == "" || constants.IsInternalChannel(platform) {
 		return
-	}
-
-	if pendingWriter != nil {
-		if err := pendingWriter.Enqueue("设备事件", "", msg, platform, userID); err != nil {
-			logger.WarnCF("devices", "Failed to mirror device notification to voice pending", map[string]any{
-				"channel": platform,
-				"chat_id": userID,
-				"error":   err.Error(),
-			})
-		}
 	}
 
 	if msgBus == nil {

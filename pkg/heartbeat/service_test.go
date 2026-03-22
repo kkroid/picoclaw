@@ -213,11 +213,20 @@ func TestSendResponse_QueuesVoicePendingToLinkedOwner(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	hs := NewHeartbeatService(tmpDir, 30, true)
-	hs.SetBus(bus.NewMessageBus())
-	hs.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(tmpDir, "fallback-owner", map[string][]string{
+	msgBus := bus.NewMessageBus()
+
+	// 通过 bus 出站钩子注册 pendingWriter（与 gateway 中的方式一致）
+	pw := memory.NewIdentityLinkedVoicePendingWriter(tmpDir, "fallback-owner", map[string][]string{
 		"kkroid": {"telegram:chat-1"},
-	}))
+	})
+	msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+		if pw != nil {
+			_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+		}
+	})
+
+	hs := NewHeartbeatService(tmpDir, 30, true)
+	hs.SetBus(msgBus)
 	if err := hs.state.SetLastChannel("telegram:chat-1"); err != nil {
 		t.Fatalf("SetLastChannel: %v", err)
 	}
@@ -244,13 +253,22 @@ func TestSendResponse_QueuesVoicePendingEvenIfOutboundFails(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	msgBus := bus.NewMessageBus()
+
+	// 通过 bus 出站钩子注册 pendingWriter
+	pw := memory.NewIdentityLinkedVoicePendingWriter(tmpDir, "fallback-owner", map[string][]string{
+		"kkroid": {"telegram:chat-1"},
+	})
+	msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+		if pw != nil {
+			_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+		}
+	})
+
+	// 关闭 bus 模拟 outbound 失败，但钩子应在 publish 前执行
 	msgBus.Close()
 
 	hs := NewHeartbeatService(tmpDir, 30, true)
 	hs.SetBus(msgBus)
-	hs.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(tmpDir, "fallback-owner", map[string][]string{
-		"kkroid": {"telegram:chat-1"},
-	}))
 	if err := hs.state.SetLastChannel("telegram:chat-1"); err != nil {
 		t.Fatalf("SetLastChannel: %v", err)
 	}

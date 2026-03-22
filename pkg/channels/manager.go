@@ -389,10 +389,12 @@ func (m *Manager) initChannels(channels *config.ChannelsConfig) error {
 		m.initChannel("pico", "Pico")
 	}
 
+	// [KKROID FORK] xiaozhi 语音通道注册
 	if m.config.Channels.Xiaozhi.Enabled {
 		m.initChannel("xiaozhi", "Xiaozhi")
 	}
 
+	// [KKROID FORK] pico_client 通道注册
 	if channels.PicoClient.Enabled && channels.PicoClient.URL != "" {
 		m.initChannel("pico_client", "Pico Client")
 	}

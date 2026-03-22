@@ -196,6 +196,8 @@ func TestCronTool_ExecuteJob_SkipsVoicePendingWithoutLinkedOwner(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Channels.Xiaozhi.DefaultOwnerID = "fallback-owner"
 
+	// 不注册 bus hook → 不会有 voice pending 入队
+
 	tool, err := NewCronTool(cronService, nil, msgBus, workspace, true, 0, cfg)
 	if err != nil {
 		t.Fatalf("NewCronTool() error: %v", err)
@@ -289,6 +291,14 @@ func TestCronTool_ExecuteJob_QueuesVoicePendingToLinkedOwner(t *testing.T) {
 		"kkroid": {"telegram:chat-1"},
 	}
 
+	// 通过 bus 出站钩子注册 pendingWriter（与 gateway 中的方式一致）
+	pw := memory.NewIdentityLinkedVoicePendingWriter(workspace, "fallback-owner", cfg.Session.IdentityLinks)
+	if pw != nil {
+		msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+			_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+		})
+	}
+
 	tool, err := NewCronTool(cronService, nil, msgBus, workspace, true, 0, cfg)
 	if err != nil {
 		t.Fatalf("NewCronTool() error: %v", err)
@@ -317,9 +327,6 @@ func TestCronTool_ExecuteJob_QueuesVoicePendingToLinkedOwner(t *testing.T) {
 	}
 	if len(queue.Items) != 1 {
 		t.Fatalf("queue items len = %d, want 1", len(queue.Items))
-	}
-	if queue.Items[0].Title != "晨报" {
-		t.Fatalf("queue title = %q, want 晨报", queue.Items[0].Title)
 	}
 	if queue.Items[0].Content != "今天有三条重点更新" {
 		t.Fatalf("queue content = %q, want 今天有三条重点更新", queue.Items[0].Content)

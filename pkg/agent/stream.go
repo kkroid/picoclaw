@@ -148,18 +148,12 @@ func (al *AgentLoop) RunStreamAgentLoopWithKeys(
 		tokenObserved := false
 
 		if streamCapable {
-			// 上游 ChatStream 的 onChunk 回调传递的是累积文本，
-			// 而 onToken 期望的是增量 token，这里做差值提取。
-			var prevLen int
+			// [KKROID FORK] onChunk 已经是增量 delta，直接透传给 onToken
 			var chunkCb func(string)
 			if onToken != nil {
-				chunkCb = func(accumulated string) {
-					if len(accumulated) > prevLen {
-						delta := accumulated[prevLen:]
-						prevLen = len(accumulated)
-						tokenObserved = true
-						onToken(delta)
-					}
+				chunkCb = func(delta string) {
+					tokenObserved = true
+					onToken(delta)
 				}
 			}
 			resp, err = sp.ChatStream(ctx, messages, toolDefs, agentInst.Model, llmOpts, chunkCb)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -29,8 +30,9 @@ import (
 	_ "github.com/sipeed/picoclaw/pkg/channels/wecom"
 	_ "github.com/sipeed/picoclaw/pkg/channels/whatsapp"
 	_ "github.com/sipeed/picoclaw/pkg/channels/whatsapp_native"
-	_ "github.com/sipeed/picoclaw/pkg/channels/xiaozhi"
+	_ "github.com/sipeed/picoclaw/pkg/channels/xiaozhi" // [KKROID FORK]
 	"github.com/sipeed/picoclaw/pkg/config"
+	"github.com/sipeed/picoclaw/pkg/constants"
 	"github.com/sipeed/picoclaw/pkg/cron"
 	"github.com/sipeed/picoclaw/pkg/devices"
 	"github.com/sipeed/picoclaw/pkg/health"
@@ -235,6 +237,20 @@ func setupAndStartServices(
 ) (*services, error) {
 	runningServices := &services{}
 
+	// [KKROID FORK] 注册出站钩子：非 xiaozhi/内部通道的消息自动镜像到语音待播队列
+	if pw := memory.NewIdentityLinkedVoicePendingWriter(
+		cfg.WorkspacePath(),
+		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
+		cfg.Session.IdentityLinks,
+	); pw != nil {
+		msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+			ch := strings.TrimSpace(msg.Channel)
+			if ch != "xiaozhi" && !constants.IsInternalChannel(ch) {
+				_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+			}
+		})
+	}
+
 	execTimeout := time.Duration(cfg.Tools.Cron.ExecTimeoutMinutes) * time.Minute
 	var err error
 	runningServices.CronService, err = setupCronTool(
@@ -259,11 +275,6 @@ func setupAndStartServices(
 		cfg.Heartbeat.Enabled,
 	)
 	runningServices.HeartbeatService.SetBus(msgBus)
-	runningServices.HeartbeatService.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(
-		cfg.WorkspacePath(),
-		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
-		cfg.Session.IdentityLinks,
-	))
 	runningServices.HeartbeatService.SetHandler(createHeartbeatHandler(agentLoop))
 	if err = runningServices.HeartbeatService.Start(); err != nil {
 		return nil, fmt.Errorf("error starting heartbeat service: %w", err)
@@ -290,7 +301,7 @@ func setupAndStartServices(
 	agentLoop.SetChannelManager(runningServices.ChannelManager)
 	agentLoop.SetMediaStore(runningServices.MediaStore)
 
-	// Inject AgentLoop into channels that perform direct streaming invocations.
+	// [KKROID FORK] 将 AgentLoop 注入 xiaozhi 通道以支持直接流式调用
 	if ch, ok := runningServices.ChannelManager.GetChannel("xiaozhi"); ok {
 		if setter, ok := ch.(interface{ SetAgentLoop(*agent.AgentLoop) }); ok {
 			setter.SetAgentLoop(agentLoop)
@@ -329,11 +340,6 @@ func setupAndStartServices(
 		MonitorUSB: cfg.Devices.MonitorUSB,
 	}, stateManager)
 	runningServices.DeviceService.SetBus(msgBus)
-	runningServices.DeviceService.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(
-		cfg.WorkspacePath(),
-		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
-		cfg.Session.IdentityLinks,
-	))
 	if err = runningServices.DeviceService.Start(context.Background()); err != nil {
 		logger.ErrorCF("device", "Error starting device service", map[string]any{"error": err.Error()})
 	} else if cfg.Devices.Enabled {
@@ -454,6 +460,21 @@ func restartServices(
 ) error {
 	cfg := al.GetConfig()
 
+	// [KKROID FORK] reload 时重新注册出站钩子（config 可能变更）
+	msgBus.ClearOutboundHooks()
+	if pw := memory.NewIdentityLinkedVoicePendingWriter(
+		cfg.WorkspacePath(),
+		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
+		cfg.Session.IdentityLinks,
+	); pw != nil {
+		msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+			ch := strings.TrimSpace(msg.Channel)
+			if ch != "xiaozhi" && !constants.IsInternalChannel(ch) {
+				_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+			}
+		})
+	}
+
 	execTimeout := time.Duration(cfg.Tools.Cron.ExecTimeoutMinutes) * time.Minute
 	var err error
 	runningServices.CronService, err = setupCronTool(
@@ -478,11 +499,6 @@ func restartServices(
 		cfg.Heartbeat.Enabled,
 	)
 	runningServices.HeartbeatService.SetBus(msgBus)
-	runningServices.HeartbeatService.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(
-		cfg.WorkspacePath(),
-		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
-		cfg.Session.IdentityLinks,
-	))
 	runningServices.HeartbeatService.SetHandler(createHeartbeatHandler(al))
 	if err = runningServices.HeartbeatService.Start(); err != nil {
 		return fmt.Errorf("error restarting heartbeat service: %w", err)
@@ -504,6 +520,7 @@ func restartServices(
 		return fmt.Errorf("error recreating channel manager: %w", err)
 	}
 	al.SetChannelManager(runningServices.ChannelManager)
+	// [KKROID FORK] 重新注入 AgentLoop（reload）
 	if ch, ok := runningServices.ChannelManager.GetChannel("xiaozhi"); ok {
 		if setter, ok := ch.(interface{ SetAgentLoop(*agent.AgentLoop) }); ok {
 			setter.SetAgentLoop(al)
@@ -535,11 +552,6 @@ func restartServices(
 		MonitorUSB: cfg.Devices.MonitorUSB,
 	}, stateManager)
 	runningServices.DeviceService.SetBus(msgBus)
-	runningServices.DeviceService.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(
-		cfg.WorkspacePath(),
-		cfg.Channels.Xiaozhi.EffectiveDefaultOwnerID(),
-		cfg.Session.IdentityLinks,
-	))
 	if err := runningServices.DeviceService.Start(context.Background()); err != nil {
 		logger.WarnCF("device", "Failed to restart device service", map[string]any{"error": err.Error()})
 	} else if cfg.Devices.Enabled {

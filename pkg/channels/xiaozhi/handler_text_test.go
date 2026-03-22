@@ -62,14 +62,12 @@ func (m *textTurnStreamingProvider) ChatStream(
 	tools []providers.ToolDefinition,
 	model string,
 	options map[string]any,
-	onChunk func(accumulated string),
+	onChunk func(string),
 ) (*providers.LLMResponse, error) {
 	m.lastMessages = append([]providers.Message(nil), messages...)
-	var accum string
 	for _, chunk := range m.streamChunks {
-		accum += chunk
 		if onChunk != nil {
-			onChunk(accum)
+			onChunk(chunk)
 		}
 	}
 	return &providers.LLMResponse{Content: m.response}, nil

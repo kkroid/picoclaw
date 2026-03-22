@@ -277,6 +277,14 @@ func TestMessageTool_SendCallback_QueuesVoicePendingToLinkedOwner(t *testing.T) 
 	}
 
 	msgBus := bus.NewMessageBus()
+	// 通过 bus 出站钩子注册 pendingWriter（与 gateway 中的方式一致）
+	pw := memory.NewIdentityLinkedVoicePendingWriter(tmpDir, "fallback-owner", cfg.Session.IdentityLinks)
+	if pw != nil {
+		msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+			_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+		})
+	}
+
 	al := NewAgentLoop(cfg, msgBus, &mockProvider{})
 	defaultAgent := al.registry.GetDefaultAgent()
 	if defaultAgent == nil {
@@ -322,9 +330,6 @@ func TestMessageTool_SendCallback_QueuesVoicePendingToLinkedOwner(t *testing.T) 
 	if len(queue.Items) != 1 {
 		t.Fatalf("queue items len = %d, want 1", len(queue.Items))
 	}
-	if queue.Items[0].Source != "消息工具" {
-		t.Fatalf("queue source = %q, want 消息工具", queue.Items[0].Source)
-	}
 	if queue.Items[0].Content != "完整内容已推送" {
 		t.Fatalf("queue content = %q, want 完整内容已推送", queue.Items[0].Content)
 	}
@@ -346,7 +351,16 @@ func TestMessageTool_SendCallback_QueuesVoicePendingEvenIfOutboundFails(t *testi
 	}
 
 	msgBus := bus.NewMessageBus()
+	// 通过 bus 出站钩子注册 pendingWriter
+	pw := memory.NewIdentityLinkedVoicePendingWriter(tmpDir, "fallback-owner", cfg.Session.IdentityLinks)
+	if pw != nil {
+		msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+			_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+		})
+	}
+	// 关闭 bus 后钩子仍应在 publish 前执行
 	msgBus.Close()
+
 	al := NewAgentLoop(cfg, msgBus, &mockProvider{})
 	defaultAgent := al.registry.GetDefaultAgent()
 	if defaultAgent == nil {

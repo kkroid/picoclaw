@@ -31,15 +31,16 @@ func TestServiceSendNotification_PublishesOutbound(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	outbound, ok := msgBus.SubscribeOutbound(ctx)
-	if !ok {
+	select {
+	case outbound := <-msgBus.OutboundChan():
+		if outbound.Channel != "telegram" || outbound.ChatID != "chat-1" {
+			t.Fatalf("outbound = %+v", outbound)
+		}
+		if outbound.Content == "" {
+			t.Fatal("expected outbound content")
+		}
+	case <-ctx.Done():
 		t.Fatal("expected outbound message")
-	}
-	if outbound.Channel != "telegram" || outbound.ChatID != "chat-1" {
-		t.Fatalf("outbound = %+v", outbound)
-	}
-	if outbound.Content == "" {
-		t.Fatal("expected outbound content")
 	}
 }
 
@@ -60,8 +61,11 @@ func TestServiceSendNotification_SkipsWithoutLastChannel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	if outbound, ok := msgBus.SubscribeOutbound(ctx); ok {
+	select {
+	case outbound := <-msgBus.OutboundChan():
 		t.Fatalf("unexpected outbound message: %+v", outbound)
+	case <-ctx.Done():
+		// 符合预期：没有 last channel 时不应有消息
 	}
 }
 
@@ -72,11 +76,18 @@ func TestServiceSendNotification_QueuesVoicePendingToLinkedOwner(t *testing.T) {
 		t.Fatalf("SetLastChannel: %v", err)
 	}
 
-	svc := NewService(Config{Enabled: true}, stateMgr)
-	svc.SetBus(bus.NewMessageBus())
-	svc.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(workspace, "fallback-owner", map[string][]string{
+	msgBus := bus.NewMessageBus()
+	pw := memory.NewIdentityLinkedVoicePendingWriter(workspace, "fallback-owner", map[string][]string{
 		"kkroid": {"telegram:chat-1"},
-	}))
+	})
+	msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+		if pw != nil {
+			_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+		}
+	})
+
+	svc := NewService(Config{Enabled: true}, stateMgr)
+	svc.SetBus(msgBus)
 
 	ev := &events.DeviceEvent{
 		Action:  events.ActionAdd,
@@ -93,9 +104,6 @@ func TestServiceSendNotification_QueuesVoicePendingToLinkedOwner(t *testing.T) {
 	if len(queue.Items) != 1 {
 		t.Fatalf("queue items len = %d, want 1", len(queue.Items))
 	}
-	if queue.Items[0].Source != "设备事件" {
-		t.Fatalf("queue source = %q, want 设备事件", queue.Items[0].Source)
-	}
 	if queue.Items[0].Content == "" {
 		t.Fatal("expected queued device notification content")
 	}
@@ -109,13 +117,19 @@ func TestServiceSendNotification_QueuesVoicePendingEvenIfOutboundFails(t *testin
 	}
 
 	msgBus := bus.NewMessageBus()
+	pw := memory.NewIdentityLinkedVoicePendingWriter(workspace, "fallback-owner", map[string][]string{
+		"kkroid": {"telegram:chat-1"},
+	})
+	msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+		if pw != nil {
+			_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+		}
+	})
+	// 关闭 bus 后钩子仍应在 publish 前执行
 	msgBus.Close()
 
 	svc := NewService(Config{Enabled: true}, stateMgr)
 	svc.SetBus(msgBus)
-	svc.SetPendingWriter(memory.NewIdentityLinkedVoicePendingWriter(workspace, "fallback-owner", map[string][]string{
-		"kkroid": {"telegram:chat-1"},
-	}))
 
 	ev := &events.DeviceEvent{
 		Action:  events.ActionAdd,

@@ -297,8 +297,8 @@ type ChannelsConfig struct {
 	WeComApp   WeComAppConfig   `json:"wecom_app"`
 	WeComAIBot WeComAIBotConfig `json:"wecom_aibot"`
 	Pico       PicoConfig       `json:"pico"`
-	PicoClient PicoClientConfig `json:"pico_client"`
-	Xiaozhi    XiaozhiConfig    `json:"xiaozhi"`
+	PicoClient PicoClientConfig `json:"pico_client"` // [KKROID FORK]
+	Xiaozhi    XiaozhiConfig    `json:"xiaozhi"`     // [KKROID FORK]
 	IRC        IRCConfig        `json:"irc"`
 }
 
@@ -518,7 +518,7 @@ const (
 	XiaozhiSessionScopePerOwnerDevice = "per-owner-device"
 )
 
-// XiaozhiConfig 是 xiaozhi 语音 WebSocket 通道配置。
+// [KKROID FORK] XiaozhiConfig 是 xiaozhi 语音 WebSocket 通道配置。
 // default_owner_id 表示当前 workspace 内匿名语音设备的默认 owner，
 // session_scope 控制语音短期上下文隔离粒度，而不是长期记忆粒度。
 type XiaozhiConfig struct {
@@ -575,6 +575,7 @@ func (c XiaozhiConfig) EffectiveSessionScope() string {
 	}
 }
 
+// [KKROID FORK] PicoClientConfig
 type PicoClientConfig struct {
 	Enabled      bool                `json:"enabled"                 env:"PICOCLAW_CHANNELS_PICO_CLIENT_ENABLED"`
 	URL          string              `json:"url"                     env:"PICOCLAW_CHANNELS_PICO_CLIENT_URL"`

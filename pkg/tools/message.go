@@ -69,6 +69,7 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]any) *ToolRes
 
 	channel, _ := args["channel"].(string)
 	chatID, _ := args["chat_id"].(string)
+	// [KKROID FORK] 默认使用当前会话通道作为发送目标
 	sourceChannel := ToolChannel(ctx)
 	sourceChatID := ToolChatID(ctx)
 

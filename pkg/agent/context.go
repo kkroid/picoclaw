@@ -488,6 +488,7 @@ func (cb *ContextBuilder) buildDynamicContext(channel, chatID, senderID, senderD
 		fmt.Fprintf(&sb, "\n\n## Current Sender\n%s", senderLine)
 	}
 
+	// [KKROID FORK] xiaozhi 语音场景 prompt 注入
 	if channel == "xiaozhi" {
 		fmt.Fprintf(
 			&sb,

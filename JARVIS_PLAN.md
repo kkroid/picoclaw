@@ -215,8 +215,9 @@ PicoClaw 仍在快速迭代，但当前语音能力已经从“外挂语音网�
 | 修改 | `cmd/picoclaw/internal/gateway/helpers.go` | 注册 xiaozhi、注入 AgentLoop、接入待播写入器 |
 | 修改 | `pkg/channels/manager.go` | 初始化 xiaozhi channel |
 | 修改 | `pkg/config/config.go` | 新增 `channels.xiaozhi` 与 `session.identity_links` |
-| 修改 | `pkg/agent/loop.go` / `pkg/tools/cron.go` / `pkg/tools/message.go` | 语音待播与渠道输出接缝 |
-| 修改 | `pkg/devices/service.go` / `pkg/heartbeat/service.go` | 主动消息镜像到待播队列 |
+| 修改 | `pkg/bus/bus.go` | 出站钩子机制（OnOutbound / ClearOutboundHooks），集中处理渠道输出镜像 |
+| 修改 | `pkg/agent/loop.go` / `pkg/tools/message.go` | 语音待播与渠道输出接缝（pendingWriter 已移至 bus 钩子） |
+| 修改 | ~~`pkg/devices/service.go`~~ / ~~`pkg/heartbeat/service.go`~~ / ~~`pkg/tools/cron.go`~~ | 已移除散射 pendingWriter 注入，全部收归 bus 出站钩子 |
 | 移除 | `cmd/picoclaw-voice/*` / `docker/docker-compose.voice.yml` / `pkg/tts/ogg.go` | 废弃独立语音网关与旧解包路径 |
 
 ### 当前架构的核心判断
@@ -259,6 +260,34 @@ pkg/memory/voice_pending.go   ← owner 级待播摘要队列（新增）
 - 冲突风险：**极低**。现有文件只有 `http_provider.go` +11 行，其余全为新增文件，无冲突
 - 若上游修复了同一 bug（`HTTPProvider.ChatStream`）：删除我们的改动即可，stream.go/streaming.go 不受影响
 - 若上游重构了 `openai_compat.Provider` struct 名称：只需更新 `streaming.go` 中的 receiver 类型
+
+### 与上游的分歧：StreamingProvider.ChatStream 回调语义
+
+**背景**：2026-03-20 合并 upstream/main 时发现，上游在 `#1101`（Telegram stream LLM responses）中将 `StreamingProvider` 接口的回调从增量 delta 改为累积文本：
+
+```go
+// 上游：回调收到累积文本（为 Telegram editMessage 设计）
+ChatStream(..., onChunk func(accumulated string))
+
+// 我们的硬改：回调直接传递 SSE 原始 delta
+ChatStream(..., onChunk func(delta string))
+```
+
+**原因**：大模型 SSE 原始输出就是增量 delta（`{"delta":{"content":"你"}}`），上游在 `parseStreamResponse` 中先用 `strings.Builder` 追加成累积文本再传给 `onChunk`，这对语音 TTS 场景（需要逐 token 实时合成）是不必要的弯路。
+
+**我们的改动（共 3 处，均有 `[KKROID FORK]` 注释标记）**：
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `pkg/providers/openai_compat/provider.go` | `onChunk(choice.Delta.Content)` 替代 `onChunk(textContent.String())` | 从源头传 delta |
+| `pkg/agent/loop.go` | Telegram streamer 回调中自行用 `strings.Builder` 累积 | 消费者按需累积 |
+| `pkg/agent/stream.go` | `onToken(delta)` 直接透传 | 语音场景无需转换 |
+
+**合并上游时的注意事项**：如果上游修改了 `ChatStream` 或 `parseStreamResponse`，需要在合并后确认上述 3 处 `[KKROID FORK]` 标记的改动仍然存在。搜索关键字：`grep -rn "KKROID FORK" pkg/`。
+
+**建议与上游讨论的方向**：
+1. 回调改为传 delta，累积由调用方按需自己做（Telegram 侧自行维护 Builder）
+2. 或回调同时传 delta 和 accumulated：`onChunk func(delta, accumulated string)`
 
 ---
 

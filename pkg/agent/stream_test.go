@@ -41,15 +41,13 @@ func (m *streamingMockProvider) ChatStream(
 	tools []providers.ToolDefinition,
 	model string,
 	options map[string]any,
-	onChunk func(accumulated string),
+	onChunk func(string),
 ) (*providers.LLMResponse, error) {
 	m.streamInvoked++
 	m.lastMessages = append([]providers.Message(nil), messages...)
-	var accum string
 	for _, chunk := range m.streamChunks {
-		accum += chunk
 		if onChunk != nil {
-			onChunk(accum)
+			onChunk(chunk)
 		}
 	}
 	return &providers.LLMResponse{Content: m.response}, nil
@@ -114,7 +112,7 @@ func (m *noTokenStreamingProvider) ChatStream(
 	tools []providers.ToolDefinition,
 	model string,
 	options map[string]any,
-	onChunk func(accumulated string),
+	onChunk func(string),
 ) (*providers.LLMResponse, error) {
 	m.streamCalls++
 	m.lastMessages = append([]providers.Message(nil), messages...)
@@ -141,16 +139,14 @@ func (m *streamingSequenceProvider) ChatStream(
 	tools []providers.ToolDefinition,
 	model string,
 	options map[string]any,
-	onChunk func(accumulated string),
+	onChunk func(string),
 ) (*providers.LLMResponse, error) {
 	step := m.steps[m.calls]
 	m.calls++
 	m.lastMessages = append(m.lastMessages, append([]providers.Message(nil), messages...))
-	var accum string
 	for _, chunk := range step.chunks {
-		accum += chunk
 		if onChunk != nil {
-			onChunk(accum)
+			onChunk(chunk)
 		}
 	}
 	return step.response, nil

@@ -40,6 +40,10 @@ type MessageBus struct {
 	closed         atomic.Bool
 	wg             sync.WaitGroup
 	streamDelegate atomic.Value // stores StreamDelegate
+
+	// [KKROID FORK] 出站钩子，在消息入 channel 前同步执行。
+	outboundHooks []func(OutboundMessage)
+	hookMu        sync.RWMutex
 }
 
 func NewMessageBus() *MessageBus {
@@ -88,11 +92,32 @@ func (mb *MessageBus) InboundChan() <-chan InboundMessage {
 }
 
 func (mb *MessageBus) PublishOutbound(ctx context.Context, msg OutboundMessage) error {
+	// [KKROID FORK] 执行出站钩子
+	mb.hookMu.RLock()
+	hooks := mb.outboundHooks
+	mb.hookMu.RUnlock()
+	for _, fn := range hooks {
+		fn(msg)
+	}
 	return publish(ctx, mb, mb.outbound, msg)
 }
 
 func (mb *MessageBus) OutboundChan() <-chan OutboundMessage {
 	return mb.outbound
+}
+
+// [KKROID FORK] OnOutbound 注册出站消息钩子，在消息入 channel 前同步执行。
+func (mb *MessageBus) OnOutbound(fn func(OutboundMessage)) {
+	mb.hookMu.Lock()
+	defer mb.hookMu.Unlock()
+	mb.outboundHooks = append(mb.outboundHooks, fn)
+}
+
+// [KKROID FORK] ClearOutboundHooks 清空所有出站钩子（reload 时使用）。
+func (mb *MessageBus) ClearOutboundHooks() {
+	mb.hookMu.Lock()
+	defer mb.hookMu.Unlock()
+	mb.outboundHooks = nil
 }
 
 func (mb *MessageBus) PublishOutboundMedia(ctx context.Context, msg OutboundMediaMessage) error {

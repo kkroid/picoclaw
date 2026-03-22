@@ -19,7 +19,6 @@ import (
 	"github.com/sipeed/picoclaw/pkg/constants"
 	"github.com/sipeed/picoclaw/pkg/fileutil"
 	"github.com/sipeed/picoclaw/pkg/logger"
-	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/state"
 	"github.com/sipeed/picoclaw/pkg/tools"
 )
@@ -42,7 +41,6 @@ type HeartbeatService struct {
 	handler       HeartbeatHandler
 	interval      time.Duration
 	enabled       bool
-	pendingWriter *memory.DefaultOwnerVoicePendingWriter
 	mu            sync.RWMutex
 	stopChan      chan struct{}
 }
@@ -78,12 +76,6 @@ func (hs *HeartbeatService) SetHandler(handler HeartbeatHandler) {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
 	hs.handler = handler
-}
-
-func (hs *HeartbeatService) SetPendingWriter(writer *memory.DefaultOwnerVoicePendingWriter) {
-	hs.mu.Lock()
-	defer hs.mu.Unlock()
-	hs.pendingWriter = writer
 }
 
 // Start begins the heartbeat service
@@ -296,7 +288,6 @@ Add your heartbeat tasks below this line:
 func (hs *HeartbeatService) sendResponse(response string) {
 	hs.mu.RLock()
 	msgBus := hs.bus
-	pendingWriter := hs.pendingWriter
 	hs.mu.RUnlock()
 
 	// Get last channel from state
@@ -311,12 +302,6 @@ func (hs *HeartbeatService) sendResponse(response string) {
 	// Skip internal channels that can't receive messages
 	if platform == "" || userID == "" {
 		return
-	}
-
-	if pendingWriter != nil {
-		if err := pendingWriter.Enqueue("心跳任务", "", response, platform, userID); err != nil {
-			hs.logErrorf("Failed to mirror heartbeat result to voice pending: %v", err)
-		}
 	}
 
 	if msgBus == nil {

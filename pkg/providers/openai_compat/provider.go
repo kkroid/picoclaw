@@ -185,14 +185,15 @@ func (p *Provider) Chat(
 }
 
 // ChatStream implements streaming via OpenAI-compatible SSE (stream: true).
-// onChunk receives the accumulated text so far on each text delta.
+// [KKROID FORK] onChunk 直接传递每次 SSE 事件的增量文本（delta），
+// 与 LLM SSE 原始语义一致。需要累积文本的消费者应自行维护 Builder。
 func (p *Provider) ChatStream(
 	ctx context.Context,
 	messages []Message,
 	tools []ToolDefinition,
 	model string,
 	options map[string]any,
-	onChunk func(accumulated string),
+	onChunk func(delta string),
 ) (*LLMResponse, error) {
 	if p.apiBase == "" {
 		return nil, fmt.Errorf("API base not configured")
@@ -235,10 +236,11 @@ func (p *Provider) ChatStream(
 }
 
 // parseStreamResponse parses an OpenAI-compatible SSE stream.
+// [KKROID FORK] onChunk 收到的是每个 SSE chunk 的增量文本（delta）。
 func parseStreamResponse(
 	ctx context.Context,
 	reader io.Reader,
-	onChunk func(accumulated string),
+	onChunk func(delta string),
 ) (*LLMResponse, error) {
 	var textContent strings.Builder
 	var finishReason string
@@ -302,11 +304,11 @@ func parseStreamResponse(
 
 		choice := chunk.Choices[0]
 
-		// Accumulate text content
+		// [KKROID FORK] 直接透传增量 delta，而非上游的累积文本
 		if choice.Delta.Content != "" {
 			textContent.WriteString(choice.Delta.Content)
 			if onChunk != nil {
-				onChunk(textContent.String())
+				onChunk(choice.Delta.Content)
 			}
 		}
 
