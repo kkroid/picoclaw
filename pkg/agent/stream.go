@@ -66,11 +66,11 @@ func addMessageToStreamKeys(agentInst *AgentInstance, keys StreamConversationKey
 func (al *AgentLoop) maybeSummarizeStreamKeys(
 	agentInst *AgentInstance,
 	keys StreamConversationKeys,
-	channel, chatID string,
+	turnScope turnEventScope,
 ) {
-	al.maybeSummarize(agentInst, keys.SessionKey, channel, chatID)
+	al.maybeSummarize(agentInst, keys.SessionKey, turnScope)
 	if keys.MemoryKey != "" {
-		al.maybeSummarize(agentInst, keys.MemoryKey, channel, chatID)
+		al.maybeSummarize(agentInst, keys.MemoryKey, turnScope)
 	}
 }
 
@@ -217,7 +217,8 @@ func (al *AgentLoop) RunStreamAgentLoopWithKeys(
 				map[string]any{"memory_key": keys.MemoryKey, "error": err.Error()})
 		}
 	}
-	al.maybeSummarizeStreamKeys(agentInst, keys, channel, chatID)
+	turnScope := al.newTurnEventScope(agentInst.ID, keys.SessionKey)
+	al.maybeSummarizeStreamKeys(agentInst, keys, turnScope)
 
 	logger.InfoCF("voice-stream", "Stream completed",
 		map[string]any{
