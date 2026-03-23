@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sipeed/picoclaw/pkg/bus"
+	"github.com/sipeed/picoclaw/pkg/memory"
 	"github.com/sipeed/picoclaw/pkg/tools"
 )
 
@@ -201,5 +203,86 @@ func TestHeartbeatFilePath(t *testing.T) {
 	expectedPath := filepath.Join(tmpDir, "HEARTBEAT.md")
 	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
 		t.Errorf("Expected HEARTBEAT.md at %s, but it doesn't exist", expectedPath)
+	}
+}
+
+func TestSendResponse_QueuesVoicePendingToLinkedOwner(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "heartbeat-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	msgBus := bus.NewMessageBus()
+
+	// 通过 bus 出站钩子注册 pendingWriter（与 gateway 中的方式一致）
+	pw := memory.NewIdentityLinkedVoicePendingWriter(tmpDir, "fallback-owner", map[string][]string{
+		"kkroid": {"telegram:chat-1"},
+	})
+	msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+		if pw != nil {
+			_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+		}
+	})
+
+	hs := NewHeartbeatService(tmpDir, 30, true)
+	hs.SetBus(msgBus)
+	if err := hs.state.SetLastChannel("telegram:chat-1"); err != nil {
+		t.Fatalf("SetLastChannel: %v", err)
+	}
+
+	hs.sendResponse("晨报已发送到 Telegram")
+
+	queue, err := memory.NewVoicePendingStore(tmpDir).Load("kkroid")
+	if err != nil {
+		t.Fatalf("Load queue: %v", err)
+	}
+	if len(queue.Items) != 1 {
+		t.Fatalf("queue items len = %d, want 1", len(queue.Items))
+	}
+	if queue.Items[0].Content != "晨报已发送到 Telegram" {
+		t.Fatalf("queue content = %q, want 晨报已发送到 Telegram", queue.Items[0].Content)
+	}
+}
+
+func TestSendResponse_QueuesVoicePendingEvenIfOutboundFails(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "heartbeat-failed-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	msgBus := bus.NewMessageBus()
+
+	// 通过 bus 出站钩子注册 pendingWriter
+	pw := memory.NewIdentityLinkedVoicePendingWriter(tmpDir, "fallback-owner", map[string][]string{
+		"kkroid": {"telegram:chat-1"},
+	})
+	msgBus.OnOutbound(func(msg bus.OutboundMessage) {
+		if pw != nil {
+			_ = pw.Enqueue("", "", msg.Content, msg.Channel, msg.ChatID)
+		}
+	})
+
+	// 关闭 bus 模拟 outbound 失败，但钩子应在 publish 前执行
+	msgBus.Close()
+
+	hs := NewHeartbeatService(tmpDir, 30, true)
+	hs.SetBus(msgBus)
+	if err := hs.state.SetLastChannel("telegram:chat-1"); err != nil {
+		t.Fatalf("SetLastChannel: %v", err)
+	}
+
+	hs.sendResponse("外桥失败也要保留心跳结果")
+
+	queue, err := memory.NewVoicePendingStore(tmpDir).Load("kkroid")
+	if err != nil {
+		t.Fatalf("Load queue: %v", err)
+	}
+	if len(queue.Items) != 1 {
+		t.Fatalf("queue items len = %d, want 1", len(queue.Items))
+	}
+	if queue.Items[0].Content != "外桥失败也要保留心跳结果" {
+		t.Fatalf("queue content = %q, want 外桥失败也要保留心跳结果", queue.Items[0].Content)
 	}
 }

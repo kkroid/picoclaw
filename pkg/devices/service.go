@@ -15,13 +15,13 @@ import (
 )
 
 type Service struct {
-	bus     *bus.MessageBus
-	state   *state.Manager
-	sources []events.EventSource
-	enabled bool
-	ctx     context.Context
-	cancel  context.CancelFunc
-	mu      sync.RWMutex
+	bus           *bus.MessageBus
+	state         *state.Manager
+	sources       []events.EventSource
+	enabled       bool
+	ctx           context.Context
+	cancel        context.CancelFunc
+	mu            sync.RWMutex
 }
 
 type Config struct {
@@ -110,31 +110,43 @@ func (s *Service) sendNotification(ev *events.DeviceEvent) {
 	msgBus := s.bus
 	s.mu.RUnlock()
 
-	if msgBus == nil {
-		return
-	}
+	msg := ev.FormatMessage()
 
 	lastChannel := s.state.GetLastChannel()
+	platform, userID := parseLastChannel(lastChannel)
+
 	if lastChannel == "" {
-		logger.DebugCF("devices", "No last channel, skipping notification", map[string]any{
-			"event": ev.FormatMessage(),
+		logger.DebugCF("devices", "No last channel, skipping outbound notification", map[string]any{
+			"event": msg,
 		})
 		return
 	}
-
-	platform, userID := parseLastChannel(lastChannel)
 	if platform == "" || userID == "" || constants.IsInternalChannel(platform) {
 		return
 	}
 
-	msg := ev.FormatMessage()
+	if msgBus == nil {
+		logger.WarnCF("devices", "No message bus configured, skipping outbound device notification", map[string]any{
+			"channel": platform,
+			"chat_id": userID,
+		})
+		return
+	}
+
 	pubCtx, pubCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer pubCancel()
-	msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
+	if err := msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
 		Channel: platform,
 		ChatID:  userID,
 		Content: msg,
-	})
+	}); err != nil {
+		logger.WarnCF("devices", "Failed to publish device notification", map[string]any{
+			"channel": platform,
+			"chat_id": userID,
+			"error":   err.Error(),
+		})
+		return
+	}
 
 	logger.InfoCF("devices", "Device notification sent", map[string]any{
 		"kind":   ev.Kind,

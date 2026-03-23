@@ -11,10 +11,11 @@ import (
 	"fmt"
 )
 
-// AudioFormat describes the audio wire format a provider expects from the device.
-// The gateway uses this to populate helloReply.audio_params; devices must send accordingly.
+// AudioFormat describes the upstream audio wire format a provider expects from the device.
+// The gateway uses this to populate helloReply.asr_params; devices must send accordingly.
 type AudioFormat struct {
-	Codec      string // "pcm" | "opus"
+	Format     string // xiaozhi hello.asr_params.format，表示容器/线格式，如 "pcm" | "ogg"
+	Codec      string // xiaozhi hello.asr_params.codec，表示容器内编码，如 "raw" | "opus"
 	SampleRate int    // Hz, e.g. 16000
 	Channels   int    // 1 = mono
 }

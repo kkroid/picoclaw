@@ -99,7 +99,7 @@ func (p *provider) Name() string { return "fishspeech" }
 // AudioFormat 声明输出格式为 PCM s16le，采样率由配置指定（默认 44100Hz mono）。
 // 网关通过 tts_params 下发给客户端，客户端据此初始化播放设备，无需 Opus 解码。
 func (p *provider) AudioFormat() tts.AudioFormat {
-	return tts.AudioFormat{Codec: "pcm", SampleRate: p.sampleRate, Channels: 1}
+	return tts.AudioFormat{Format: "pcm", Codec: "raw", SampleRate: p.sampleRate, Channels: 1}
 }
 
 // SynthesizeFrames 向 Fish Speech HTTP API 发请求，流式读取原始 PCM s16le 数据分块回调。
@@ -223,5 +223,3 @@ func (p *provider) generateRefWAV() ([]byte, error) {
 	}
 	return io.ReadAll(resp.Body)
 }
-
-

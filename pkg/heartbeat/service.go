@@ -35,14 +35,14 @@ type HeartbeatHandler func(prompt, channel, chatID string) *tools.ToolResult
 
 // HeartbeatService manages periodic heartbeat checks
 type HeartbeatService struct {
-	workspace string
-	bus       *bus.MessageBus
-	state     *state.Manager
-	handler   HeartbeatHandler
-	interval  time.Duration
-	enabled   bool
-	mu        sync.RWMutex
-	stopChan  chan struct{}
+	workspace     string
+	bus           *bus.MessageBus
+	state         *state.Manager
+	handler       HeartbeatHandler
+	interval      time.Duration
+	enabled       bool
+	mu            sync.RWMutex
+	stopChan      chan struct{}
 }
 
 // NewHeartbeatService creates a new heartbeat service
@@ -290,11 +290,6 @@ func (hs *HeartbeatService) sendResponse(response string) {
 	msgBus := hs.bus
 	hs.mu.RUnlock()
 
-	if msgBus == nil {
-		hs.logInfof("No message bus configured, heartbeat result not sent")
-		return
-	}
-
 	// Get last channel from state
 	lastChannel := hs.state.GetLastChannel()
 	if lastChannel == "" {
@@ -309,13 +304,21 @@ func (hs *HeartbeatService) sendResponse(response string) {
 		return
 	}
 
+	if msgBus == nil {
+		hs.logInfof("No message bus configured, heartbeat result not sent")
+		return
+	}
+
 	pubCtx, pubCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer pubCancel()
-	msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
+	if err := msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
 		Channel: platform,
 		ChatID:  userID,
 		Content: response,
-	})
+	}); err != nil {
+		hs.logErrorf("Failed to publish heartbeat result: %v", err)
+		return
+	}
 
 	hs.logInfof("Heartbeat result sent to %s", platform)
 }

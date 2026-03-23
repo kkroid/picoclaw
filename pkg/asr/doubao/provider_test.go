@@ -14,6 +14,94 @@ import (
 	"testing"
 )
 
+func TestProviderAudioFormat_DefaultsToOggOpus(t *testing.T) {
+	p := &provider{}
+	got := p.AudioFormat()
+	if got.Format != "ogg" {
+		t.Fatalf("format = %q, want ogg", got.Format)
+	}
+	if got.Codec != "opus" {
+		t.Fatalf("codec = %q, want opus", got.Codec)
+	}
+	if got.SampleRate != 16000 {
+		t.Fatalf("sample rate = %d, want 16000", got.SampleRate)
+	}
+	if got.Channels != 1 {
+		t.Fatalf("channels = %d, want 1", got.Channels)
+	}
+}
+
+func TestAuthHeaders_BearerModeMatchesReferenceBranch(t *testing.T) {
+	p := &provider{token: "token", resourceID: "rid"}
+	headers := p.authHeaders("conn-1")
+	if got := headers.Get("Authorization"); got != "Bearer token" {
+		t.Fatalf("Authorization = %q, want %q", got, "Bearer token")
+	}
+	if got := headers.Get("X-Api-Resource-Id"); got != "rid" {
+		t.Fatalf("X-Api-Resource-Id = %q, want rid", got)
+	}
+	if got := headers.Get("X-Api-Connect-Id"); got != "conn-1" {
+		t.Fatalf("X-Api-Connect-Id = %q, want conn-1", got)
+	}
+	if got := headers.Get("X-Api-App-Key"); got != "" {
+		t.Fatalf("X-Api-App-Key = %q, want empty", got)
+	}
+}
+
+func TestAuthHeaders_AppKeyModeMatchesReferenceBranch(t *testing.T) {
+	p := &provider{appID: "app-id", token: "token", resourceID: "rid"}
+	headers := p.authHeaders("conn-2")
+	if got := headers.Get("X-Api-App-Key"); got != "app-id" {
+		t.Fatalf("X-Api-App-Key = %q, want app-id", got)
+	}
+	if got := headers.Get("X-Api-Access-Key"); got != "token" {
+		t.Fatalf("X-Api-Access-Key = %q, want token", got)
+	}
+	if got := headers.Get("X-Api-Resource-Id"); got != "rid" {
+		t.Fatalf("X-Api-Resource-Id = %q, want rid", got)
+	}
+	if got := headers.Get("Authorization"); got != "" {
+		t.Fatalf("Authorization = %q, want empty", got)
+	}
+}
+
+func TestInitRequest_UsesOggOpusInputWithoutAppAuthPayload(t *testing.T) {
+	p := &provider{appID: "app-id", token: "token", cluster: "bigmodel_transcribe"}
+	req := p.initRequest("req-1")
+
+	if _, ok := req["app"]; ok {
+		t.Fatal("did not expect auth payload in init request")
+	}
+
+	audio, ok := req["audio"].(map[string]any)
+	if !ok {
+		t.Fatal("expected audio map")
+	}
+	if audio["format"] != "ogg" {
+		t.Fatalf("audio.format = %v, want ogg", audio["format"])
+	}
+	if audio["codec"] != "opus" {
+		t.Fatalf("audio.codec = %v, want opus", audio["codec"])
+	}
+	if audio["rate"] != 16000 {
+		t.Fatalf("audio.rate = %v, want 16000", audio["rate"])
+	}
+
+	request, ok := req["request"].(map[string]any)
+	if !ok {
+		t.Fatal("expected request map")
+	}
+	if request["reqid"] != "req-1" {
+		t.Fatalf("request.reqid = %v, want req-1", request["reqid"])
+	}
+	if request["sequence"] != 1 {
+		t.Fatalf("request.sequence = %v, want 1", request["sequence"])
+	}
+	if request["model_name"] != "bigmodel" {
+		t.Fatalf("request.model_name = %v, want bigmodel", request["model_name"])
+	}
+}
+
 // ---- buildFrame ----
 
 func TestBuildFrame_HeaderLayout(t *testing.T) {
@@ -121,6 +209,28 @@ func TestBuildAudioFrame_LastFlag(t *testing.T) {
 	}
 	if frame[1]&0x0F != flagLastFrame {
 		t.Errorf("flags = 0x%x, want 0x%x", frame[1]&0x0F, flagLastFrame)
+	}
+}
+
+func TestBuildAudioFrame_UsesRawSerializationAndPreservesPayload(t *testing.T) {
+	audio := []byte{0x01, 0x02, 0x03, 0x04}
+	frame, err := buildAudioFrame(flagNormal, audio)
+	if err != nil {
+		t.Fatalf("buildAudioFrame: %v", err)
+	}
+	if frame[2]>>4 != serialNone {
+		t.Fatalf("serialization nibble = 0x%x, want 0x%x", frame[2]>>4, serialNone)
+	}
+	r, err := gzip.NewReader(bytes.NewReader(frame[8:]))
+	if err != nil {
+		t.Fatalf("gzip reader: %v", err)
+	}
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("gzip read: %v", err)
+	}
+	if !bytes.Equal(raw, audio) {
+		t.Fatalf("payload mismatch: got %v want %v", raw, audio)
 	}
 }
 

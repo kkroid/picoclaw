@@ -144,6 +144,11 @@ func normalizeChannel(channel string) string {
 	return c
 }
 
+// [KKROID FORK] ResolveLinkedPeerID 导出内部函数供 xiaozhi owner 解析使用。
+func ResolveLinkedPeerID(identityLinks map[string][]string, channel, peerID string) string {
+	return resolveLinkedPeerID(identityLinks, channel, peerID)
+}
+
 func resolveLinkedPeerID(identityLinks map[string][]string, channel, peerID string) string {
 	if len(identityLinks) == 0 {
 		return ""

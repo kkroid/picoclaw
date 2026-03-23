@@ -12,11 +12,11 @@
 #   2. FunASR 模型首次启动自动从 ModelScope 下载到 ~/models/funasr/（约 500MB）
 #   3. Fish Speech 模型已内置于 v1.5.1 镜像，无需单独下载
 #
-# picoclaw-voice 配置：
-#   PICOCLAW_VOICE_ASR_PROVIDER=funasr
-#   PICOCLAW_VOICE_ASR_WS_URL=ws://127.0.0.1:10095
-#   PICOCLAW_VOICE_TTS_PROVIDER=fishspeech
-#   PICOCLAW_VOICE_TTS_API_URL=http://127.0.0.1:8080
+# xiaozhi channel 配置示例：
+#   PICOCLAW_CHANNELS_XIAOZHI_ASR_PROVIDER=funasr
+#   PICOCLAW_CHANNELS_XIAOZHI_ASR_WS_URL=ws://127.0.0.1:10095
+#   PICOCLAW_CHANNELS_XIAOZHI_TTS_PROVIDER=fishspeech
+#   PICOCLAW_CHANNELS_XIAOZHI_TTS_API_URL=http://127.0.0.1:8080
 
 services:
 
