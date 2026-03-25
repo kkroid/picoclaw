@@ -54,12 +54,11 @@ func NewXiaozhiChannel(cfg config.XiaozhiConfig, b *bus.MessageBus) (*XiaozhiCha
 	logger.Infof("xiaozhi: TTS config: provider=%s api_url=%s seed=%d", ttsProvider, cfg.TTSAPIURL, cfg.TTSSeed)
 
 	asrProv, err := asr.New(asrProvider, map[string]any{
-		"appid":        orStr(cfg.ASRAppID, cfg.AppID),
-		"access_token": orStr(cfg.ASRToken, cfg.Token),
-		"cluster":      orStr(cfg.ASRCluster, "bigmodel_transcribe"),
-		"resource_id":  orStr(cfg.ASRResourceID, "volc.bigasr.sauc.duration"),
-		"ws_url":       cfg.ASRWsURL,
-		"mode":         cfg.ASRMode,
+		"app_key":     orStr(cfg.ASRAppID, cfg.AppID),
+		"access_key":  orStr(cfg.ASRToken, cfg.Token),
+		"resource_id": orStr(cfg.ASRResourceID, "volc.bigasr.sauc.duration"),
+		"ws_url":      cfg.ASRWsURL,
+		"mode":        cfg.ASRMode,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("xiaozhi: init ASR provider %q: %w", asrProvider, err)
@@ -93,7 +92,9 @@ func NewXiaozhiChannel(cfg config.XiaozhiConfig, b *bus.MessageBus) (*XiaozhiCha
 }
 
 // SetAgentLoop 注入 AgentLoop，在 channel 创建后、Start 之前调用。
-func (c *XiaozhiChannel) SetAgentLoop(al *agent.AgentLoop) {
+// 参数类型为 any 以适配 Manager.InjectAgentLoop 的通用接口检测。
+func (c *XiaozhiChannel) SetAgentLoop(v any) {
+	al, _ := v.(*agent.AgentLoop)
 	c.agentLoop = al
 	if al == nil {
 		c.ownerStore = nil

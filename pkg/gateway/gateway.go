@@ -304,12 +304,8 @@ func setupAndStartServices(
 	agentLoop.SetChannelManager(runningServices.ChannelManager)
 	agentLoop.SetMediaStore(runningServices.MediaStore)
 
-	// [KKROID FORK] 将 AgentLoop 注入 xiaozhi 通道以支持直接流式调用
-	if ch, ok := runningServices.ChannelManager.GetChannel("xiaozhi"); ok {
-		if setter, ok := ch.(interface{ SetAgentLoop(*agent.AgentLoop) }); ok {
-			setter.SetAgentLoop(agentLoop)
-		}
-	}
+	// [KKROID FORK] 将 AgentLoop 注入所有需要直接流式调用的通道
+	runningServices.ChannelManager.InjectAgentLoop(agentLoop)
 
 	if transcriber := voice.DetectTranscriber(cfg); transcriber != nil {
 		agentLoop.SetTranscriber(transcriber)
@@ -524,11 +520,7 @@ func restartServices(
 	}
 	al.SetChannelManager(runningServices.ChannelManager)
 	// [KKROID FORK] 重新注入 AgentLoop（reload）
-	if ch, ok := runningServices.ChannelManager.GetChannel("xiaozhi"); ok {
-		if setter, ok := ch.(interface{ SetAgentLoop(*agent.AgentLoop) }); ok {
-			setter.SetAgentLoop(al)
-		}
-	}
+	runningServices.ChannelManager.InjectAgentLoop(al)
 
 	enabledChannels := runningServices.ChannelManager.GetEnabledChannels()
 	if len(enabledChannels) > 0 {

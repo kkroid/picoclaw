@@ -900,6 +900,18 @@ func (m *Manager) GetChannel(name string) (Channel, bool) {
 	return channel, ok
 }
 
+// [KKROID FORK] InjectAgentLoop 将 agentLoop 注入所有实现了 SetAgentLoop 方法的通道。
+// 参数类型为 any 以避免 channels 包对 agent 包的循环依赖。
+func (m *Manager) InjectAgentLoop(agentLoop any) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, ch := range m.channels {
+		if setter, ok := ch.(interface{ SetAgentLoop(any) }); ok {
+			setter.SetAgentLoop(agentLoop)
+		}
+	}
+}
+
 func (m *Manager) GetStatus() map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

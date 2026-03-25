@@ -95,6 +95,7 @@ xiaozhi 作为 picoclaw 内置 channel 挂载在主进程共享 HTTP/WebSocket s
       "asr_provider": "doubao",
       "asr_cluster": "bigmodel_transcribe",
       "asr_resource_id": "YOUR_DOUBAO_ASR_RESOURCE_ID",
+      "asr_ws_url": "",
       "tts_provider": "doubao",
       "tts_cluster": "volcano_tts",
       "tts_voice": "zh_female_wanwanxiaohe_moon_bigtts"
@@ -111,6 +112,8 @@ xiaozhi 作为 picoclaw 内置 channel 挂载在主进程共享 HTTP/WebSocket s
 - `appid` / `token`：ASR/TTS 共用凭证兜底
 - `asr_*` / `tts_*`：分别覆盖 ASR/TTS 专用 provider 配置
 - `asr_resource_id`：按控制台实际开通资源填写。ASR 1.0 小时版用 `volc.bigasr.sauc.duration`，ASR 2.0 小时版用 `volc.seedasr.sauc.duration`
+- `asr_ws_url`：可选覆盖 Doubao ASR WebSocket 地址。留空时，PicoClaw 会根据资源自动选端点：1.0 默认 `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel`，2.0(Seed) 默认 `wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async`
+- `asr_appid`：若使用新版控制台“快速 API 接入”的 API Key(UUID)，这里应填写 API Key 的 UUID 值，不是左侧展示的“名称”
 
 ## 5. 协议对象模型
 

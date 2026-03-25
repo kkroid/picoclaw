@@ -35,10 +35,12 @@ func init() {
 }
 
 const defaultASRURL = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel"
+const defaultASRAsyncURL = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
 
 // 时长包资源 ID 以控制台实际购买的为准：
 // 模型1.0: volc.bigasr.sauc.duration  模型2.0(Seed): volc.seedasr.sauc.duration
 const defaultResourceID = "volc.bigasr.sauc.duration"
+const seedResourceID = "volc.seedasr.sauc.duration"
 
 const (
 	defaultAudioFormat   = "ogg"
@@ -68,30 +70,47 @@ const (
 )
 
 type provider struct {
-	appID      string
-	token      string
-	cluster    string
+	appKey     string
+	accessKey  string
 	resourceID string
 	wsURL      string
 	dialer     *websocket.Dialer
 }
 
+func maskSecret(value string) string {
+	if value == "" {
+		return ""
+	}
+	if len(value) <= 8 {
+		return "****"
+	}
+	return value[:4] + "***" + value[len(value)-4:]
+}
+
+func defaultWSURLForResource(resourceID string) string {
+	if resourceID == seedResourceID {
+		return defaultASRAsyncURL
+	}
+	return defaultASRURL
+}
+
 func newProvider(cfg map[string]any) (*provider, error) {
-	appID, _ := cfg["appid"].(string)
-	token, _ := cfg["access_token"].(string)
-	cluster, _ := cfg["cluster"].(string)
+	appKey, _ := cfg["app_key"].(string)
+	accessKey, _ := cfg["access_key"].(string)
 	rid, _ := cfg["resource_id"].(string)
 	wsURL, _ := cfg["ws_url"].(string)
 
+	if appKey == "" {
+		return nil, fmt.Errorf("doubao asr: app_key required")
+	}
+	if accessKey == "" {
+		return nil, fmt.Errorf("doubao asr: access_key required")
+	}
 	if rid == "" {
 		rid = defaultResourceID
 	}
 	if wsURL == "" {
-		wsURL = defaultASRURL
-	}
-	// 快捷API接入只需要 token（API Key）和 cluster；传统模式还需要 appid。
-	if token == "" || cluster == "" {
-		return nil, fmt.Errorf("doubao asr: access_token and cluster required")
+		wsURL = defaultWSURLForResource(rid)
 	}
 
 	// 不走代理直连火山引擎 ASR，避免本地 http_proxy 拦截 WebSocket 连接。
@@ -103,7 +122,7 @@ func newProvider(cfg map[string]any) (*provider, error) {
 		HandshakeTimeout: 10 * time.Second,
 	}
 
-	return &provider{appID: appID, token: token, cluster: cluster, resourceID: rid, wsURL: wsURL, dialer: dialer}, nil
+	return &provider{appKey: appKey, accessKey: accessKey, resourceID: rid, wsURL: wsURL, dialer: dialer}, nil
 }
 
 func (p *provider) Name() string { return "doubao" }
@@ -141,13 +160,19 @@ func (p *provider) TranscribeStream(ctx context.Context, frames [][]byte, callba
 // 返回已握手的 conn，调用方负责关闭。
 // ctx 取消时会异步关闭连接，使阻塞的 ReadMessage 立即返回。
 func (p *provider) connect(ctx context.Context) (*websocket.Conn, error) {
-	headers := p.authHeaders(uuid.New().String())
+	connectID := uuid.New().String()
+	headers := p.authHeaders(connectID)
+	log.Printf("doubao asr: dialing ws_url=%s headers={X-Api-App-Key:%s X-Api-Access-Key:%s X-Api-Resource-Id:%s X-Api-Connect-Id:%s}", p.wsURL, maskSecret(p.appKey), maskSecret(p.accessKey), p.resourceID, connectID)
 
 	conn, resp, err := p.dialer.DialContext(ctx, p.wsURL, headers)
 	if err != nil {
 		if resp != nil {
+			logID := resp.Header.Get("X-Tt-Logid")
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 			resp.Body.Close()
+			if logID != "" {
+				return nil, fmt.Errorf("doubao asr: dial: %w (HTTP %d, logid=%s: %s)", err, resp.StatusCode, logID, bytes.TrimSpace(body))
+			}
 			return nil, fmt.Errorf("doubao asr: dial: %w (HTTP %d: %s)", err, resp.StatusCode, bytes.TrimSpace(body))
 		}
 		return nil, fmt.Errorf("doubao asr: dial: %w", err)
@@ -182,17 +207,12 @@ func (p *provider) connect(ctx context.Context) (*websocket.Conn, error) {
 	return conn, nil
 }
 
+// authHeaders 使用当前豆包 ASR 服务端实际接受的鉴权 header 组合。
+// 线上服务除文档中的 App-Key 外，还要求额外提供 Access-Key。
 func (p *provider) authHeaders(connectID string) http.Header {
-	if p.appID == "" {
-		return http.Header{
-			"Authorization":     {"Bearer " + p.token},
-			"X-Api-Resource-Id": {p.resourceID},
-			"X-Api-Connect-Id":  {connectID},
-		}
-	}
 	return http.Header{
-		"X-Api-App-Key":     {p.appID},
-		"X-Api-Access-Key":  {p.token},
+		"X-Api-App-Key":     {p.appKey},
+		"X-Api-Access-Key":  {p.accessKey},
 		"X-Api-Resource-Id": {p.resourceID},
 		"X-Api-Connect-Id":  {connectID},
 	}

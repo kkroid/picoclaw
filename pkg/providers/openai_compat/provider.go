@@ -15,6 +15,7 @@ import (
 
 	"github.com/sipeed/picoclaw/pkg/providers/common"
 	"github.com/sipeed/picoclaw/pkg/providers/protocoltypes"
+	"github.com/sipeed/picoclaw/pkg/providers/streamctx"
 )
 
 type (
@@ -150,6 +151,11 @@ func (p *Provider) Chat(
 	model string,
 	options map[string]any,
 ) (*LLMResponse, error) {
+	// [KKROID FORK] ctx 携带流式回调时自动升级为 SSE 流式调用
+	if onChunk, ok := streamctx.GetCallback(ctx); ok {
+		return p.ChatStream(ctx, messages, tools, model, options, onChunk)
+	}
+
 	if p.apiBase == "" {
 		return nil, fmt.Errorf("API base not configured")
 	}

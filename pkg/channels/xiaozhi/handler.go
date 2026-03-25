@@ -1312,13 +1312,14 @@ func (s *session) streamLLM(
 		}
 	}
 
-	if err := s.agentLoop.RunStreamAgentLoopWithKeys(llmCtx, agent.StreamConversationKeys{
-		SessionKey: sessionKey,
-		MemoryKey:  s.ownerMemoryKey,
-	}, userText, "xiaozhi", turnID, onToken); err != nil {
+	finalContent, err := s.agentLoop.RunVoiceAgentLoop(
+		llmCtx, sessionKey, s.ownerMemoryKey,
+		userText, "xiaozhi", turnID, onToken,
+	)
+	if err != nil {
 		return result, err
 	}
-	result.finalContent = s.loadFinalAssistantContent(sessionKey)
+	result.finalContent = finalContent
 	if err := s.persistOwnerVoiceSnapshot(turnID, sessionKey); err != nil {
 		logger.WarnCF("xiaozhi", "Persist owner voice snapshot failed", map[string]any{
 			"owner_id":   s.ownerID,

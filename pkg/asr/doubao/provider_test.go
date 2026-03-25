@@ -31,34 +31,81 @@ func TestProviderAudioFormat_DefaultsToOggOpus(t *testing.T) {
 	}
 }
 
-func TestAuthHeaders_BearerModeMatchesReferenceBranch(t *testing.T) {
-	p := &provider{token: "token", resourceID: "rid"}
-	headers := p.authHeaders("conn-1")
-	if got := headers.Get("Authorization"); got != "Bearer token" {
-		t.Fatalf("Authorization = %q, want %q", got, "Bearer token")
+func TestNewProvider_RequiresAppKeyAndAccessKey(t *testing.T) {
+	if _, err := newProvider(map[string]any{"access_key": "access-key"}); err == nil {
+		t.Fatal("expected app_key required error")
 	}
-	if got := headers.Get("X-Api-Resource-Id"); got != "rid" {
-		t.Fatalf("X-Api-Resource-Id = %q, want rid", got)
-	}
-	if got := headers.Get("X-Api-Connect-Id"); got != "conn-1" {
-		t.Fatalf("X-Api-Connect-Id = %q, want conn-1", got)
-	}
-	if got := headers.Get("X-Api-App-Key"); got != "" {
-		t.Fatalf("X-Api-App-Key = %q, want empty", got)
+	if _, err := newProvider(map[string]any{"app_key": "app-key"}); err == nil {
+		t.Fatal("expected access_key required error")
 	}
 }
 
-func TestAuthHeaders_AppKeyModeMatchesReferenceBranch(t *testing.T) {
-	p := &provider{appID: "app-id", token: "token", resourceID: "rid"}
-	headers := p.authHeaders("conn-2")
-	if got := headers.Get("X-Api-App-Key"); got != "app-id" {
-		t.Fatalf("X-Api-App-Key = %q, want app-id", got)
+func TestNewProvider_RejectsLegacyCredentialFields(t *testing.T) {
+	if _, err := newProvider(map[string]any{
+		"appid":        "3869699744",
+		"access_token": "token-value",
+		"cluster":      "bigmodel_transcribe",
+	}); err == nil {
+		t.Fatal("expected legacy credential fields to be rejected")
 	}
-	if got := headers.Get("X-Api-Access-Key"); got != "token" {
-		t.Fatalf("X-Api-Access-Key = %q, want token", got)
+}
+
+func TestNewProvider_DefaultWSURLMatchesResource(t *testing.T) {
+	seedProvider, err := newProvider(map[string]any{
+		"app_key":     "app-key",
+		"access_key":  "access-key",
+		"resource_id": seedResourceID,
+	})
+	if err != nil {
+		t.Fatalf("newProvider(seed) error = %v", err)
 	}
-	if got := headers.Get("X-Api-Resource-Id"); got != "rid" {
-		t.Fatalf("X-Api-Resource-Id = %q, want rid", got)
+	if seedProvider.wsURL != defaultASRAsyncURL {
+		t.Fatalf("seed wsURL = %q, want %q", seedProvider.wsURL, defaultASRAsyncURL)
+	}
+
+	legacyProvider, err := newProvider(map[string]any{
+		"app_key":     "app-key",
+		"access_key":  "access-key",
+		"resource_id": defaultResourceID,
+	})
+	if err != nil {
+		t.Fatalf("newProvider(legacy) error = %v", err)
+	}
+	if legacyProvider.wsURL != defaultASRURL {
+		t.Fatalf("legacy wsURL = %q, want %q", legacyProvider.wsURL, defaultASRURL)
+	}
+}
+
+func TestNewProvider_ExplicitWSURLOverridesResourceDefault(t *testing.T) {
+	explicitURL := "wss://openspeech.bytedance.com/api/v3/sauc/custom"
+	provider, err := newProvider(map[string]any{
+		"app_key":     "3869699744",
+		"access_key":  "token-value",
+		"resource_id": seedResourceID,
+		"ws_url":      explicitURL,
+	})
+	if err != nil {
+		t.Fatalf("newProvider(explicit ws_url) error = %v", err)
+	}
+	if provider.wsURL != explicitURL {
+		t.Fatalf("wsURL = %q, want %q", provider.wsURL, explicitURL)
+	}
+}
+
+func TestAuthHeaders_UseConfiguredAppIDAndAccessToken(t *testing.T) {
+	p := &provider{appKey: "3869699744", accessKey: "token-value", resourceID: seedResourceID}
+	headers := p.authHeaders("conn-1")
+	if got := headers.Get("X-Api-App-Key"); got != "3869699744" {
+		t.Fatalf("X-Api-App-Key = %q, want 3869699744", got)
+	}
+	if got := headers.Get("X-Api-Access-Key"); got != "token-value" {
+		t.Fatalf("X-Api-Access-Key = %q, want token-value", got)
+	}
+	if got := headers.Get("X-Api-Resource-Id"); got != seedResourceID {
+		t.Fatalf("X-Api-Resource-Id = %q, want %s", got, seedResourceID)
+	}
+	if got := headers.Get("X-Api-Connect-Id"); got != "conn-1" {
+		t.Fatalf("X-Api-Connect-Id = %q, want conn-1", got)
 	}
 	if got := headers.Get("Authorization"); got != "" {
 		t.Fatalf("Authorization = %q, want empty", got)
@@ -66,7 +113,7 @@ func TestAuthHeaders_AppKeyModeMatchesReferenceBranch(t *testing.T) {
 }
 
 func TestInitRequest_UsesOggOpusInputWithoutAppAuthPayload(t *testing.T) {
-	p := &provider{appID: "app-id", token: "token", cluster: "bigmodel_transcribe"}
+	p := &provider{appKey: "app-key", accessKey: "access-key"}
 	req := p.initRequest("req-1")
 
 	if _, ok := req["app"]; ok {

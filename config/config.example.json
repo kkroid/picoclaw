@@ -108,6 +108,8 @@
       "asr_cluster": "bigmodel_transcribe",
       "asr_resource_id": "YOUR_DOUBAO_ASR_RESOURCE_ID",
       "_comment_asr_resource_id": "ASR 1.0 小时版用 volc.bigasr.sauc.duration；ASR 2.0 小时版用 volc.seedasr.sauc.duration",
+      "asr_ws_url": "",
+      "_comment_asr_ws_url": "留空时 ASR 1.0 默认走 /bigmodel；ASR 2.0(Seed) 默认走 /bigmodel_async，也可手工覆盖",
       "tts_provider": "doubao",
       "tts_cluster": "volcano_tts",
       "tts_voice": "zh_female_wanwanxiaohe_moon_bigtts"
