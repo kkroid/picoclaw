@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,16 +14,65 @@ import (
 	"github.com/sipeed/picoclaw/pkg/memory"
 )
 
-func newTestCronToolWithConfig(t *testing.T, cfg *config.Config) *CronTool {
+type stubJobExecutor struct {
+	response        string
+	err             error
+	alreadySent     bool // simulate message tool having already sent in this round
+	msgBus          *bus.MessageBus
+	lastPrompt      string
+	lastKey         string
+	lastChan        string
+	lastChatID      string
+	publishedResp   string
+	publishedChan   string
+	publishedChatID string
+}
+
+func (s *stubJobExecutor) ProcessDirectWithChannel(
+	_ context.Context,
+	content, sessionKey, channel, chatID string,
+) (string, error) {
+	s.lastPrompt = content
+	s.lastKey = sessionKey
+	s.lastChan = channel
+	s.lastChatID = chatID
+	return s.response, s.err
+}
+
+func (s *stubJobExecutor) PublishResponseIfNeeded(
+	_ context.Context,
+	channel, chatID, response string,
+) {
+	if s.alreadySent {
+		return
+	}
+	s.publishedResp = response
+	s.publishedChan = channel
+	s.publishedChatID = chatID
+	if s.msgBus != nil {
+		_ = s.msgBus.PublishOutbound(context.Background(), bus.OutboundMessage{
+			Channel: channel,
+			ChatID:  chatID,
+			Content: response,
+		})
+	}
+}
+
+func newTestCronToolWithExecutorAndConfig(t *testing.T, executor JobExecutor, cfg *config.Config) *CronTool {
 	t.Helper()
 	storePath := filepath.Join(t.TempDir(), "cron.json")
 	cronService := cron.NewCronService(storePath, nil)
 	msgBus := bus.NewMessageBus()
-	tool, err := NewCronTool(cronService, nil, msgBus, t.TempDir(), true, 0, cfg)
+	tool, err := NewCronTool(cronService, executor, msgBus, t.TempDir(), true, 0, cfg)
 	if err != nil {
 		t.Fatalf("NewCronTool() error: %v", err)
 	}
 	return tool
+}
+
+func newTestCronToolWithConfig(t *testing.T, cfg *config.Config) *CronTool {
+	t.Helper()
+	return newTestCronToolWithExecutorAndConfig(t, nil, cfg)
 }
 
 func newTestCronTool(t *testing.T) *CronTool {
@@ -195,10 +245,11 @@ func TestCronTool_ExecuteJob_SkipsVoicePendingWithoutLinkedOwner(t *testing.T) {
 	msgBus := bus.NewMessageBus()
 	cfg := config.DefaultConfig()
 	cfg.Channels.Xiaozhi.DefaultOwnerID = "fallback-owner"
+	executor := &stubJobExecutor{}
 
 	// 不注册 bus hook → 不会有 voice pending 入队
 
-	tool, err := NewCronTool(cronService, nil, msgBus, workspace, true, 0, cfg)
+	tool, err := NewCronTool(cronService, executor, msgBus, workspace, true, 0, cfg)
 	if err != nil {
 		t.Fatalf("NewCronTool() error: %v", err)
 	}
@@ -209,7 +260,6 @@ func TestCronTool_ExecuteJob_SkipsVoicePendingWithoutLinkedOwner(t *testing.T) {
 		Enabled: true,
 		Payload: cron.CronPayload{
 			Message: "现在该喝水了",
-			Deliver: true,
 			Channel: "telegram",
 			To:      "chat-1",
 		},
@@ -229,7 +279,7 @@ func TestCronTool_ExecuteJob_SkipsVoicePendingWithoutLinkedOwner(t *testing.T) {
 	}
 }
 
-func TestCronTool_NonCommandJobDefaultsDeliverToFalse(t *testing.T) {
+func TestCronTool_NonCommandJobStoresCurrentTarget(t *testing.T) {
 	tool := newTestCronTool(t)
 	ctx := WithToolContext(context.Background(), "telegram", "chat-1")
 	result := tool.Execute(ctx, map[string]any{
@@ -246,8 +296,11 @@ func TestCronTool_NonCommandJobDefaultsDeliverToFalse(t *testing.T) {
 	if len(jobs) != 1 {
 		t.Fatalf("expected 1 job, got %d", len(jobs))
 	}
-	if jobs[0].Payload.Deliver {
-		t.Fatal("expected deliver=false by default for non-command jobs")
+	if jobs[0].Payload.Channel != "telegram" || jobs[0].Payload.To != "chat-1" {
+		t.Fatalf("unexpected target stored in payload: %+v", jobs[0].Payload)
+	}
+	if jobs[0].Payload.Message != "send me a poem" {
+		t.Fatalf("unexpected message stored in payload: %q", jobs[0].Payload.Message)
 	}
 }
 
@@ -290,6 +343,7 @@ func TestCronTool_ExecuteJob_QueuesVoicePendingToLinkedOwner(t *testing.T) {
 	cfg.Session.IdentityLinks = map[string][]string{
 		"kkroid": {"telegram:chat-1"},
 	}
+	executor := &stubJobExecutor{response: "今天有三条重点更新", msgBus: msgBus}
 
 	// 通过 bus 出站钩子注册 pendingWriter（与 gateway 中的方式一致）
 	pw := memory.NewIdentityLinkedVoicePendingWriter(workspace, "fallback-owner", cfg.Session.IdentityLinks)
@@ -299,7 +353,7 @@ func TestCronTool_ExecuteJob_QueuesVoicePendingToLinkedOwner(t *testing.T) {
 		})
 	}
 
-	tool, err := NewCronTool(cronService, nil, msgBus, workspace, true, 0, cfg)
+	tool, err := NewCronTool(cronService, executor, msgBus, workspace, true, 0, cfg)
 	if err != nil {
 		t.Fatalf("NewCronTool() error: %v", err)
 	}
@@ -310,7 +364,6 @@ func TestCronTool_ExecuteJob_QueuesVoicePendingToLinkedOwner(t *testing.T) {
 		Enabled: true,
 		Payload: cron.CronPayload{
 			Message: "今天有三条重点更新",
-			Deliver: true,
 			Channel: "telegram",
 			To:      "chat-1",
 		},
@@ -338,5 +391,93 @@ func TestCronTool_ExecuteJob_QueuesVoicePendingToLinkedOwner(t *testing.T) {
 	}
 	if len(fallbackQueue.Items) != 0 {
 		t.Fatalf("fallback queue items len = %d, want 0", len(fallbackQueue.Items))
+	}
+}
+
+func TestCronTool_ExecuteJobPublishesAgentResponse(t *testing.T) {
+	executor := &stubJobExecutor{response: "generated reply"}
+	tool := newTestCronToolWithExecutorAndConfig(t, executor, config.DefaultConfig())
+
+	job := &cron.CronJob{ID: "job-1"}
+	job.Payload.Channel = "telegram"
+	job.Payload.To = "chat-1"
+	job.Payload.Message = "send me a poem"
+
+	if got := tool.ExecuteJob(context.Background(), job); got != "ok" {
+		t.Fatalf("ExecuteJob() = %q, want ok", got)
+	}
+
+	if executor.lastKey != "cron-job-1" {
+		t.Fatalf("sessionKey = %q, want cron-job-1", executor.lastKey)
+	}
+	if executor.lastChan != "telegram" || executor.lastChatID != "chat-1" {
+		t.Fatalf("executor target = %s/%s, want telegram/chat-1", executor.lastChan, executor.lastChatID)
+	}
+	if executor.lastPrompt != "send me a poem" {
+		t.Fatalf("prompt = %q, want original message", executor.lastPrompt)
+	}
+	if executor.publishedResp != "generated reply" {
+		t.Fatalf("published response = %q, want generated reply", executor.publishedResp)
+	}
+	if executor.publishedChan != "telegram" || executor.publishedChatID != "chat-1" {
+		t.Fatalf("published target = %s/%s, want telegram/chat-1", executor.publishedChan, executor.publishedChatID)
+	}
+}
+
+func TestCronTool_ExecuteJobSkipsEmptyAgentResponse(t *testing.T) {
+	executor := &stubJobExecutor{}
+	tool := newTestCronToolWithExecutorAndConfig(t, executor, config.DefaultConfig())
+
+	job := &cron.CronJob{ID: "job-empty"}
+	job.Payload.Channel = "telegram"
+	job.Payload.To = "chat-1"
+	job.Payload.Message = "say nothing"
+
+	if got := tool.ExecuteJob(context.Background(), job); got != "ok" {
+		t.Fatalf("ExecuteJob() = %q, want ok", got)
+	}
+
+	if executor.publishedResp != "" {
+		t.Fatalf("unexpected published response: %q", executor.publishedResp)
+	}
+}
+
+func TestCronTool_ExecuteJobSkipsWhenMessageToolAlreadySent(t *testing.T) {
+	executor := &stubJobExecutor{response: "Sent.", alreadySent: true}
+	tool := newTestCronToolWithExecutorAndConfig(t, executor, config.DefaultConfig())
+
+	job := &cron.CronJob{ID: "job-msg-sent"}
+	job.Payload.Channel = "telegram"
+	job.Payload.To = "chat-1"
+	job.Payload.Message = "send weather"
+
+	if got := tool.ExecuteJob(context.Background(), job); got != "ok" {
+		t.Fatalf("ExecuteJob() = %q, want ok", got)
+	}
+
+	if executor.publishedResp != "" {
+		t.Fatalf("expected no published response when message tool already sent, got: %q", executor.publishedResp)
+	}
+}
+
+func TestCronTool_ExecuteJobReturnsErrorWithoutPublish(t *testing.T) {
+	executor := &stubJobExecutor{
+		response: "this response must not be published",
+		err:      fmt.Errorf("agent failure"),
+	}
+	tool := newTestCronToolWithExecutorAndConfig(t, executor, config.DefaultConfig())
+
+	job := &cron.CronJob{ID: "job-err"}
+	job.Payload.Channel = "telegram"
+	job.Payload.To = "chat-1"
+	job.Payload.Message = "do something"
+
+	got := tool.ExecuteJob(context.Background(), job)
+	if !strings.Contains(got, "agent failure") {
+		t.Fatalf("ExecuteJob() = %q, want error message", got)
+	}
+
+	if executor.publishedResp != "" {
+		t.Fatalf("unexpected publish on error path: %q", executor.publishedResp)
 	}
 }

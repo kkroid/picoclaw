@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 )
 
-type SendCallback func(channel, chatID, content string) error
+type SendCallback func(channel, chatID, content, replyToMessageID string) error
 
 type MessageTool struct {
 	sendCallback SendCallback
@@ -41,6 +41,10 @@ func (t *MessageTool) Parameters() map[string]any {
 				"type":        "string",
 				"description": "Optional: target chat/user ID",
 			},
+			"reply_to_message_id": map[string]any{
+				"type":        "string",
+				"description": "Optional: reply target message ID for channels that support threaded replies",
+			},
 		},
 		"required": []string{"content"},
 	}
@@ -72,6 +76,7 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]any) *ToolRes
 	// [KKROID FORK] 默认使用当前会话通道作为发送目标
 	sourceChannel := ToolChannel(ctx)
 	sourceChatID := ToolChatID(ctx)
+	replyToMessageID, _ := args["reply_to_message_id"].(string)
 
 	if channel == "" {
 		channel = sourceChannel
@@ -88,7 +93,7 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]any) *ToolRes
 		return &ToolResult{ForLLM: "Message sending not configured", IsError: true}
 	}
 
-	if err := t.sendCallback(channel, chatID, content); err != nil {
+	if err := t.sendCallback(channel, chatID, content, replyToMessageID); err != nil {
 		return &ToolResult{
 			ForLLM:  fmt.Sprintf("sending message: %v", err),
 			IsError: true,
