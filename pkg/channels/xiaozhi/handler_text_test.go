@@ -148,7 +148,7 @@ func newTestAgentLoop(t *testing.T, workspace string, provider providers.LLMProv
 		Agents: config.AgentsConfig{
 			Defaults: config.AgentDefaults{
 				Workspace:         workspace,
-				Model:             "test-model",
+				ModelName:         "test-model",
 				MaxTokens:         4096,
 				MaxToolIterations: 10,
 			},

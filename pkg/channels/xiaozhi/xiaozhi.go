@@ -131,9 +131,12 @@ func (c *XiaozhiChannel) Stop(_ context.Context) error {
 	return nil
 }
 
-func (c *XiaozhiChannel) Send(_ context.Context, _ bus.OutboundMessage) error {
+func (c *XiaozhiChannel) Send(_ context.Context, _ bus.OutboundMessage) ([]string, error) {
+	if !c.IsRunning() {
+		return nil, channels.ErrNotRunning
+	}
 	// xiaozhi 通道不接收 bus 出站消息，语音响应通过 TTS 直接推送到 WebSocket。
-	return nil
+	return nil, fmt.Errorf("xiaozhi does not support bus outbound send: %w", channels.ErrSendFailed)
 }
 
 // ---- WebhookHandler 接口实现 ----

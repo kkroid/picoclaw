@@ -1335,6 +1335,13 @@ func (s *session) streamLLM(
 			s.writeText(newLlmText(trimmed))
 		}
 	}
+	if len(result.sentences) == 0 {
+		for _, sentence := range splitVoiceReplyFallbackSentences(result.finalContent) {
+			result.sentences = append(result.sentences, sentence)
+			logger.Infof("xiaozhi: llm sentence: %q", sentence)
+			s.writeText(newLlmText(sentence))
+		}
+	}
 	if result.finalContent == "" && len(result.sentences) > 0 {
 		result.finalContent = strings.Join(result.sentences, "")
 	}
@@ -1558,6 +1565,90 @@ func (s *session) confirmOwnerPendingAnnouncement(batch pendingAnnouncementBatch
 		}
 	}
 	return s.pendingStore.ConfirmFirstDailySummary(s.ownerID, itemIDs)
+}
+
+func splitVoiceReplyFallbackSentences(text string) []string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	if structured := splitVoiceStructuredFallbackItems(text); len(structured) > 0 {
+		return structured
+	}
+	return splitVoicePunctuationSentences(text)
+}
+
+func splitVoiceStructuredFallbackItems(text string) []string {
+	starts := make([]int, 0, 4)
+	for i := 0; i < len(text); i++ {
+		if text[i] < '0' || text[i] > '9' {
+			continue
+		}
+		if i > 0 {
+			prefix := text[:i]
+			if !strings.HasSuffix(prefix, " ") &&
+				!strings.HasSuffix(prefix, "\t") &&
+				!strings.HasSuffix(prefix, "\n") &&
+				!strings.HasSuffix(prefix, ":") &&
+				!strings.HasSuffix(prefix, "：") &&
+				!strings.HasSuffix(prefix, "。") &&
+				!strings.HasSuffix(prefix, "！") &&
+				!strings.HasSuffix(prefix, "？") {
+				continue
+			}
+		}
+		j := i
+		for j < len(text) && text[j] >= '0' && text[j] <= '9' {
+			j++
+		}
+		if j >= len(text) {
+			break
+		}
+		if text[j] != '.' && !strings.HasPrefix(text[j:], "、") && text[j] != ')' && !strings.HasPrefix(text[j:], "）") {
+			continue
+		}
+		starts = append(starts, i)
+		i = j
+	}
+	if len(starts) == 0 {
+		return nil
+	}
+	items := make([]string, 0, len(starts)+1)
+	if intro := strings.TrimSpace(text[:starts[0]]); intro != "" {
+		items = append(items, intro)
+	}
+	for idx, start := range starts {
+		end := len(text)
+		if idx+1 < len(starts) {
+			end = starts[idx+1]
+		}
+		if item := strings.TrimSpace(text[start:end]); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+func splitVoicePunctuationSentences(text string) []string {
+	items := make([]string, 0, 4)
+	start := 0
+	for i, r := range text {
+		if !strings.ContainsRune("。！？\n", r) {
+			continue
+		}
+		end := i + utf8.RuneLen(r)
+		if sentence := strings.TrimSpace(text[start:end]); sentence != "" {
+			items = append(items, sentence)
+		}
+		start = end
+	}
+	if tail := strings.TrimSpace(text[start:]); tail != "" {
+		items = append(items, tail)
+	}
+	if len(items) == 0 {
+		return []string{text}
+	}
+	return items
 }
 
 // lastSentenceBreak 返回字符串中最后一个句子边界之后的字节偏移。
