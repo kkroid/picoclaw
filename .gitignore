@@ -67,3 +67,7 @@ web/backend/dist/*
 .claude/
 
 docker/data
+.runtime/
+.artifacts/
+examples/appfactory/
+logs/

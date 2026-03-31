@@ -11,6 +11,7 @@
     "channels_group": "Channels",
     "show_more_channels": "More",
     "show_less_channels": "Less",
+    "jobs": "Jobs",
     "config": "Config",
     "logs": "Logs"
   },
@@ -67,6 +68,38 @@
         "stopping": "Stopping Gateway..."
       },
       "restartRequired": "Model changes require a gateway restart to take effect."
+    },
+    "orchestrator": {
+      "status": {
+        "loading": "Orchestrator loading",
+        "running": "Orchestrator running",
+        "stopping": "Orchestrator stopping",
+        "locked": "Orchestrator locked",
+        "stale": "Orchestrator stale lock",
+        "idle": "Orchestrator idle"
+      },
+      "action": {
+        "startWatch": "Start orchestrator watch",
+        "stopWatch": "Stop orchestrator watch",
+        "forceUnlock": "Force unlock",
+        "refresh": "Refresh status"
+      },
+      "menu": {
+        "title": "AppFactory Orchestrator",
+        "loading": "Loading orchestrator status.",
+        "runningDetail": "The background watcher is running with a {{interval}} second interval.",
+        "stoppingDetail": "The background watcher is stopping and waiting for the current pass to finish.",
+        "lockedDetail": "Another watcher currently holds the lock, so a new watcher will not start.",
+        "staleDetail": "A stale lock was detected. Force unlock it if you are sure no watcher is still alive.",
+        "idleDetail": "No background watcher is running right now. You can start it from here.",
+        "lockOwner": "Current lock owner: {{owner}}"
+      },
+      "toast": {
+        "started": "Orchestrator watcher started",
+        "stopped": "Orchestrator watcher stopped",
+        "unlocked": "Orchestrator lock cleared",
+        "error": "Orchestrator action failed"
+      }
     }
   },
   "common": {
@@ -218,6 +251,134 @@
       "apiKeyHint": "A key is already set. Leave blank to keep it unchanged.",
       "oauthNote": "This provider uses OAuth — no API key required.",
       "saveError": "Failed to save"
+    }
+  },
+  "jobs": {
+    "description": "Centralize AppFactory jobs, orchestrator health, human intervention notifications, and delivery artifacts in one operations view.",
+    "actions": {
+      "refresh": "Refresh",
+      "rebuildNotifications": "Rebuild notifications",
+      "acknowledge": "Acknowledge"
+    },
+    "filters": {
+      "all": "All",
+      "running": "Running",
+      "failed": "Failed",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "summary": {
+      "total": "Total jobs",
+      "running": "Active jobs",
+      "attention": "Needs attention",
+      "orchestrator": "Orchestrator",
+      "visible": "{{count}} visible in current list",
+      "pendingNotifications": "{{count}} unacknowledged notifications",
+      "humanApprovals": "{{count}} human approvals pending"
+    },
+    "orchestrator": {
+      "title": "Orchestrator control",
+      "unavailable": "Unavailable"
+    },
+    "failureDomain": {
+      "skill": "Skill",
+      "executor": "Executor",
+      "profile": "Profile constraint",
+      "environment": "Environment"
+    },
+    "status": {
+      "running": "Running",
+      "failed": "Failed",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "states": {
+      "loadErrorJobs": "Failed to load jobs",
+      "loadErrorDetail": "Failed to load job detail",
+      "loadErrorEvents": "Failed to load job events",
+      "loadErrorArtifacts": "Failed to load job artifacts",
+      "loadErrorNotifications": "Failed to load notifications"
+    },
+    "list": {
+      "title": "Jobs",
+      "description": "Filter by status and jump directly into a specific run for triage.",
+      "empty": "No jobs match the current filter.",
+      "prd": "PRD",
+      "template": "Template",
+      "updatedAt": "Updated",
+      "approvals": "Approvals",
+      "artifacts": "{{count}} artifacts",
+      "noApprovals": "No manual approvals required"
+    },
+    "detail": {
+      "title": "Job detail",
+      "description": "Inspect runtime, budgets, paths, failure signals, and resume guidance.",
+      "empty": "Select a job from the left to inspect it.",
+      "none": "None",
+      "prd": "PRD",
+      "template": "Template",
+      "createdAt": "Created",
+      "updatedAt": "Updated",
+      "startedAt": "Started",
+      "finishedAt": "Finished",
+      "runtime": "Runtime",
+      "budgets": "Budget usage",
+      "paths": "Path index",
+      "failureContext": "Failure context",
+      "resumeContext": "Resume guidance",
+      "humanApprovals": "Human approvals",
+      "builder": "Builder",
+      "workerPool": "Worker pool",
+      "networkPolicy": "Network policy",
+      "phase": "Phase",
+      "iterationBudget": "Iteration budget",
+      "tokenBudget": "Token budget",
+      "elapsedIterations": "Iterations used",
+      "consumedTokens": "Tokens consumed",
+      "workspacePath": "Workspace path",
+      "artifactDir": "Artifact directory",
+      "builderInputPath": "Builder input",
+      "builderOutputPath": "Builder output",
+      "summaryLogPath": "Summary log",
+      "eventLogPath": "Event log",
+      "failureSignature": "Failure signature",
+      "lastError": "Last error",
+      "retryable": "Retryable",
+      "resumeAllowed": "Resume allowed",
+      "recommendedResumeMode": "Recommended resume mode",
+      "nextAction": "Next action",
+      "failureDomain": "Failure domain",
+      "failureCategory": "Failure category",
+      "requiresHumanConfirmation": "Requires human confirmation",
+      "requiresPreservedWorkspace": "Requires preserved workspace",
+      "preservedWorkspacePath": "Preserved workspace path",
+      "booleanTrue": "Yes",
+      "booleanFalse": "No"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Aggregate human-facing events and let operators acknowledge or rebuild them.",
+      "empty": "There are no pending notifications right now.",
+      "acknowledged": "Acknowledged",
+      "suggestedAction": "Suggested action: {{action}}"
+    },
+    "events": {
+      "title": "Event timeline",
+      "description": "Show stage transitions, resume hints, and key snapshots from execution.",
+      "empty": "This job has no recorded events yet."
+    },
+    "artifacts": {
+      "title": "Artifacts",
+      "description": "Check whether review bundles, handoff checklists, and other deliverables were produced.",
+      "empty": "This job does not have an artifact manifest yet.",
+      "required": "Required",
+      "produced": "Produced",
+      "missing": "Missing"
+    },
+    "toasts": {
+      "notificationsRebuilt": "Notifications rebuilt",
+      "notificationAcked": "Notification acknowledged",
+      "actionFailed": "Action failed"
     }
   },
   "channels": {

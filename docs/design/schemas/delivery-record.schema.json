@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://picoclaw.local/docs/design/schemas/delivery-record.schema.json",
+  "title": "PicoClaw Delivery Record",
+  "description": "jobs/{job_id}/reports/delivery-record.json 的结构基线。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "job_id",
+    "run_id",
+    "status",
+    "reviewer_id",
+    "recorded_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "changes_requested",
+        "approved_for_signing",
+        "signed",
+        "staged",
+        "released"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "next_action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release_channel": {
+      "type": "string",
+      "enum": [
+        "internal",
+        "canary",
+        "production"
+      ]
+    },
+    "rollout_percent": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "reviewer_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required_changes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "signed_artifact_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

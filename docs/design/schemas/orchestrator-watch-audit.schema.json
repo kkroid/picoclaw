@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://picoclaw.local/docs/design/schemas/orchestrator-watch-audit.schema.json",
+  "title": "PicoClaw Orchestrator Watch Audit Record",
+  "description": "workspace/appfactory/orchestrator/watch-events.jsonl 中单行审计记录的结构基线。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "audit_id",
+    "action",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "audit_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "orchestrator_watch_started",
+        "orchestrator_watch_stopped",
+        "orchestrator_watch_unlocked"
+      ]
+    },
+    "actor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "remote_addr": {
+      "type": "string",
+      "minLength": 1
+    },
+    "user_agent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "force": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "watch_runner_state": {
+      "type": "string",
+      "enum": [
+        "not_running",
+        "running"
+      ]
+    },
+    "watch_runner_mode": {
+      "type": "string",
+      "enum": [
+        "cli_watch",
+        "internal_api_watch"
+      ]
+    },
+    "watch_lock_state": {
+      "type": "string",
+      "enum": [
+        "unlocked",
+        "held_by_self",
+        "held_by_other"
+      ]
+    },
+    "watch_lock_owner_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

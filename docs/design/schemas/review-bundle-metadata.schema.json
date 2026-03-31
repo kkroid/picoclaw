@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://picoclaw.local/docs/design/schemas/review-bundle-metadata.schema.json",
+  "title": "PicoClaw Review Bundle Metadata",
+  "description": "jobs/{job_id}/reports/review-bundle.metadata.json 的结构基线。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "job_id",
+    "run_id",
+    "status",
+    "builder_id",
+    "worker_id",
+    "duration_seconds",
+    "risk_level",
+    "conclusion",
+    "builder_log_path",
+    "change_summary_path",
+    "build_report_path",
+    "smoke_test_report_path",
+    "review_bundle_path",
+    "handoff_checklist_path",
+    "artifact_manifest_path",
+    "metrics_path",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "builder_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "worker_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": [
+        "medium",
+        "high"
+      ]
+    },
+    "conclusion": {
+      "type": "string",
+      "enum": [
+        "needs_manual_review",
+        "failed"
+      ]
+    },
+    "builder_log_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "change_summary_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "build_report_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "smoke_test_report_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "review_bundle_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "handoff_checklist_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_manifest_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metrics_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "failure_summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

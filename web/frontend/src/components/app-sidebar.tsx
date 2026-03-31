@@ -141,6 +141,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ...baseNavGroups[3],
         items: [
           {
+            title: "navigation.jobs",
+            url: "/jobs",
+            icon: IconListDetails,
+            translateTitle: true,
+          },
+          {
             title: "navigation.config",
             url: "/config",
             icon: IconSettings,

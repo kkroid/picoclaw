@@ -9,9 +9,15 @@ import {
   IconRefresh,
   IconSun,
 } from "@tabler/icons-react"
+import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
+
+import {
+  getOrchestratorStatus,
+  type OrchestratorStatus,
+} from "@/api/system"
 
 import {
   AlertDialog,
@@ -65,6 +71,16 @@ export function AppHeader() {
     (gwState === "stopped" || gwState === "error")
 
   const [showStopDialog, setShowStopDialog] = React.useState(false)
+
+  const orchestratorQuery = useQuery({
+    queryKey: ["system", "orchestrator-status"],
+    queryFn: getOrchestratorStatus,
+    refetchInterval: 5000,
+  })
+
+  const orchestrator = orchestratorQuery.data
+  const orchestratorTone = getOrchestratorTone(orchestrator)
+  const orchestratorLabel = getOrchestratorLabel(orchestrator, t)
 
   const handleGatewayToggle = () => {
     if (gwLoading || isRestarting || isStopping || (!isRunning && !canStart)) {
@@ -135,6 +151,22 @@ export function AppHeader() {
       </AlertDialog>
 
       <div className="text-muted-foreground flex items-center gap-1 text-sm font-medium md:gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="hidden h-8 gap-2 rounded-full px-3 md:inline-flex"
+          asChild
+        >
+          <Link to="/jobs">
+            {orchestratorQuery.isLoading ? (
+              <IconLoader2 className="size-3.5 animate-spin" />
+            ) : (
+              <span className={`inline-flex size-2 rounded-full ${orchestratorTone}`} />
+            )}
+            <span className="text-xs font-semibold">{orchestratorLabel}</span>
+          </Link>
+        </Button>
+
         {restartRequired && (
           <Tooltip delayDuration={700}>
             <TooltipTrigger asChild>
@@ -248,4 +280,35 @@ export function AppHeader() {
       </div>
     </header>
   )
+}
+
+function getOrchestratorTone(status?: OrchestratorStatus) {
+  if (!status) return "bg-muted-foreground/40"
+  if (status.watch_runner_state === "running") return "bg-emerald-500"
+  if (status.watch_runner_state === "stopping") return "bg-amber-500"
+  if (status.watch_lock_state === "held_by_other") return "bg-amber-500"
+  if (status.watch_lock_state === "stale") return "bg-orange-500"
+  return "bg-slate-400"
+}
+
+function getOrchestratorLabel(
+  status: OrchestratorStatus | undefined,
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  if (!status) {
+    return t("header.orchestrator.status.loading")
+  }
+  if (status.watch_runner_state === "running") {
+    return t("header.orchestrator.status.running")
+  }
+  if (status.watch_runner_state === "stopping") {
+    return t("header.orchestrator.status.stopping")
+  }
+  if (status.watch_lock_state === "held_by_other") {
+    return t("header.orchestrator.status.locked")
+  }
+  if (status.watch_lock_state === "stale") {
+    return t("header.orchestrator.status.stale")
+  }
+  return t("header.orchestrator.status.idle")
 }

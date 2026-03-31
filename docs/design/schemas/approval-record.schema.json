@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://picoclaw.local/docs/design/schemas/approval-record.schema.json",
+  "title": "PicoClaw Approval Record",
+  "description": "人工审批与门禁记录。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "approval_id",
+    "approval_type",
+    "subject_version",
+    "status",
+    "requested_by",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "approval_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approval_type": {
+      "type": "string",
+      "enum": [
+        "prd",
+        "template",
+        "execution-plan",
+        "build-result",
+        "handoff",
+        "escalation"
+      ]
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prd_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected",
+        "changes_requested",
+        "expired",
+        "cancelled"
+      ]
+    },
+    "requested_by": {
+      "$ref": "#/$defs/actor"
+    },
+    "assignee": {
+      "$ref": "#/$defs/actor"
+    },
+    "decision": {
+      "$ref": "#/$defs/decision"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor_type",
+        "actor_id"
+      ],
+      "properties": {
+        "actor_type": {
+          "type": "string",
+          "enum": [
+            "system",
+            "human"
+          ]
+        },
+        "actor_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "decided_by",
+        "decided_at"
+      ],
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "approved",
+            "rejected",
+            "changes_requested"
+          ]
+        },
+        "decided_by": {
+          "$ref": "#/$defs/actor"
+        },
+        "decided_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "comment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_changes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

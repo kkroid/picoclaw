@@ -1,4 +1,4 @@
-.PHONY: all build install uninstall clean help test
+.PHONY: all build install uninstall clean help test build-appfactory-builder verify-appfactory-builder verify-appfactory-template verify-appfactory-public-job verify-appfactory-public-job-fast
 
 # Build variables
 BINARY_NAME=picoclaw
@@ -24,6 +24,11 @@ empty:=
 space:=$(empty) $(empty)
 GO_BUILD_TAGS_NO_GOOLM:=$(subst $(space),$(comma),$(strip $(filter-out goolm,$(subst $(comma),$(space),$(GO_BUILD_TAGS)))))
 GOFLAGS_NO_GOOLM?=-v -tags $(GO_BUILD_TAGS_NO_GOOLM)
+APPFACTORY_BUILDER_PROXY?=
+APPFACTORY_BUILDER_ADD_HOST?=--add-host=host.docker.internal:host-gateway
+APPFACTORY_BUILDER_IMAGE?=picoclaw/appfactory-builder:local
+APPFACTORY_BUILDER_BUILD_ARGS=$(APPFACTORY_BUILDER_ADD_HOST) $(if $(strip $(APPFACTORY_BUILDER_PROXY)),--build-arg HTTP_PROXY=$(APPFACTORY_BUILDER_PROXY) --build-arg HTTPS_PROXY=$(APPFACTORY_BUILDER_PROXY) --build-arg ALL_PROXY=$(APPFACTORY_BUILDER_PROXY),) --build-arg NO_PROXY=127.0.0.1,localhost,host.docker.internal
+APPFACTORY_BUILDER_DOCKER_NETWORK?=
 
 # Patch MIPS LE ELF e_flags (offset 36) for NaN2008-only kernels (e.g. Ingenic X2600).
 #
@@ -145,6 +150,32 @@ build-launcher-tui:
 	@$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/picoclaw-launcher-tui-$(PLATFORM)-$(ARCH) ./cmd/picoclaw-launcher-tui
 	@ln -sf picoclaw-launcher-tui-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/picoclaw-launcher-tui
 	@echo "Build complete: $(BUILD_DIR)/picoclaw-launcher-tui"
+
+## build-appfactory-builder: Build the Flutter/Android builder image used for appfactory validation
+build-appfactory-builder:
+	@echo "Building appfactory builder image..."
+	@docker build $(APPFACTORY_BUILDER_BUILD_ARGS) -f docker/Dockerfile.appfactory-builder -t $(APPFACTORY_BUILDER_IMAGE) .
+	@echo "Build complete: $(APPFACTORY_BUILDER_IMAGE)"
+
+## verify-appfactory-builder: Run Flutter and Android toolchain checks inside the builder image
+verify-appfactory-builder: build-appfactory-builder
+	@echo "Running appfactory builder smoke checks..."
+	@docker run --rm $(APPFACTORY_BUILDER_IMAGE) smoke
+
+## verify-appfactory-template: Run Flutter analyze/test/build against the template seed inside the builder image
+verify-appfactory-template: build-appfactory-builder
+	@echo "Running appfactory template validation..."
+	@bash scripts/verify-appfactory-template.sh
+
+## verify-appfactory-public-job: Generate a real public-job Flutter workspace, then run Flutter analyze/test/build inside the builder image
+verify-appfactory-public-job: build-appfactory-builder
+	@echo "Running appfactory public job validation..."
+	@VERIFY_APPFACTORY_ENTRYPOINT="make verify-appfactory-public-job" bash scripts/verify-appfactory-public-job.sh
+
+## verify-appfactory-public-job-fast: Re-run the default public-job Flutter validation against an existing builder image without rebuilding it
+verify-appfactory-public-job-fast:
+	@echo "Running appfactory public job validation without rebuilding the builder image..."
+	@VERIFY_APPFACTORY_ENTRYPOINT="make verify-appfactory-public-job-fast" bash scripts/verify-appfactory-public-job.sh
 
 ## build-whatsapp-native: Build with WhatsApp native (whatsmeow) support; larger binary
 build-whatsapp-native: generate

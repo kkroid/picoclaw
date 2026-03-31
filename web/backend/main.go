@@ -173,6 +173,7 @@ func main() {
 		logger.ErrorC("web", fmt.Sprintf("Warning: failed to ensure pico channel on startup: %v", err))
 	}
 	apiHandler.SetServerOptions(portNum, effectivePublic, explicitPublic, launcherCfg.AllowedCIDRs)
+	apiHandler.EnableStartupOrchestrator()
 	apiHandler.RegisterRoutes(mux)
 
 	// Frontend Embedded Assets

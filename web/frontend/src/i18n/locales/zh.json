@@ -11,6 +11,7 @@
     "channels_group": "频道",
     "show_more_channels": "更多",
     "show_less_channels": "收起",
+    "jobs": "任务中心",
     "config": "配置",
     "logs": "日志"
   },
@@ -67,6 +68,38 @@
         "stopping": "服务停止中..."
       },
       "restartRequired": "切换默认模型后需要重启服务才能生效。"
+    },
+    "orchestrator": {
+      "status": {
+        "loading": "编排器加载中",
+        "running": "编排器运行中",
+        "stopping": "编排器停止中",
+        "locked": "编排器被外部占用",
+        "stale": "编排器锁已过期",
+        "idle": "编排器空闲"
+      },
+      "action": {
+        "startWatch": "启动编排器 Watch",
+        "stopWatch": "停止编排器 Watch",
+        "forceUnlock": "强制清理锁",
+        "refresh": "刷新状态"
+      },
+      "menu": {
+        "title": "AppFactory 编排器",
+        "loading": "正在加载编排器状态。",
+        "runningDetail": "后台 watcher 正在运行，轮询间隔 {{interval}} 秒。",
+        "stoppingDetail": "后台 watcher 正在停止，等待当前轮询收尾。",
+        "lockedDetail": "当前有其他 watcher 持有锁，新的 watcher 不会启动。",
+        "staleDetail": "检测到过期锁，如确认没有存活 watcher，可执行强制清锁。",
+        "idleDetail": "当前没有后台 watcher 运行，可以从这里直接启动。",
+        "lockOwner": "当前锁持有者：{{owner}}"
+      },
+      "toast": {
+        "started": "编排器 watcher 已启动",
+        "stopped": "编排器 watcher 已停止",
+        "unlocked": "编排器锁已清理",
+        "error": "编排器操作失败"
+      }
     }
   },
   "common": {
@@ -218,6 +251,134 @@
       "apiKeyHint": "已设置 API Key，留空表示不修改。",
       "oauthNote": "该服务商使用 OAuth 认证，无需 API Key。",
       "saveError": "保存失败"
+    }
+  },
+  "jobs": {
+    "description": "集中查看 AppFactory 任务、编排器状态、人工干预通知和交付产物索引。",
+    "actions": {
+      "refresh": "刷新",
+      "rebuildNotifications": "重建通知",
+      "acknowledge": "确认已处理"
+    },
+    "filters": {
+      "all": "全部",
+      "running": "运行中",
+      "failed": "失败",
+      "completed": "已完成",
+      "cancelled": "已取消"
+    },
+    "summary": {
+      "total": "任务总数",
+      "running": "活跃任务",
+      "attention": "需关注任务",
+      "orchestrator": "编排器",
+      "visible": "当前列表 {{count}} 项",
+      "pendingNotifications": "未确认通知 {{count}} 条",
+      "humanApprovals": "待人工审批 {{count}} 项"
+    },
+    "orchestrator": {
+      "title": "编排器控制",
+      "unavailable": "不可用"
+    },
+    "failureDomain": {
+      "skill": "技能",
+      "executor": "执行器",
+      "profile": "Profile 约束",
+      "environment": "环境"
+    },
+    "status": {
+      "running": "运行中",
+      "failed": "失败",
+      "completed": "已完成",
+      "cancelled": "已取消"
+    },
+    "states": {
+      "loadErrorJobs": "加载任务列表失败",
+      "loadErrorDetail": "加载任务详情失败",
+      "loadErrorEvents": "加载任务事件失败",
+      "loadErrorArtifacts": "加载任务产物失败",
+      "loadErrorNotifications": "加载通知失败"
+    },
+    "list": {
+      "title": "任务列表",
+      "description": "按状态筛选任务，并快速切换到具体任务的运行详情。",
+      "empty": "当前筛选条件下没有任务。",
+      "prd": "PRD",
+      "template": "模板",
+      "updatedAt": "更新时间",
+      "approvals": "审批",
+      "artifacts": "产物 {{count}} 项",
+      "noApprovals": "无需人工审批"
+    },
+    "detail": {
+      "title": "任务详情",
+      "description": "查看运行环境、预算、路径、失败与恢复建议。",
+      "empty": "从左侧选择一个任务以查看详情。",
+      "none": "暂无",
+      "prd": "PRD",
+      "template": "模板",
+      "createdAt": "创建时间",
+      "updatedAt": "更新时间",
+      "startedAt": "开始时间",
+      "finishedAt": "完成时间",
+      "runtime": "运行环境",
+      "budgets": "预算消耗",
+      "paths": "路径索引",
+      "failureContext": "失败上下文",
+      "resumeContext": "恢复建议",
+      "humanApprovals": "人工审批",
+      "builder": "Builder",
+      "workerPool": "Worker 池",
+      "networkPolicy": "网络策略",
+      "phase": "阶段",
+      "iterationBudget": "迭代预算",
+      "tokenBudget": "Token 预算",
+      "elapsedIterations": "已执行迭代",
+      "consumedTokens": "已消耗 Token",
+      "workspacePath": "工作区路径",
+      "artifactDir": "产物目录",
+      "builderInputPath": "Builder 输入",
+      "builderOutputPath": "Builder 输出",
+      "summaryLogPath": "摘要日志",
+      "eventLogPath": "事件日志",
+      "failureSignature": "失败签名",
+      "lastError": "最后错误",
+      "retryable": "可重试",
+      "resumeAllowed": "允许恢复",
+      "recommendedResumeMode": "建议恢复模式",
+      "nextAction": "下一步动作",
+      "failureDomain": "失败域",
+      "failureCategory": "失败类别",
+      "requiresHumanConfirmation": "需要人工确认",
+      "requiresPreservedWorkspace": "需要保留工作区",
+      "preservedWorkspacePath": "保留工作区路径",
+      "booleanTrue": "是",
+      "booleanFalse": "否"
+    },
+    "notifications": {
+      "title": "通知面板",
+      "description": "聚合待人工处理事件，支持确认和重建。",
+      "empty": "当前没有待处理通知。",
+      "acknowledged": "已确认",
+      "suggestedAction": "建议动作：{{action}}"
+    },
+    "events": {
+      "title": "事件时间线",
+      "description": "展示任务执行过程中的阶段切换、恢复提示和关键快照。",
+      "empty": "当前任务还没有事件记录。"
+    },
+    "artifacts": {
+      "title": "产物清单",
+      "description": "查看 review bundle、handoff 清单和其他交付件是否已生成。",
+      "empty": "当前任务还没有产物清单。",
+      "required": "必需",
+      "produced": "已生成",
+      "missing": "缺失"
+    },
+    "toasts": {
+      "notificationsRebuilt": "通知已重建",
+      "notificationAcked": "通知已确认",
+      "actionFailed": "操作失败"
     }
   },
   "channels": {

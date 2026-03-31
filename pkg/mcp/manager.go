@@ -1,12 +1,10 @@
 package mcp
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -16,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/sipeed/picoclaw/pkg/config"
+	"github.com/sipeed/picoclaw/pkg/envfile"
 	"github.com/sipeed/picoclaw/pkg/logger"
 )
 
@@ -47,54 +46,7 @@ func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // Lines starting with # are comments
 // Empty lines are ignored
 func loadEnvFile(path string) (map[string]string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open env file: %w", err)
-	}
-	defer file.Close()
-
-	envVars := make(map[string]string)
-	scanner := bufio.NewScanner(file)
-	lineNum := 0
-
-	for scanner.Scan() {
-		lineNum++
-		line := strings.TrimSpace(scanner.Text())
-
-		// Skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		// Parse KEY=value
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid format at line %d: %s", lineNum, line)
-		}
-
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		if key == "" {
-			return nil, fmt.Errorf("invalid format at line %d: empty key", lineNum)
-		}
-
-		// Remove surrounding quotes if present
-		if len(value) >= 2 {
-			if (value[0] == '"' && value[len(value)-1] == '"') ||
-				(value[0] == '\'' && value[len(value)-1] == '\'') {
-				value = value[1 : len(value)-1]
-			}
-		}
-
-		envVars[key] = value
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading env file: %w", err)
-	}
-
-	return envVars, nil
+	return envfile.Load(path)
 }
 
 // ServerConnection represents a connection to an MCP server

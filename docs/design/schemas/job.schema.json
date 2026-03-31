@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://picoclaw.local/docs/design/schemas/job.schema.json",
+  "title": "PicoClaw Generation Job",
+  "description": "自动开发任务的正式记录对象。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "job_id",
+    "prd_id",
+    "prd_version",
+    "template_id",
+    "status",
+    "phase",
+    "workspace_path",
+    "artifact_dir",
+    "budgets",
+    "human_approvals",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prd_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prd_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "template_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "awaiting_prd_approval",
+        "awaiting_template_approval",
+        "queued",
+        "preparing",
+        "running_builder",
+        "running_validation",
+        "awaiting_human_review",
+        "completed",
+        "failed",
+        "escalated",
+        "cancelled"
+      ]
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "planning",
+        "approval",
+        "builder",
+        "validation",
+        "review",
+        "handoff",
+        "terminal"
+      ]
+    },
+    "workspace_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "builder_input_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "builder_output_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "budgets": {
+      "$ref": "#/$defs/budgets"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "logs": {
+      "$ref": "#/$defs/logRefs"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "human_approvals": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "failure_context": {
+      "$ref": "#/$defs/failureContext"
+    },
+    "resume_context": {
+      "$ref": "#/$defs/resumeContext"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "iteration_budget",
+        "token_budget"
+      ],
+      "properties": {
+        "iteration_budget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "token_budget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "elapsed_iterations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consumed_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "builder": {
+          "type": "string",
+          "enum": [
+              "executor",
+            "other"
+          ]
+        },
+        "worker_pool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "network_policy": {
+          "type": "string",
+          "enum": [
+            "disabled",
+            "allowlisted",
+            "open"
+          ]
+        }
+      }
+    },
+    "logRefs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event_log_path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "failureContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "failure_signature": {
+          "type": "string",
+          "minLength": 1
+        },
+        "last_error_summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "resumeContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resume_allowed": {
+          "type": "boolean"
+        },
+        "failure_domain": {
+          "type": "string",
+          "enum": ["skill", "executor", "profile", "environment"]
+        },
+        "failure_category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recommended_resume_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requires_human_confirmation": {
+          "type": "boolean"
+        },
+        "requires_preserved_workspace": {
+          "type": "boolean"
+        },
+        "preserved_workspace_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "next_action": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
