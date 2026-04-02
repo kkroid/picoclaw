@@ -15,8 +15,10 @@ func TestSessionPrepareAndConfirmOwnerPendingAnnouncement(t *testing.T) {
 	}
 
 	s := &session{
-		ownerID:      "kkroid",
-		pendingStore: store,
+		ownerID: "kkroid",
+		stores: sessionStores{
+			pending: store,
+		},
 	}
 
 	batch := s.prepareOwnerPendingAnnouncement()

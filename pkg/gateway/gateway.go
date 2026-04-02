@@ -33,7 +33,7 @@ import (
 	_ "github.com/sipeed/picoclaw/pkg/channels/weixin"
 	_ "github.com/sipeed/picoclaw/pkg/channels/whatsapp"
 	_ "github.com/sipeed/picoclaw/pkg/channels/whatsapp_native"
-	_ "github.com/sipeed/picoclaw/pkg/channels/xiaozhi" // [KKROID FORK]
+	"github.com/sipeed/picoclaw/pkg/channels/xiaozhi"
 	"github.com/sipeed/picoclaw/pkg/config"
 	"github.com/sipeed/picoclaw/pkg/constants"
 	"github.com/sipeed/picoclaw/pkg/cron"
@@ -95,6 +95,29 @@ func logChannelVoiceCapabilities(cm *channels.Manager, asrAvailable bool, ttsAva
 			"tts":     caps.TTS,
 		})
 	}
+}
+
+func injectChannelRuntimes(cm *channels.Manager, loop *agent.AgentLoop) {
+	if cm == nil {
+		return
+	}
+	runtime := xiaozhi.NewAgentLoopRuntime(loop)
+	cm.SetChannelInitHook(func(ch channels.Channel) {
+		setter, ok := ch.(interface{ SetRuntime(xiaozhi.Runtime) })
+		if !ok {
+			return
+		}
+		setter.SetRuntime(runtime)
+		workspaceSetter, ok := ch.(interface{ SetWorkspace(string) })
+		if !ok {
+			return
+		}
+		workspace := ""
+		if runtime != nil {
+			workspace = runtime.WorkspacePath()
+		}
+		workspaceSetter.SetWorkspace(workspace)
+	})
 }
 
 func (p *startupBlockedProvider) Chat(
@@ -381,8 +404,7 @@ func setupAndStartServices(
 
 	transcriber := asr.DetectTranscriber(cfg)
 
-	// [KKROID FORK] 将 AgentLoop 注入所有需要直接流式调用的通道
-	runningServices.ChannelManager.InjectAgentLoop(agentLoop)
+	injectChannelRuntimes(runningServices.ChannelManager, agentLoop)
 
 	if transcriber != nil {
 		agentLoop.SetTranscriber(transcriber)
@@ -615,8 +637,7 @@ func restartServices(
 	al.SetMediaStore(runningServices.MediaStore)
 
 	al.SetChannelManager(runningServices.ChannelManager)
-	// [KKROID FORK] 重新注入 AgentLoop（reload）
-	runningServices.ChannelManager.InjectAgentLoop(al)
+	injectChannelRuntimes(runningServices.ChannelManager, al)
 
 	if err = runningServices.ChannelManager.Reload(context.Background(), cfg); err != nil {
 		return fmt.Errorf("error reload channels: %w", err)

@@ -1,6 +1,9 @@
 package xiaozhi
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestResolveVoiceOwnerID_PrefersBoundOwner(t *testing.T) {
 	if got := resolveVoiceOwnerID("Alice", "fallback-owner"); got != "alice" {
@@ -62,5 +65,65 @@ func TestBuildVoiceSessionContext_NormalizesDeviceIDForSessionKey(t *testing.T) 
 	ctx := buildVoiceSessionContext("kkroid", "per-owner-device", "AA:BB:CC:DD:EE:FF", "conn-1", "turn-1", "")
 	if ctx.SessionKey != "xiaozhi:owner:kkroid:device:aa-bb-cc-dd-ee-ff" {
 		t.Fatalf("SessionKey = %q", ctx.SessionKey)
+	}
+}
+
+func TestPrepareTurn_CancelsPreviousTurnAndWaitsPipeline(t *testing.T) {
+	s := &session{
+		defaultOwnerID: "kkroid",
+		sessionScope:   "per-owner-device",
+		deviceID:       "desk-1",
+		connID:         "conn-1",
+	}
+
+	cancelled := make(chan struct{})
+	pipelineDone := make(chan struct{})
+	s.cancel = func() {
+		select {
+		case <-cancelled:
+		default:
+			close(cancelled)
+		}
+	}
+	s.pipelineWg.Add(1)
+	go func() {
+		defer s.pipelineWg.Done()
+		<-cancelled
+		close(pipelineDone)
+	}()
+
+	realtimeSess := &stubStreamingSession{}
+	s.asrSess = realtimeSess
+	s.asrFeedCh = make(chan asrChunk, 1)
+
+	done := make(chan struct{})
+	go func() {
+		s.prepareTurn("turn-2", "", "voice")
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("prepareTurn did not finish after cancelling previous pipeline")
+	}
+
+	select {
+	case <-pipelineDone:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected previous pipeline to finish before prepareTurn returned")
+	}
+
+	if !realtimeSess.closed {
+		t.Fatal("expected previous realtime ASR session to be closed")
+	}
+	if s.cancel != nil {
+		t.Fatal("expected cancel func to be cleared after prepareTurn")
+	}
+	if s.asrSess != nil || s.asrFeedCh != nil {
+		t.Fatal("expected previous ASR session state to be cleared")
+	}
+	if s.turnID != "turn-2" {
+		t.Fatalf("turnID = %q, want %q", s.turnID, "turn-2")
 	}
 }

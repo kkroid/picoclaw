@@ -1,8 +1,3 @@
-// PicoClaw - Ultra-lightweight personal AI agent
-// License: MIT
-//
-// Copyright (c) 2026 PicoClaw contributors
-
 // xiaozhi 包实现 xiaozhi 语音 WebSocket 通道。
 // 通过 ASR→LLM→TTS 三阶段流式流水线为 xiaozhi-esp32 等客户端提供实时语音对话。
 package xiaozhi
@@ -15,7 +10,6 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/sipeed/picoclaw/pkg/agent"
 	"github.com/sipeed/picoclaw/pkg/asr"
 	_ "github.com/sipeed/picoclaw/pkg/asr/doubao"
 	_ "github.com/sipeed/picoclaw/pkg/asr/funasr"
@@ -30,19 +24,17 @@ import (
 )
 
 // XiaozhiChannel 实现 xiaozhi 语音 WebSocket 通道。
-// 与其他文本 channel 不同，xiaozhi 直接调用 AgentLoop 进行流式推理，
+// 与其他文本 channel 不同，xiaozhi 通过实时运行时编排流式推理，
 // 不走 MessageBus 消息分发。
 type XiaozhiChannel struct {
 	*channels.BaseChannel
-	config       config.XiaozhiConfig
-	asr          asr.Provider
-	tts          tts.Provider
-	agentLoop    *agent.AgentLoop
-	ownerStore   *ownerStore
-	deviceStore  *voiceDeviceStore
-	pendingStore *memory.VoicePendingStore
-	registry     *deviceRegistry
-	upgrader     websocket.Upgrader
+	config   config.XiaozhiConfig
+	asr      asr.Provider
+	tts      tts.Provider
+	runtime  Runtime
+	stores   sessionStores
+	registry *deviceRegistry
+	upgrader websocket.Upgrader
 }
 
 // NewXiaozhiChannel 根据配置创建 xiaozhi 通道，初始化 ASR 和 TTS provider。
@@ -91,34 +83,44 @@ func NewXiaozhiChannel(cfg config.XiaozhiConfig, b *bus.MessageBus) (*XiaozhiCha
 	}, nil
 }
 
-// SetAgentLoop 注入 AgentLoop，在 channel 创建后、Start 之前调用。
-// 参数类型为 any 以适配 Manager.InjectAgentLoop 的通用接口检测。
-func (c *XiaozhiChannel) SetAgentLoop(v any) {
-	al, _ := v.(*agent.AgentLoop)
-	c.agentLoop = al
-	if al == nil {
-		c.ownerStore = nil
-		c.deviceStore = nil
-		c.pendingStore = nil
+// SetRuntime 注入 xiaozhi 运行时，在 channel 创建后、Start 之前调用。
+func (c *XiaozhiChannel) SetRuntime(runtime Runtime) {
+	c.runtime = runtime
+	if c.runtime == nil {
+		c.resetStores()
+	}
+}
+
+// SetWorkspace 注入 xiaozhi 的状态存储根目录，在 channel 创建后、Start 之前调用。
+func (c *XiaozhiChannel) SetWorkspace(workspace string) {
+	workspace = strings.TrimSpace(workspace)
+	if workspace == "" {
+		c.resetStores()
 		return
 	}
-	defaultAgent := al.GetRegistry().GetDefaultAgent()
-	if defaultAgent == nil {
-		c.ownerStore = nil
-		c.deviceStore = nil
-		c.pendingStore = nil
-		return
+	c.stores = sessionStores{
+		owner:   newOwnerStore(workspace),
+		device:  newVoiceDeviceStore(workspace),
+		pending: memory.NewVoicePendingStore(workspace),
 	}
-	c.ownerStore = newOwnerStore(defaultAgent.Workspace)
-	c.deviceStore = newVoiceDeviceStore(defaultAgent.Workspace)
-	c.pendingStore = memory.NewVoicePendingStore(defaultAgent.Workspace)
+}
+
+func (c *XiaozhiChannel) resetStores() {
+	c.stores = sessionStores{}
+}
+
+func (c *XiaozhiChannel) VoiceCapabilities() channels.VoiceCapabilities {
+	return channels.VoiceCapabilities{ASR: true, TTS: true}
 }
 
 // ---- Channel 接口实现 ----
 
 func (c *XiaozhiChannel) Start(_ context.Context) error {
-	if c.agentLoop == nil {
-		return fmt.Errorf("xiaozhi: agentLoop not set, call SetAgentLoop before Start")
+	if c.runtime == nil {
+		return fmt.Errorf("xiaozhi: runtime not set, call SetRuntime before Start")
+	}
+	if c.stores.owner == nil || c.stores.device == nil || c.stores.pending == nil {
+		return fmt.Errorf("xiaozhi: workspace not set, call SetWorkspace before Start")
 	}
 	c.SetRunning(true)
 	logger.InfoC("xiaozhi", "Xiaozhi voice channel started")
@@ -167,10 +169,8 @@ func (c *XiaozhiChannel) handleWebSocket(w http.ResponseWriter, r *http.Request)
 		conn,
 		c.asr,
 		c.tts,
-		c.agentLoop,
-		c.ownerStore,
-		c.deviceStore,
-		c.pendingStore,
+		c.runtime,
+		c.stores,
 		c.config.EffectiveDefaultOwnerID(),
 		c.config.EffectiveSessionScope(),
 		c.registry,

@@ -14,6 +14,7 @@ func TestXiaozhiFactoryRegistered(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.Channels.Xiaozhi.Enabled = true
+	cfg.Channels.Xiaozhi.AppID = "dummy-app"
 	cfg.Channels.Xiaozhi.Token = "dummy-token"
 	cfg.Channels.Xiaozhi.DefaultOwnerID = "test-owner"
 

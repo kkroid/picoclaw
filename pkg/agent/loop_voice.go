@@ -41,13 +41,13 @@ func (al *AgentLoop) RunVoiceAgentLoop(
 	}
 
 	opts := processOptions{
-		SessionKey:    sessionKey,
-		Channel:       channel,
-		ChatID:        chatID,
-		UserMessage:   userText,
+		SessionKey:      sessionKey,
+		Channel:         channel,
+		ChatID:          chatID,
+		UserMessage:     userText,
 		DefaultResponse: defaultResponse,
-		EnableSummary: true,
-		SendResponse:  false, // 语音路径自行管理输出
+		EnableSummary:   true,
+		SendResponse:    false, // 语音路径自行管理输出
 	}
 
 	finalContent, err := al.runAgentLoop(ctx, agent, opts)
@@ -63,7 +63,12 @@ func (al *AgentLoop) RunVoiceAgentLoop(
 			logger.WarnCF("voice-stream", "Failed to save owner memory",
 				map[string]any{"memory_key": memoryKey, "error": saveErr.Error()})
 		}
-		al.maybeSummarize(agent, memoryKey, al.newTurnEventScope(agent.ID, memoryKey))
+		if al.contextManager != nil {
+			_ = al.contextManager.Compact(ctx, &CompactRequest{
+				SessionKey: memoryKey,
+				Reason:     ContextCompressReasonSummarize,
+			})
+		}
 	}
 
 	return finalContent, nil

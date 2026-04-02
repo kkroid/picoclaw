@@ -1,8 +1,3 @@
-// PicoClaw - Ultra-lightweight personal AI agent
-// License: MIT
-//
-// Copyright (c) 2026 PicoClaw contributors
-
 package xiaozhi
 
 // protocol.go 定义 xiaozhi 语音通道与客户端之间的 WebSocket 消息协议。

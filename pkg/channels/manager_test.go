@@ -13,6 +13,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/sipeed/picoclaw/pkg/bus"
+	"github.com/sipeed/picoclaw/pkg/config"
 )
 
 // mockChannel is a test double that delegates Send to a configurable function.
@@ -81,6 +82,20 @@ func (m *mockDeletingMediaChannel) DeleteMessage(
 	return nil
 }
 
+type hookAwareChannel struct {
+	mockChannel
+	hookApplied bool
+	startCalls  int
+}
+
+func (c *hookAwareChannel) Start(context.Context) error {
+	c.startCalls++
+	if !c.hookApplied {
+		return errors.New("hook not applied")
+	}
+	return nil
+}
+
 // newTestManager creates a minimal Manager suitable for unit tests.
 func newTestManager() *Manager {
 	return &Manager{
@@ -111,6 +126,63 @@ func TestSendWithRetry_Success(t *testing.T) {
 	if callCount != 1 {
 		t.Fatalf("expected 1 Send call, got %d", callCount)
 	}
+}
+
+func TestSetChannelInitHookAppliesToExistingAndNewChannels(t *testing.T) {
+	m := newTestManager()
+	existing := &hookAwareChannel{}
+	m.channels["existing"] = existing
+
+	m.SetChannelInitHook(func(ch Channel) {
+		if aware, ok := ch.(*hookAwareChannel); ok {
+			aware.hookApplied = true
+		}
+	})
+
+	if !existing.hookApplied {
+		t.Fatalf("expected init hook to apply to existing channel")
+	}
+
+	const factoryName = "test-hook-aware-channel"
+	registerFactoryForTest(t, factoryName, func(_ *config.Config, _ *bus.MessageBus) (Channel, error) {
+		return &hookAwareChannel{}, nil
+	})
+
+	m.config = &config.Config{}
+	m.bus = bus.NewMessageBus()
+	m.initChannel(factoryName, "Test Hook Aware Channel")
+
+	created, ok := m.channels[factoryName]
+	if !ok {
+		t.Fatalf("expected channel %q to be created", factoryName)
+	}
+	aware, ok := created.(*hookAwareChannel)
+	if !ok {
+		t.Fatalf("expected *hookAwareChannel, got %T", created)
+	}
+	if !aware.hookApplied {
+		t.Fatalf("expected init hook to apply to newly created channel")
+	}
+	if err := aware.Start(context.Background()); err != nil {
+		t.Fatalf("expected Start to succeed after hook injection, got %v", err)
+	}
+}
+
+func registerFactoryForTest(t *testing.T, name string, factory ChannelFactory) {
+	t.Helper()
+	factoriesMu.Lock()
+	previous, hadPrevious := factories[name]
+	factories[name] = factory
+	factoriesMu.Unlock()
+	t.Cleanup(func() {
+		factoriesMu.Lock()
+		defer factoriesMu.Unlock()
+		if hadPrevious {
+			factories[name] = previous
+			return
+		}
+		delete(factories, name)
+	})
 }
 
 func TestSendWithRetry_TemporaryThenSuccess(t *testing.T) {

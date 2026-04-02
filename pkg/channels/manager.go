@@ -77,20 +77,21 @@ type channelWorker struct {
 }
 
 type Manager struct {
-	channels      map[string]Channel
-	workers       map[string]*channelWorker
-	bus           *bus.MessageBus
-	config        *config.Config
-	mediaStore    media.MediaStore
-	dispatchTask  *asyncTask
-	mux           *dynamicServeMux
-	httpServer    *http.Server
-	mu            sync.RWMutex
-	placeholders  sync.Map          // "channel:chatID" → placeholderID (string)
-	typingStops   sync.Map          // "channel:chatID" → func()
-	reactionUndos sync.Map          // "channel:chatID" → reactionEntry
-	streamActive  sync.Map          // "channel:chatID" → true (set when streamer.Finalize sent the message)
-	channelHashes map[string]string // channel name → config hash
+	channels        map[string]Channel
+	workers         map[string]*channelWorker
+	bus             *bus.MessageBus
+	config          *config.Config
+	mediaStore      media.MediaStore
+	channelInitHook func(Channel)
+	dispatchTask    *asyncTask
+	mux             *dynamicServeMux
+	httpServer      *http.Server
+	mu              sync.RWMutex
+	placeholders    sync.Map          // "channel:chatID" → placeholderID (string)
+	typingStops     sync.Map          // "channel:chatID" → func()
+	reactionUndos   sync.Map          // "channel:chatID" → reactionEntry
+	streamActive    sync.Map          // "channel:chatID" → true (set when streamer.Finalize sent the message)
+	channelHashes   map[string]string // channel name → config hash
 }
 
 type asyncTask struct {
@@ -343,10 +344,32 @@ func (m *Manager) initChannel(name, displayName string) {
 		if setter, ok := ch.(interface{ SetOwner(ch Channel) }); ok {
 			setter.SetOwner(ch)
 		}
+		if m.channelInitHook != nil {
+			m.channelInitHook(ch)
+		}
 		m.channels[name] = ch
 		logger.InfoCF("channels", "Channel enabled successfully", map[string]any{
 			"channel": displayName,
 		})
+	}
+}
+
+// SetChannelInitHook 注册一个统一的 channel 初始化钩子。
+// 该钩子会应用到当前已存在的 channel，也会应用到后续新建或 reload 重建的 channel。
+func (m *Manager) SetChannelInitHook(hook func(Channel)) {
+	m.mu.Lock()
+	m.channelInitHook = hook
+	existing := make([]Channel, 0, len(m.channels))
+	for _, ch := range m.channels {
+		existing = append(existing, ch)
+	}
+	m.mu.Unlock()
+
+	if hook == nil {
+		return
+	}
+	for _, ch := range existing {
+		hook(ch)
 	}
 }
 
@@ -999,18 +1022,6 @@ func (m *Manager) GetChannel(name string) (Channel, bool) {
 	defer m.mu.RUnlock()
 	channel, ok := m.channels[name]
 	return channel, ok
-}
-
-// [KKROID FORK] InjectAgentLoop 将 agentLoop 注入所有实现了 SetAgentLoop 方法的通道。
-// 参数类型为 any 以避免 channels 包对 agent 包的循环依赖。
-func (m *Manager) InjectAgentLoop(agentLoop any) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	for _, ch := range m.channels {
-		if setter, ok := ch.(interface{ SetAgentLoop(any) }); ok {
-			setter.SetAgentLoop(agentLoop)
-		}
-	}
 }
 
 func (m *Manager) GetStatus() map[string]any {

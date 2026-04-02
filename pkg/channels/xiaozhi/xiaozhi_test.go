@@ -38,3 +38,27 @@ func TestXiaozhiChannelSendRejectsBusOutbound(t *testing.T) {
 		t.Fatalf("expected nil message IDs, got %#v", msgIDs)
 	}
 }
+
+func TestXiaozhiChannelStartRequiresRuntimeAndWorkspace(t *testing.T) {
+	ch := &XiaozhiChannel{
+		BaseChannel: channels.NewBaseChannel("xiaozhi", config.XiaozhiConfig{}, bus.NewMessageBus(), nil),
+	}
+
+	if err := ch.Start(context.Background()); err == nil {
+		t.Fatal("expected Start to fail when runtime/workspace are not configured")
+	}
+
+	ch.SetRuntime(&agentLoopRuntime{})
+	if err := ch.Start(context.Background()); err == nil {
+		t.Fatal("expected Start to fail when workspace stores are not configured")
+	}
+
+	workspace := t.TempDir()
+	ch.SetWorkspace(workspace)
+	if err := ch.Start(context.Background()); err != nil {
+		t.Fatalf("expected Start to succeed after runtime/workspace injection, got %v", err)
+	}
+	if !ch.IsRunning() {
+		t.Fatal("expected channel to be running after successful Start")
+	}
+}
