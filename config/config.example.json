@@ -273,8 +273,71 @@
       "model_name": "loadbalanced-gpt-5.4",
       "model": "openai/gpt-5.4",
       "api_base": "https://api2.example.com/v1"
+    },
+    {
+      "model_name": "qwen2.5-coder-14b-local",
+      "model": "openai/qwen2.5-coder:14b",
+      "api_base": "http://127.0.0.1:11434/v1",
+      "fallbacks": [
+        "qwen2.5-coder-32b-local",
+        "gpt-5.4"
+      ]
+    },
+    {
+      "model_name": "qwen2.5-coder-32b-local",
+      "model": "openai/qwen2.5-coder:32b",
+      "api_base": "http://127.0.0.1:11434/v1",
+      "fallbacks": [
+        "gpt-5.4"
+      ]
     }
   ],
+  "appfactory": {
+    "builder_runtime": {
+      "enabled": false,
+      "default_model": {
+        "primary": "qwen2.5-coder-14b-local",
+        "fallbacks": [
+          "gpt-5.4"
+        ]
+      },
+      "upgrade_model": {
+        "primary": "qwen2.5-coder-32b-local",
+        "fallbacks": [
+          "gpt-5.4"
+        ]
+      },
+      "task_routes": [
+        {
+          "task_type": "single_file_edit",
+          "model": "qwen2.5-coder-14b-local"
+        },
+        {
+          "task_type": "dual_file_wiring",
+          "model": "qwen2.5-coder-14b-local"
+        },
+        {
+          "task_type": "analyze_repair",
+          "model": "qwen2.5-coder-14b-local"
+        },
+        {
+          "task_type": "test_repair",
+          "model": "qwen2.5-coder-14b-local"
+        },
+        {
+          "task_type": "closure_repair",
+          "model": "qwen2.5-coder-32b-local"
+        }
+      ],
+      "upgrade_threshold": {
+        "max_attempts_before_upgrade": 2,
+        "max_files_before_upgrade": 2,
+        "upgrade_on_validation_fail": true,
+        "upgrade_on_patch_parse_fail": true,
+        "upgrade_on_scope_violation": true
+      }
+    }
+  },
   "gateway": {
     "host": "127.0.0.1",
     "port": 18790,

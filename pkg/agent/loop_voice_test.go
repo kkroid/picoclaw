@@ -161,7 +161,7 @@ func newVoiceAgentLoop(t *testing.T, provider providers.LLMProvider) (*AgentLoop
 		Agents: config.AgentsConfig{
 			Defaults: config.AgentDefaults{
 				Workspace:         tmpDir,
-				Model:             "test-model",
+				ModelName:         "test-model",
 				MaxTokens:         4096,
 				MaxToolIterations: 10,
 			},

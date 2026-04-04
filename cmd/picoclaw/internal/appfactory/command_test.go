@@ -624,18 +624,23 @@ func TestPrepareThenRunOnceWritesStagedBuilderOutput(t *testing.T) {
 	if len(output.ChecksFailed) != 0 {
 		t.Fatalf("len(output.ChecksFailed) = %d, want 0", len(output.ChecksFailed))
 	}
-	wantCheckIDs := []string{
+	passedCheckIDs := make(map[string]bool, len(output.ChecksPassed))
+	for _, check := range output.ChecksPassed {
+		passedCheckIDs[check.CheckID] = true
+	}
+	for _, want := range []string{
 		"check-context-ready",
 		"check-bookkeeping-scope",
-		"check-plan-ready",
-		"check-counter-demo-removed",
-		"check-entry-form-wiring",
-		"check-local-persistence-wiring",
-	}
-	for index, want := range wantCheckIDs {
-		if output.ChecksPassed[index].CheckID != want {
-			t.Fatalf("output.ChecksPassed[%d].CheckID = %q, want %q", index, output.ChecksPassed[index].CheckID, want)
+		"check-structural-template-files-ready",
+		"check-legacy-thin-fallback-probe",
+		"check-legacy-thin-fallback-metadata",
+	} {
+		if !passedCheckIDs[want] {
+			t.Fatalf("output.ChecksPassed missing %q: %#v", want, output.ChecksPassed)
 		}
+	}
+	if passedCheckIDs["check-counter-demo-removed"] || passedCheckIDs["check-entry-form-wiring"] || passedCheckIDs["check-local-persistence-wiring"] {
+		t.Fatalf("output.ChecksPassed should not contain legacy default-executor business checks: %#v", output.ChecksPassed)
 	}
 	if output.Metrics.TotalIterations != 7 {
 		t.Fatalf("output.Metrics.TotalIterations = %d, want 7", output.Metrics.TotalIterations)

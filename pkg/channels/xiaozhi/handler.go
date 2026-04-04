@@ -1338,6 +1338,13 @@ func (s *session) streamLLM(
 	if result.finalContent == "" && len(result.sentences) > 0 {
 		result.finalContent = strings.Join(result.sentences, "")
 	}
+	if len(result.sentences) == 0 {
+		if trimmed := strings.TrimSpace(result.finalContent); trimmed != "" {
+			result.sentences = append(result.sentences, trimmed)
+			logger.Infof("xiaozhi: llm sentence: %q", trimmed)
+			s.writeText(newLlmText(trimmed))
+		}
+	}
 
 	logger.Infof("xiaozhi: llm done: turn=%s latency=%dms", turnID, time.Since(llmStart).Milliseconds())
 	return result, nil

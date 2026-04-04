@@ -15,6 +15,44 @@
     "config": "配置",
     "logs": "日志"
   },
+  "header": {
+    "gateway": {
+      "action": {
+        "start": "启动服务",
+        "stop": "停止服务",
+        "restart": "重启服务"
+      },
+      "status": {
+        "starting": "服务启动中...",
+        "restarting": "服务重启中...",
+        "stopping": "服务停止中..."
+      },
+      "restartRequired": "配置变更后需要重启服务",
+      "stopDialog": {
+        "title": "停止服务",
+        "description": "停止网关后，对话与后台服务会中断，直到再次启动。",
+        "confirm": "停止"
+      }
+    },
+    "orchestrator": {
+      "status": {
+        "loading": "编排器加载中",
+        "running": "编排器运行中",
+        "stopping": "编排器停止中",
+        "locked": "编排器被外部占用",
+        "stale": "编排器锁已过期",
+        "idle": "编排器空闲"
+      },
+      "menu": {
+        "loading": "正在加载编排器状态。",
+        "runningDetail": "后台 watcher 正在运行，轮询间隔 {{interval}} 秒。",
+        "stoppingDetail": "后台 watcher 正在停止，等待当前轮询收尾。",
+        "lockedDetail": "当前有其他 watcher 持有锁，新的 watcher 不会启动。",
+        "staleDetail": "检测到过期锁，如确认没有存活 watcher，可执行强制清锁。",
+        "idleDetail": "当前没有后台 watcher 运行，可以从这里直接启动。"
+      }
+    }
+  },
   "chat": {
     "welcome": "今天我能为您做些什么？",
     "welcomeDesc": "您可以询问我天气、设置或其他任何任务，我随时为您效劳。",
@@ -46,60 +84,7 @@
     },
     "modelGroup": {
       "apikey": "API Key",
-      "oauth": "OAuth",
-      "local": "本地模型"
-    }
-  },
-  "header": {
-    "gateway": {
-      "stopDialog": {
-        "title": "停止服务？",
-        "description": "您确定要停止服务吗？这将断开您当前活动的聊天会话并停止推理。",
-        "confirm": "停止服务"
-      },
-      "action": {
-        "start": "启动服务",
-        "stop": "停止服务",
-        "restart": "重启服务"
-      },
-      "status": {
-        "starting": "服务启动中...",
-        "restarting": "服务重启中...",
-        "stopping": "服务停止中..."
-      },
-      "restartRequired": "切换默认模型后需要重启服务才能生效。"
-    },
-    "orchestrator": {
-      "status": {
-        "loading": "编排器加载中",
-        "running": "编排器运行中",
-        "stopping": "编排器停止中",
-        "locked": "编排器被外部占用",
-        "stale": "编排器锁已过期",
-        "idle": "编排器空闲"
-      },
-      "action": {
-        "startWatch": "启动编排器 Watch",
-        "stopWatch": "停止编排器 Watch",
-        "forceUnlock": "强制清理锁",
-        "refresh": "刷新状态"
-      },
-      "menu": {
-        "title": "AppFactory 编排器",
-        "loading": "正在加载编排器状态。",
-        "runningDetail": "后台 watcher 正在运行，轮询间隔 {{interval}} 秒。",
-        "stoppingDetail": "后台 watcher 正在停止，等待当前轮询收尾。",
-        "lockedDetail": "当前有其他 watcher 持有锁，新的 watcher 不会启动。",
-        "staleDetail": "检测到过期锁，如确认没有存活 watcher，可执行强制清锁。",
-        "idleDetail": "当前没有后台 watcher 运行，可以从这里直接启动。",
-        "lockOwner": "当前锁持有者：{{owner}}"
-      },
-      "toast": {
-        "started": "编排器 watcher 已启动",
-        "stopped": "编排器 watcher 已停止",
-        "unlocked": "编排器锁已清理",
-        "error": "编排器操作失败"
-      }
+      "description": "只需填写应用名称和需求说明。"
     }
   },
   "common": {
@@ -255,13 +240,49 @@
   },
   "jobs": {
     "description": "集中查看 AppFactory 任务、编排器状态、人工干预通知和交付产物索引。",
+    "runtimeMode": {
+      "title": "当前执行模式",
+      "enabled": "当前已启用 builder runtime。新建任务会优先走真实模型编辑链路，默认模型为 {{defaultModel}}，升级模型为 {{upgradeModel}}。",
+      "disabled": "当前仍在使用 thin executor fallback。新建任务只会验证输入包和探针文件，不会执行真实 Flutter 构建。"
+    },
     "actions": {
+      "createJob": "新建任务",
       "refresh": "刷新",
       "rebuildNotifications": "重建通知",
       "acknowledge": "确认已处理"
     },
+    "create": {
+      "title": "新建 Job",
+      "description": "只需填写应用名称和需求说明，系统会自动创建并启动任务。",
+      "advanced": {
+        "trigger": "高级创建选项",
+        "description": "仅保留会影响创建护栏和自动启动策略的两个控制项，默认不展开。",
+        "realChecks": {
+          "label": "启用真实检查",
+          "description": "关闭后只做轻量准备与模板编译，不额外要求真实构建检查通过。"
+        },
+        "autoStartBuilder": {
+          "label": "创建后自动启动",
+          "description": "关闭后只创建任务记录，不自动注册 builder 或启动执行。"
+        }
+      },
+      "fields": {
+        "requirementText": "需求说明",
+        "title": "应用名称"
+      },
+      "placeholders": {
+        "requirementText": "描述具体业务域、核心页面和主流程，例如：做一个离线记账 App，需要首页概览、记一笔、账单列表和本地持久化。",
+        "title": "例如：轻量记账"
+      },
+      "validation": {
+        "title": "请先填写应用名称",
+        "requirementText": "请先填写需求说明",
+        "templateIdMissing": "系统未返回可用模板，请稍后重试"
+      }
+    },
     "filters": {
       "all": "全部",
+      "attention": "待处理",
       "running": "运行中",
       "failed": "失败",
       "completed": "已完成",
@@ -271,20 +292,62 @@
       "total": "任务总数",
       "running": "活跃任务",
       "attention": "需关注任务",
+      "failed": "失败任务",
+      "completed": "已完成任务",
       "orchestrator": "编排器",
       "visible": "当前列表 {{count}} 项",
       "pendingNotifications": "未确认通知 {{count}} 条",
       "humanApprovals": "待人工审批 {{count}} 项"
     },
+    "workspace": {
+      "detailTitle": "任务工作区",
+      "detailDescription": "围绕当前任务集中查看状态、执行、产物和交付动作。",
+      "systemStatusTitle": "系统状态",
+      "focusTitle": "当前焦点",
+      "focusDescription": "先确认当前最该处理的任务，再进入下方工作区继续推进。",
+      "focusPrimaryAction": "现在先做什么",
+      "focusSelectedJob": "当前任务",
+      "focusPendingActions": "待处理动作",
+      "focusNoSelection": "尚未选择任务",
+      "focusOpenOverview": "打开当前任务概览",
+      "focusSelectedJobDetail": "当前已选中任务 {{jobId}}，建议先进入概览处理下一步动作。",
+      "focusNeedsAttention": "当前有任务需要优先处理",
+      "focusNeedsAttentionDetail": "当前共有 {{notifications}} 条待处理通知，另有 {{attention}} 个任务处于失败或待审批状态。",
+      "focusAllStable": "当前主线相对稳定",
+      "focusAllStableDetail": "当前没有明显堆积的待处理动作。可以从左侧选择任务，继续检查执行、产物或交付。",
+      "showSystemStatus": "展开系统状态",
+      "hideSystemStatus": "收起系统状态",
+      "advancedInfo": "高级信息",
+      "tabs": {
+        "overview": "概览",
+        "execution": "执行",
+        "artifacts": "产物",
+        "delivery": "交付"
+      }
+    },
     "orchestrator": {
       "title": "编排器控制",
-      "unavailable": "不可用"
+      "unavailable": "不可用",
+      "queuedRecoveries": "排队恢复数",
+      "runningRecoveries": "运行中恢复数",
+      "foreignLiveLeaseSkips": "外部活跃租约跳过数"
     },
     "failureDomain": {
       "skill": "技能",
       "executor": "执行器",
       "profile": "Profile 约束",
+      "device": "设备验证",
       "environment": "环境"
+    },
+    "failureCategory": {
+      "environment_check_failed:adb_binary_unavailable": "设备验证环境缺少 adb",
+      "environment_check_failed:debug_apk_missing": "设备验证缺少 debug APK",
+      "environment_check_failed:android_app_id_missing": "设备验证缺少 Android applicationId",
+      "device_check_failed:adb_device_unavailable": "未检测到可用设备",
+      "device_check_failed:apk_install_failed": "APK 安装失败",
+      "device_check_failed:app_launch_failed": "应用启动失败",
+      "device_check_failed:app_runtime_crash": "应用启动后崩溃",
+      "device_check_failed:log_capture_failed": "运行日志采集失败"
     },
     "status": {
       "running": "运行中",
@@ -301,12 +364,22 @@
     },
     "list": {
       "title": "任务列表",
-      "description": "按状态筛选任务，并快速切换到具体任务的运行详情。",
+      "description": "先筛选和定位任务，再进入右侧工作区处理。",
+      "resultSummary": "当前显示 {{visible}} / {{total}} 个任务。",
       "empty": "当前筛选条件下没有任务。",
+      "jobId": "任务 ID",
       "prd": "PRD",
       "template": "模板",
       "updatedAt": "更新时间",
       "approvals": "审批",
+      "searchPlaceholder": "搜索任务 ID、失败摘要、建议动作或阶段",
+      "currentActivity": "当前状态",
+      "pendingActions": "待处理 {{count}} 项",
+      "awaitingApprovals": "等待人工审批，共 {{count}} 项",
+      "runningDetail": "当前正在执行：{{phase}}",
+      "completedSummary": "任务已完成，可以查看产物和总结。",
+      "failedSummary": "当前任务已失败，优先查看失败摘要和证据路径。",
+      "idleSummary": "当前暂无更具体的执行信号。",
       "artifacts": "产物 {{count}} 项",
       "noApprovals": "无需人工审批"
     },
@@ -315,17 +388,37 @@
       "description": "查看运行环境、预算、路径、失败与恢复建议。",
       "empty": "从左侧选择一个任务以查看详情。",
       "none": "暂无",
+      "liveProgress": "当前进展",
+      "executionBreakdown": "执行拆解",
+      "executionSnapshot": "执行概览",
       "prd": "PRD",
       "template": "模板",
       "createdAt": "创建时间",
       "updatedAt": "更新时间",
       "startedAt": "开始时间",
       "finishedAt": "完成时间",
+      "currentActivity": "当前动作",
+      "currentStage": "当前阶段",
+      "currentStep": "当前步骤",
+      "currentRound": "当前轮次",
+      "currentRoundTargets": "当前轮次目标文件",
+      "latestSignal": "最近信号",
+      "latestSignalAt": "最近信号时间",
+      "eventCount": "事件数量",
       "runtime": "运行环境",
       "budgets": "预算消耗",
       "paths": "路径索引",
+      "statusContext": "状态说明",
       "failureContext": "失败上下文",
+      "failurePanelTitle": "失败诊断",
+      "failureStage": "失败阶段",
+      "failureImpact": "影响范围",
+      "failureEvidencePriority": "优先查看这些证据",
+      "failureTechnicalContext": "查看技术细节",
+      "failureInspectNow": "先查看失败证据并定位原因",
+      "failedSummaryFallback": "当前任务执行失败，先固定证据，再决定是否重试。",
       "resumeContext": "恢复建议",
+      "deliveryContext": "交付上下文",
       "humanApprovals": "人工审批",
       "builder": "Builder",
       "workerPool": "Worker 池",
@@ -341,8 +434,15 @@
       "builderOutputPath": "Builder 输出",
       "summaryLogPath": "摘要日志",
       "eventLogPath": "事件日志",
+      "statusReason": "状态原因",
+      "statusSummary": "状态摘要",
+      "suggestedAction": "建议动作",
+      "runSuggestedAction": "执行建议动作：{{action}}",
+      "manualActionHint": "当前建议动作需要在其他入口人工完成，任务页暂不直接执行。",
       "failureSignature": "失败签名",
       "lastError": "最后错误",
+      "failureGuidance": "定位建议",
+      "failureGuidanceEvidence": "优先查看这些路径",
       "retryable": "可重试",
       "resumeAllowed": "允许恢复",
       "recommendedResumeMode": "建议恢复模式",
@@ -351,33 +451,360 @@
       "failureCategory": "失败类别",
       "requiresHumanConfirmation": "需要人工确认",
       "requiresPreservedWorkspace": "需要保留工作区",
+      "deliveryStatus": "交付状态",
+      "deliverySummary": "交付摘要",
+      "deliveryRecordPath": "交付记录路径",
+      "releaseChannel": "发布渠道",
+      "rolloutPercent": "灰度比例",
+      "reviewerId": "审核人",
+      "recordedAt": "记录时间",
+      "evidencePaths": "证据路径",
+      "requiredChanges": "要求修改项",
+      "signedArtifactPaths": "签名产物路径",
+      "deviceVerification": "设备验证",
+      "deviceVerificationStatus": "设备验证状态",
+      "deviceVerificationSummary": "设备验证摘要",
+      "deviceVerificationRecordPath": "设备验证记录路径",
+      "deviceVerificationEvidencePaths": "设备验证证据路径",
+      "verifiedAt": "验证时间",
+      "releaseFollowUp": "发布后跟踪",
+      "releaseFollowUpStatus": "跟踪状态",
+      "releaseFollowUpSummary": "跟踪摘要",
+      "releaseFollowUpRecordPath": "跟踪记录路径",
+      "followUpOwnerId": "跟踪负责人",
+      "followUpUpdatedAt": "最近更新时间",
+      "followUpEvidencePaths": "跟踪证据路径",
       "preservedWorkspacePath": "保留工作区路径",
       "booleanTrue": "是",
       "booleanFalse": "否"
+    ,
+      "failureImpactValue": {
+        "device": "设备验证与运行证据",
+        "environment": "构建环境与校验链路",
+        "profile": "模板结构与接线约束",
+        "builderRuntime": "Builder Runtime patch 生成或落地",
+        "generic": "当前任务主执行链路"
+      }
+    },
+    "progress": {
+      "elapsed": {
+        "justNow": "刚刚开始",
+        "minutes": "已持续 {{minutes}} 分钟",
+        "hoursMinutes": "已持续 {{hours}} 小时 {{minutes}} 分钟"
+      },
+      "runningHint": {
+        "orchestrator": "编排器正在调度执行",
+        "thin-prepare": "正在读取 PRD、拆解任务并规划改动",
+        "baseline": "正在准备 Flutter 构建环境",
+        "cheap": "正在执行快速校验",
+        "heavy": "正在执行重型校验",
+        "milestone": "正在构建和打包",
+        "device": "正在连接设备并验证安装",
+        "smoke": "正在启动应用并采集运行证据",
+        "delivery": "正在整理最终产物与交付记录",
+        "generic": "任务仍在执行中"
+      },
+      "stage": {
+        "pending": "等待启动 / 排队中",
+        "builder": "Builder 执行链路",
+        "orchestrator": "编排器调度",
+        "thin-prepare": "读取 PRD / 拆解任务 / 生成实现计划",
+        "baseline": "准备构建环境",
+        "cheap": "快速校验实现",
+        "heavy": "重型校验",
+        "milestone": "编译打包验证",
+        "device": "设备验证",
+        "smoke": "启动与运行验证",
+        "manual": "人工处理",
+        "other": "其他阶段",
+        "delivery": "产物交付",
+        "failed": "执行失败"
+      },
+      "state": {
+        "pending": "等待中",
+        "running": "进行中",
+        "completed": "已完成",
+        "failed": "失败"
+      },
+      "step": {
+        "orchestratorDispatch": "编排器接手并下发执行",
+        "thinPrepare": "读取 PRD / 拆解任务 / 规划改动",
+        "runCreated": "已创建执行记录，等待编排器接手",
+        "executionEnqueued": "已进入执行队列，等待分配 builder",
+        "executionClaimed": "编排器已认领本次执行，正在准备下发",
+        "executionStarted": "编排器已开始下发执行请求",
+        "completed": "执行已完成，接下来应查看最终产物和报告",
+        "failed": "执行已失败，优先查看错误和证据路径"
+      },
+      "check": {
+        "check-flutter-pub-get": "安装 Flutter 依赖",
+        "check-counter-demo-removed": "移除默认 Counter 模板",
+        "check-entry-form-wiring": "录入表单与页面接线",
+        "check-local-persistence-wiring": "本地持久化接线",
+        "check-flutter-analyze": "Flutter analyze",
+        "check-flutter-test": "Flutter test",
+        "check-flutter-build-apk": "构建 Debug APK",
+        "check-adb-device-ready": "adb 设备在线检查",
+        "check-install-debug-apk": "安装 APK 到设备",
+        "check-launch-app-and-capture-logcat": "启动应用并采集 logcat"
+      }
+    },
+    "statusContext": {
+      "reason": {
+        "prd_approval_pending": "当前 PRD 尚未审批通过",
+        "prd_approval_drift": "当前 PRD 已变化，旧审批快照失效",
+        "prd_approval_rejected": "当前 PRD 审批未通过",
+        "template_approval_pending": "当前模板尚未审批通过",
+        "template_approval_drift": "当前模板选择或冻结版本已变化，旧审批快照失效",
+        "template_approval_rejected": "当前模板审批未通过",
+        "execution_interrupted": "当前 execution 因 orchestrator 中断而终止",
+        "execution_recovery_failed": "当前 execution 在恢复阶段失败",
+        "execution_failed": "当前 execution 已失败",
+        "execution_cancelled": "当前 execution 已取消",
+        "prepared_input_stale": "当前 prepare 输入已晚于最近一次 run，需按新输入重新启动",
+        "prepare_recompile_required": "当前 prepare 输入与 builder-input 编译来源不一致，需要重编译",
+        "prepared_prd_source_stale": "当前 PRD 已变化，builder-input 仍绑定旧 PRD 编译来源",
+        "prepared_template_source_stale": "当前模板冻结版本已变化，builder-input 的模板编译来源已失效"
+      },
+      "action": {
+        "submit_prd_approval": "重新提交 PRD 审批",
+        "revise_prd": "修改 PRD 后重新提审",
+        "submit_template_approval": "重新提交模板审批",
+        "revise_template_selection": "调整模板选择后重新提审",
+        "resume_interrupted_job": "恢复被中断的 job",
+        "inspect_device_evidence": "查看设备验证证据",
+        "inspect_failure_and_retry_later": "先排查失败，再决定是否稍后重试",
+        "inspect_execution_history": "查看 execution 历史",
+        "inspect_orchestrator_status": "查看 orchestrator 状态",
+        "inspect_orchestrator_lock_owner": "查看 orchestrator 锁持有者",
+        "restart_orchestrator_watch": "重新启动 orchestrator watch",
+        "inspect_delivery_record": "查看交付记录",
+        "verify_staged_release": "核验灰度发布结果",
+        "prepare_signing": "准备签名发布物",
+        "stage_release": "推进灰度发布",
+        "monitor_release_feedback": "跟踪发布反馈",
+        "update_subject_and_resubmit": "更新交付内容后重新提交",
+        "start": "从当前输入重新启动执行",
+        "compile_prepare_bundle": "重新编译 prepare bundle"
+      }
+    },
+    "failureHelp": {
+      "action": {
+        "inspectEvents": "跳转到事件",
+        "inspectArtifacts": "跳转到产物",
+        "inspectOrchestrator": "跳转到编排器"
+      },
+      "builderRuntimePatchParse": {
+        "title": "Builder Runtime Patch 解析失败",
+        "description": "Builder runtime 已返回 WorkspacePatch，但运行时无法稳定解析。先看 builder-output、摘要日志和事件，确认是否仍有坏 JSON、冲突 operation shape 或缺 replacement 的 replace_block。"
+      },
+      "workspacePatchApply": {
+        "title": "WorkspacePatch 写入工作区失败",
+        "description": "Patch 已通过解析，但在落地到工作区时失败。优先核对 builder-output 和事件里的 target file，确认是否命中不存在文件、越界路径或 target file 删除保护。"
+      },
+      "environmentCheck": {
+        "title": "真实构建校验失败",
+        "description": "真实 Flutter 校验在环境或构建步骤失败。先看 build-report / smoke-test-report，再结合失败类别 {{category}} 判断是 pub、analyze、test 还是 build 阶段。"
+      },
+      "deviceCheck": {
+        "title": "设备验证失败",
+        "description": "设备侧验证未通过。优先看 device-logcat、smoke-test-report、build-report 和 APK 路径，再结合失败类别 {{category}} 判断是设备不可用、安装失败还是启动后崩溃。"
+      },
+      "profileCheck": {
+        "title": "模板或结构检查失败",
+        "description": "当前生成结果没有通过模板/结构约束。先看 build-report 与事件，再结合失败类别 {{category}} 核对目标文件、入口 wiring 和本地持久化约束是否都满足。"
+      },
+      "generic": {
+        "title": "先固定失败证据，再判断是否重试",
+        "description": "当前任务已经给出 failure_context，但还没有命中专门提示。先保留事件、摘要日志和 builder 输出，再决定是否重新 compile / start 或继续人工排障。"
+      }
     },
     "notifications": {
-      "title": "通知面板",
-      "description": "聚合待人工处理事件，支持确认和重建。",
+      "title": "待处理动作",
+      "description": "优先处理与当前任务相关的人工动作和系统提醒。",
       "empty": "当前没有待处理通知。",
       "acknowledged": "已确认",
       "suggestedAction": "建议动作：{{action}}"
     },
+    "delivery": {
+      "title": "交付动作",
+      "latestRunId": "最新 Run ID",
+      "reviewBundleReady": "Review Bundle 已就绪",
+      "prepareReview": "生成 review / handoff 产物",
+      "recordDecision": "记录交付决策",
+      "hideForm": "收起交付表单",
+      "submitRecord": "提交交付记录",
+      "recordFollowUp": "记录发布跟踪",
+      "hideFollowUpForm": "收起跟踪表单",
+      "submitFollowUp": "提交跟踪记录",
+      "cancelEdit": "取消编辑",
+      "reviewerId": "审核人",
+      "followUpOwnerId": "跟踪负责人",
+      "statusLabel": "交付决策",
+      "deviceVerificationTitle": "设备验证结果",
+      "deviceVerificationStatusLabel": "设备验证状态",
+      "deviceVerificationSummaryLabel": "设备验证摘要",
+      "deviceVerificationEvidencePathsLabel": "设备验证证据路径",
+      "followUpTitle": "发布后跟踪",
+      "followUpStatusLabel": "跟踪状态",
+      "followUpSummaryLabel": "跟踪摘要",
+      "followUpEvidencePathsLabel": "跟踪证据路径",
+      "channel": {
+        "none": "不指定渠道",
+        "internal": "内部渠道",
+        "canary": "灰度渠道",
+        "production": "正式渠道"
+      },
+      "workflowHint": {
+        "title": "当前交付建议",
+        "changes_requested": "先把需要修改的点写清，再把新的 review / handoff 产物和证据重新补齐。",
+        "approved_for_signing": "当前包已经通过交付审核，下一步应准备签名产物并补充最终签名文件路径。",
+        "signed": "签名产物已经准备好，下一步应选择发布渠道并推进灰度或正式发布。",
+        "staged": "当前处于灰度发布阶段，重点是记录渠道、比例和验证证据，然后决定是否正式发布。",
+        "released": "当前已进入正式发布后的跟踪阶段，应持续补充反馈证据和后续观察结论。"
+      },
+      "followUpHint": {
+        "monitoring": "发布已完成，当前应持续收集线上反馈、崩溃监控和渠道表现证据。",
+        "stable": "发布后的观测结果稳定，可以把最终结论和收尾证据补齐。",
+        "issue_detected": "已发现发布后问题，应该立即补充问题证据并推动回退或重新交付。"
+      },
+      "checklist": {
+        "title": "交付检查清单",
+        "reviewBundle": "review bundle 已生成",
+        "handoffChecklist": "handoff checklist 已生成",
+        "reviewerAssigned": "已指定审核人",
+        "evidenceAttached": "已附交付证据",
+        "changesDocumented": "已记录修改项",
+        "signedArtifactsAttached": "已附签名产物",
+        "releaseChannelSelected": "已选择发布渠道",
+        "rolloutDefined": "已填写灰度比例",
+        "deviceVerificationRecorded": "已记录设备验证结果"
+      },
+      "placeholders": {
+        "reviewerId": "例如 qa-owner",
+        "followUpOwnerId": "例如 release-duty",
+        "summary": "填写当前交付判断、风险和下一步说明",
+        "deviceVerificationSummary": "填写设备验证结论、覆盖设备和异常现象",
+        "followUpSummary": "填写发布后反馈、监控结论或发现的问题",
+        "multiline": "每行一项"
+      },
+      "suggestEvidence": "加入证据：{{path}}",
+      "validation": {
+        "reviewerId": "请先填写审核人",
+        "rolloutPercent": "灰度比例必须是 0 到 100 的整数",
+        "evidencePaths": "请至少补充一条交付证据路径",
+        "requiredChanges": "要求修改状态下必须写明需要修改的条目",
+        "signedArtifactPaths": "当前状态需要补充签名产物路径",
+        "releaseChannel": "灰度或正式发布前必须选择发布渠道",
+        "deviceVerificationStatus": "灰度或正式发布前必须记录设备验证状态",
+        "deviceVerificationEvidencePaths": "设备验证通过或失败时必须补充验证证据路径",
+        "followUpOwnerId": "请先填写发布后跟踪负责人",
+        "followUpEvidencePaths": "请至少补充一条发布后跟踪证据路径"
+      },
+      "status": {
+        "changes_requested": "要求修改",
+        "approved_for_signing": "待签名",
+        "signed": "已签名",
+        "staged": "已灰度发布",
+        "released": "已正式发布"
+      },
+      "deviceVerificationStatus": {
+        "none": "暂未记录",
+        "pending": "待验证",
+        "passed": "验证通过",
+        "failed": "验证失败"
+      },
+      "followUpStatus": {
+        "monitoring": "持续观察中",
+        "stable": "已稳定",
+        "issue_detected": "发现问题"
+      }
+    },
     "events": {
       "title": "事件时间线",
       "description": "展示任务执行过程中的阶段切换、恢复提示和关键快照。",
+      "recentTitle": "最近事件",
+      "roundActivityTitle": "轮次活动",
+      "roundActivityDetails": "查看轮次时间线",
+      "recentDescription": "默认只展示最近 {{count}} 条关键事件，完整时间线共 {{total}} 条。",
+      "fullTitle": "查看完整事件时间线",
+      "type": {
+        "run_patch_generation_started": "开始生成补丁",
+        "run_round_started": "轮次开始",
+        "run_patch_generated": "补丁已生成",
+        "run_patch_generation_failed": "补丁生成失败",
+        "run_patch_applied": "补丁已落地",
+        "run_patch_apply_failed": "补丁落地失败"
+      },
+      "summary": {
+        "runPatchGenerationStartedFallback": "{{roundId}} 开始生成补丁，目标 {{count}} 个文件",
+        "runRoundStartedFallback": "第 {{attempt}} 轮已开始：{{roundId}}",
+        "runPatchGeneratedFallback": "{{roundId}} 已生成补丁，覆盖 {{count}} 个文件",
+        "runPatchGenerationFailedFallback": "{{roundId}} 补丁生成失败，涉及 {{count}} 个文件",
+        "runPatchAppliedFallback": "{{roundId}} 已落地补丁，改动 {{count}} 个文件",
+        "runPatchApplyFailedFallback": "{{roundId}} 补丁落地失败，涉及 {{count}} 个文件"
+      },
+      "roundContext": "当前轮次",
+      "roundSummaries": "轮次摘要",
+      "roundSummaryLine": "第 {{attempt}} 轮 · {{roundId}} · 状态 {{status}} · 阶段 {{phase}}",
+      "roundPhaseTrace": "轮次阶段轨迹",
+      "roundTargetPaths": "轮次目标文件",
+      "roundModifiedPaths": "轮次改动文件",
+      "fileFacts": "文件事实",
+      "checkpointKey": "当前检查项",
+      "failedChecks": "失败检查",
+      "failureSignatures": "失败签名",
+      "snapshotPath": "工作区快照",
+      "targetPaths": "目标文件",
+      "affectedPaths": "实际改动文件",
+      "deliveryRecordPath": "交付记录",
+      "releaseChannel": "发布渠道",
+      "deviceVerificationStatus": "设备验证状态",
+      "releaseFollowUpStatus": "发布跟进状态",
+      "failureCategory": "失败类别",
+      "recommendedResumeMode": "建议恢复模式",
+      "fileFactState": {
+        "targeted": "目标中",
+        "generation_started": "开始生成补丁",
+        "generated": "补丁已生成",
+        "generation_failed": "补丁生成失败",
+        "applied": "补丁已落地",
+        "apply_failed": "补丁落地失败",
+        "modified": "已修改",
+        "finalized": "最终结果"
+      },
+      "fileFactChangeType": {
+        "added": "新增",
+        "modified": "修改",
+        "deleted": "删除"
+      },
       "empty": "当前任务还没有事件记录。"
     },
     "artifacts": {
       "title": "产物清单",
       "description": "查看 review bundle、handoff 清单和其他交付件是否已生成。",
+      "deliveryTitle": "最终产物 / 取件信息",
+      "deliveryDescription": "这里展示当前任务最接近最终交付的产物，以及应该去哪里取件。",
+      "localPickupPath": "本地取件路径",
+      "downloadUnavailable": "当前版本还不支持在浏览器里直接下载产物，只提供本地文件路径。",
+      "workspaceRoot": "AppFactory 根目录：{{path}}",
+      "noFinalDeliverable": "当前还没有识别到可安装或可直接交付的最终产物，先看下方完整产物清单。",
       "empty": "当前任务还没有产物清单。",
       "required": "必需",
       "produced": "已生成",
       "missing": "缺失"
     },
     "toasts": {
+      "jobCreated": "已创建任务：{{jobId}}",
+      "jobCreatedAndStarted": "已创建并启动任务：{{jobId}}",
+      "jobCreatedButStartFailed": "任务已创建：{{jobId}}，但自动启动失败：{{reason}}",
+      "jobCreateFailed": "新建任务失败",
+      "jobStartFailed": "自动启动失败",
       "notificationsRebuilt": "通知已重建",
       "notificationAcked": "通知已确认",
+      "reviewPrepared": "已生成 review / handoff 产物",
+      "followUpRecorded": "已记录发布后跟踪",
+      "actionCompleted": "已执行：{{action}}",
       "actionFailed": "操作失败"
     }
   },

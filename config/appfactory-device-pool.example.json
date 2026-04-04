@@ -1,0 +1,20 @@
+{
+  "devices": [
+    {
+      "serial": "emulator-5554",
+      "label": "pixel-6-api-34",
+      "enabled": true,
+      "tags": ["fast", "full", "emulator", "android-34"],
+      "adb_server_socket": "tcp:host.docker.internal:5037",
+      "docker_args": ""
+    },
+    {
+      "serial": "R58NXXXXXXXX",
+      "label": "galaxy-s22-lab",
+      "enabled": true,
+      "tags": ["fast", "full", "device", "android-14"],
+      "adb_server_socket": "tcp:host.docker.internal:5037",
+      "docker_args": "--privileged -v /dev/bus/usb:/dev/bus/usb"
+    }
+  ]
+}

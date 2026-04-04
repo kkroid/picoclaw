@@ -1,4 +1,4 @@
-.PHONY: all build install uninstall clean help test build-appfactory-builder verify-appfactory-builder verify-appfactory-template verify-appfactory-public-job verify-appfactory-public-job-fast
+.PHONY: all build install uninstall clean help test build-appfactory-builder verify-appfactory-builder verify-appfactory-template verify-appfactory-template-fast check-appfactory-template-governance refresh-appfactory-notifications check-appfactory-notification-governance apply-appfactory-notification-auto-ack verify-appfactory-public-job verify-appfactory-public-job-fast verify-appfactory-public-job-device verify-appfactory-public-job-device-fast verify-appfactory-public-job-device-summary check-appfactory-public-job-device-alerts run-appfactory-public-job-device-regression run-appfactory-public-job-device-regression-fast run-appfactory-public-job-device-regression-pool-fast update-appfactory-public-job-device-regression-index update-appfactory-public-job-device-pool-status verify-appfactory-product-flow verify-appfactory-product-flow-summary check-appfactory-product-flow-alerts run-appfactory-product-flow-regression verify-appfactory-jobs-regression run-appfactory-jobs-regression verify-appfactory-jobs-auto-repair verify-appfactory-jobs-live-auto-repair-probe verify-appfactory-platform-regression-summary check-appfactory-platform-regression-alerts check-appfactory-internal-trial-freshness verify-appfactory-internal-trial-status run-appfactory-platform-regression validate-builder-runtime-ollama validate-builder-runtime-ollama-samples validate-builder-runtime-ollama-sandbox validate-builder-runtime-ollama-real verify-appfactory-builder-runtime-auto-repair summarize-builder-runtime-validation
 
 # Build variables
 BINARY_NAME=picoclaw
@@ -19,6 +19,7 @@ GO?=CGO_ENABLED=0 go
 WEB_GO?=$(GO)
 GO_BUILD_TAGS?=goolm,stdjson
 GOFLAGS?=-v -tags $(GO_BUILD_TAGS)
+GO_SOURCE_PACKAGES=./cmd/... ./pkg/... ./examples/...
 comma:=,
 empty:=
 space:=$(empty) $(empty)
@@ -120,7 +121,7 @@ all: build
 generate:
 	@echo "Run generate..."
 	@rm -r ./$(CMD_DIR)/workspace 2>/dev/null || true
-	@$(GO) generate ./...
+	@$(GO) generate ./cmd/picoclaw/internal/onboard
 	@echo "Run generate complete"
 
 ## build: Build the picoclaw binary for current platform
@@ -135,10 +136,8 @@ build: generate
 build-launcher:
 	@echo "Building picoclaw-launcher for $(PLATFORM)/$(ARCH)..."
 	@mkdir -p $(BUILD_DIR)
-	@if [ ! -f web/backend/dist/index.html ]; then \
-		echo "Building frontend..."; \
-		cd web/frontend && pnpm install && pnpm build:backend; \
-	fi
+	@echo "Building embedded frontend assets..."
+	@cd web/frontend && pnpm install && pnpm build:backend
 	@$(WEB_GO) build $(GOFLAGS) -o $(BUILD_DIR)/picoclaw-launcher-$(PLATFORM)-$(ARCH) ./web/backend
 	@ln -sf picoclaw-launcher-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/picoclaw-launcher
 	@echo "Build complete: $(BUILD_DIR)/picoclaw-launcher"
@@ -167,6 +166,31 @@ verify-appfactory-template: build-appfactory-builder
 	@echo "Running appfactory template validation..."
 	@bash scripts/verify-appfactory-template.sh
 
+## verify-appfactory-template-fast: Run template seed smoke validation without APK build, reusing persistent builder caches
+verify-appfactory-template-fast: build-appfactory-builder
+	@echo "Running fast appfactory template validation without APK build..."
+	@APPFACTORY_TEMPLATE_VERIFY_INCLUDE_APK=0 bash scripts/verify-appfactory-template.sh
+
+## check-appfactory-template-governance: Evaluate template governance signals such as license evidence, dependency risk, and manifest permissions
+check-appfactory-template-governance:
+	@echo "Checking appfactory template governance..."
+	@bash scripts/check-appfactory-template-governance.sh
+
+## refresh-appfactory-notifications: Rebuild the persisted public notifications snapshot from the backend API
+refresh-appfactory-notifications:
+	@echo "Refreshing appfactory notifications snapshot..."
+	@bash scripts/refresh-appfactory-notifications.sh
+
+## check-appfactory-notification-governance: Classify notification backlog, emit governance summary, and optionally auto-ack safe stale items
+check-appfactory-notification-governance:
+	@echo "Checking appfactory notification governance..."
+	@bash scripts/check-appfactory-notification-governance.sh
+
+## apply-appfactory-notification-auto-ack: Apply safe notification auto-ack and allow persisted-snapshot fallback when backend API is unavailable
+apply-appfactory-notification-auto-ack:
+	@echo "Applying appfactory notification safe auto-ack..."
+	@APPFACTORY_NOTIFICATION_GOVERNANCE_APPLY_AUTO_ACK=1 APPFACTORY_NOTIFICATION_GOVERNANCE_ALLOW_OFFLINE_SNAPSHOT_ACK=1 bash scripts/check-appfactory-notification-governance.sh
+
 ## verify-appfactory-public-job: Generate a real public-job Flutter workspace, then run Flutter analyze/test/build inside the builder image
 verify-appfactory-public-job: build-appfactory-builder
 	@echo "Running appfactory public job validation..."
@@ -176,6 +200,146 @@ verify-appfactory-public-job: build-appfactory-builder
 verify-appfactory-public-job-fast:
 	@echo "Running appfactory public job validation without rebuilding the builder image..."
 	@VERIFY_APPFACTORY_ENTRYPOINT="make verify-appfactory-public-job-fast" bash scripts/verify-appfactory-public-job.sh
+
+## verify-appfactory-public-job-device: Run public-job Flutter validation with optional adb install/launch/logcat capture enabled
+verify-appfactory-public-job-device: build-appfactory-builder
+	@echo "Running appfactory public job device validation..."
+	@VERIFY_APPFACTORY_ENTRYPOINT="make verify-appfactory-public-job-device" APPFACTORY_DEVICE_VERIFICATION_ENABLED=1 bash scripts/verify-appfactory-public-job.sh
+
+## verify-appfactory-public-job-device-fast: Re-run the public-job device validation against an existing builder image without rebuilding it
+verify-appfactory-public-job-device-fast:
+	@echo "Running appfactory public job device validation without rebuilding the builder image..."
+	@VERIFY_APPFACTORY_ENTRYPOINT="make verify-appfactory-public-job-device-fast" APPFACTORY_DEVICE_VERIFICATION_ENABLED=1 bash scripts/verify-appfactory-public-job.sh
+
+## verify-appfactory-public-job-device-summary: Summarize device failure categories from historical metrics.json files
+verify-appfactory-public-job-device-summary:
+	@echo "Summarizing appfactory public job device failure metrics..."
+	@bash scripts/update-appfactory-device-summary.sh
+
+## validate-builder-runtime-ollama: Validate Ollama connectivity and minimal builder-runtime probes
+validate-builder-runtime-ollama:
+	@echo "Validating builder-runtime Ollama connectivity..."
+	@bash scripts/validate-builder-runtime-ollama.sh
+
+## validate-builder-runtime-ollama-samples: Run the first five builder-runtime leaf task sample probes against Ollama
+validate-builder-runtime-ollama-samples:
+	@echo "Running builder-runtime Ollama leaf task samples..."
+	@bash scripts/run-builder-runtime-model-samples.sh
+
+## validate-builder-runtime-ollama-sandbox: Generate and apply a real single-file WorkspacePatch inside a temporary sandbox
+validate-builder-runtime-ollama-sandbox:
+	@echo "Running builder-runtime Ollama sandbox patch validation..."
+	@bash scripts/run-builder-runtime-patch-sandbox.sh
+
+## validate-builder-runtime-ollama-real: Run container-backed real Flutter analyze/test repair validation against Ollama-generated patches
+validate-builder-runtime-ollama-real:
+	@echo "Running builder-runtime Ollama real Flutter validation..."
+	@bash scripts/run-builder-runtime-real-validation.sh
+
+## verify-appfactory-builder-runtime-auto-repair: Run the focused adapter integration test that exercises analyze auto repair and archive the evidence
+verify-appfactory-builder-runtime-auto-repair:
+	@echo "Running builder-runtime auto repair verification..."
+	@bash scripts/run-appfactory-builder-runtime-auto-repair-regression.sh
+
+## summarize-builder-runtime-validation: Summarize archived builder-runtime validation results across leaf samples, real validation, and sandbox runs
+summarize-builder-runtime-validation:
+	@echo "Summarizing builder-runtime validation results..."
+	@bash scripts/summarize-builder-runtime-validation.sh
+
+## check-appfactory-public-job-device-alerts: Refresh device summary and fail on configured device regression thresholds
+check-appfactory-public-job-device-alerts:
+	@echo "Checking appfactory public job device failure alerts..."
+	@bash scripts/check-appfactory-device-alerts.sh
+
+## run-appfactory-public-job-device-regression: Run full device validation, archive artifacts, refresh summaries, and evaluate alerts
+run-appfactory-public-job-device-regression:
+	@echo "Running full appfactory public job device regression cycle..."
+	@APPFACTORY_DEVICE_REGRESSION_MODE=full bash scripts/run-appfactory-device-regression.sh
+
+## run-appfactory-public-job-device-regression-fast: Run fast device validation, archive artifacts, refresh summaries, and evaluate alerts
+run-appfactory-public-job-device-regression-fast:
+	@echo "Running fast appfactory public job device regression cycle..."
+	@APPFACTORY_DEVICE_REGRESSION_MODE=fast bash scripts/run-appfactory-device-regression.sh
+
+## run-appfactory-public-job-device-regression-pool-fast: Run fast device regression with fixed device pool lease management enabled
+run-appfactory-public-job-device-regression-pool-fast:
+	@echo "Running fast appfactory public job device regression cycle with fixed device pool enabled..."
+	@APPFACTORY_DEVICE_POOL_ENABLED=1 APPFACTORY_DEVICE_REGRESSION_MODE=fast bash scripts/run-appfactory-device-regression.sh
+
+## update-appfactory-public-job-device-regression-index: Rebuild regression index.json and latest.md from archived regression results
+update-appfactory-public-job-device-regression-index:
+	@echo "Updating appfactory public job device regression index..."
+	@bash scripts/update-appfactory-device-regression-index.sh
+
+## update-appfactory-public-job-device-pool-status: Rebuild fixed device pool status.json and status.md
+update-appfactory-public-job-device-pool-status:
+	@echo "Updating appfactory public job device pool status..."
+	@bash scripts/update-appfactory-device-pool-status.sh
+
+## verify-appfactory-product-flow: Run the fixed product-level appfactory flow (requirement -> approval -> prepare -> run -> review -> delivery) against a live backend API
+verify-appfactory-product-flow:
+	@echo "Running appfactory product flow verification..."
+	@bash scripts/run-appfactory-product-e2e.sh
+
+## verify-appfactory-product-flow-summary: Summarize archived product-flow results across cold/warm cache runs
+verify-appfactory-product-flow-summary:
+	@echo "Summarizing appfactory product flow regression results..."
+	@bash scripts/update-appfactory-product-flow-summary.sh
+
+## check-appfactory-product-flow-alerts: Refresh product-flow summary and fail on configured runtime thresholds
+check-appfactory-product-flow-alerts:
+	@echo "Checking appfactory product flow alerts..."
+	@bash scripts/check-appfactory-product-flow-alerts.sh
+
+## run-appfactory-product-flow-regression: Run product-flow verification, refresh summaries, and evaluate alerts
+run-appfactory-product-flow-regression:
+	@echo "Running appfactory product flow regression cycle..."
+	@bash scripts/run-appfactory-product-flow-regression.sh
+
+## verify-appfactory-jobs-regression: Run the fixed /jobs-equivalent compile/create/start flow against a live backend API and archive the result
+verify-appfactory-jobs-regression:
+	@echo "Running appfactory /jobs regression verification..."
+	@bash scripts/run-appfactory-jobs-regression.sh
+
+## verify-appfactory-jobs-auto-repair: Run the public /jobs API integration test that exercises analyze auto repair and archive the evidence
+verify-appfactory-jobs-auto-repair:
+	@echo "Running appfactory /jobs auto repair verification..."
+	@bash scripts/run-appfactory-jobs-auto-repair-regression.sh
+
+## verify-appfactory-jobs-live-auto-repair-probe: Run the live /jobs regression path with a repair canary goal summary and human notes against the current backend
+verify-appfactory-jobs-live-auto-repair-probe:
+	@echo "Running appfactory live /jobs auto repair probe..."
+	@bash scripts/run-appfactory-jobs-live-auto-repair-probe.sh
+
+## run-appfactory-jobs-regression: Alias for the fixed /jobs regression entrypoint
+run-appfactory-jobs-regression:
+	@echo "Running appfactory /jobs regression cycle..."
+	@bash scripts/run-appfactory-jobs-regression.sh
+
+## verify-appfactory-platform-regression-summary: Summarize archived platform regression results and refresh latest status pages
+verify-appfactory-platform-regression-summary:
+	@echo "Summarizing appfactory platform regression results..."
+	@bash scripts/update-appfactory-platform-regression-summary.sh
+
+## check-appfactory-platform-regression-alerts: Refresh platform regression summary and fail on top-level stage regressions
+check-appfactory-platform-regression-alerts:
+	@echo "Checking appfactory platform regression alerts..."
+	@bash scripts/check-appfactory-platform-regression-alerts.sh
+
+## check-appfactory-internal-trial-freshness: Check whether product-flow, platform regression, and optional device regression latest results are still fresh enough for internal trial operations
+check-appfactory-internal-trial-freshness:
+	@echo "Checking appfactory internal trial freshness..."
+	@bash scripts/check-appfactory-internal-trial-freshness.sh
+
+## verify-appfactory-internal-trial-status: Refresh internal trial status dashboard from freshness and optional notifications snapshot
+verify-appfactory-internal-trial-status:
+	@echo "Updating appfactory internal trial status dashboard..."
+	@bash scripts/update-appfactory-internal-trial-status.sh
+
+## run-appfactory-platform-regression: Run the current top-level regression spine across product-flow, builder-runtime real validation, and optional device regression
+run-appfactory-platform-regression:
+	@echo "Running appfactory platform regression spine..."
+	@bash scripts/run-appfactory-platform-regression.sh
 
 ## build-whatsapp-native: Build with WhatsApp native (whatsmeow) support; larger binary
 build-whatsapp-native: generate
@@ -274,13 +438,12 @@ clean:
 
 ## vet: Run go vet for static analysis
 vet: generate
-	@packages="$$($(GO) list $(GOFLAGS) ./...)" && \
-		$(GO) vet $(GOFLAGS) $$(printf '%s\n' "$$packages" | grep -v '^github.com/sipeed/picoclaw/web/')
+	@$(GO) vet $(GOFLAGS) $(GO_SOURCE_PACKAGES)
 	@cd web/backend && $(WEB_GO) vet ./...
 
 ## test: Test Go code
 test: generate
-	@$(GO) test $(GOFLAGS) $$($(GO) list $(GOFLAGS) ./... | grep -v github.com/sipeed/picoclaw/web/)
+	@$(GO) test $(GOFLAGS) $(GO_SOURCE_PACKAGES)
 	@cd web && make test
 
 ## fmt: Format Go code

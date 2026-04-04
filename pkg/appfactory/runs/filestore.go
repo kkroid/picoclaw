@@ -1,12 +1,12 @@
 package runs
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -31,14 +31,21 @@ type runIndex struct {
 }
 
 type runEvent struct {
-	At           time.Time      `json:"at"`
-	Type         string         `json:"type"`
-	RunID        string         `json:"run_id"`
-	JobID        string         `json:"job_id"`
-	Summary      string         `json:"summary,omitempty"`
-	Stage        ExecutionStage `json:"stage,omitempty"`
-	Status       Status         `json:"status,omitempty"`
-	SnapshotPath string         `json:"snapshot_path,omitempty"`
+	At            time.Time      `json:"at"`
+	Type          string         `json:"type"`
+	RunID         string         `json:"run_id"`
+	JobID         string         `json:"job_id"`
+	Summary       string         `json:"summary,omitempty"`
+	Stage         ExecutionStage `json:"stage,omitempty"`
+	Status        Status         `json:"status,omitempty"`
+	RoundID       string         `json:"round_id,omitempty"`
+	Attempt       int            `json:"attempt,omitempty"`
+	CheckpointKey string         `json:"checkpoint_key,omitempty"`
+	CurrentPhase  RoundPhase     `json:"current_phase,omitempty"`
+	PhaseTrace    []RoundPhase   `json:"phase_trace,omitempty"`
+	TargetPaths   []string       `json:"target_paths,omitempty"`
+	AffectedPaths []string       `json:"affected_paths,omitempty"`
+	SnapshotPath  string         `json:"snapshot_path,omitempty"`
 }
 
 func NewFileStore(root string) (*FileStore, error) {
@@ -89,30 +96,32 @@ func (store *FileStore) CreateRun(_ context.Context, builderID, workerID, leaseI
 		launchArgs = []string{runnerScriptPath}
 	}
 	record := RunRecord{
-		RunID:            runID,
-		JobID:            input.JobID,
-		BuilderID:        builderID,
-		WorkerID:         workerID,
-		LeaseID:          leaseID,
-		Status:           StatusRunning,
-		ExecutorImage:    input.ExecutorImage,
-		GoalSummary:      input.GoalSummary,
-		TaskBundle:       append([]TaskBundleItem(nil), input.TaskBundle...),
-		AcceptanceChecks: append([]AcceptanceCheck(nil), input.AcceptanceChecks...),
-		AllowedPaths:     append([]string(nil), input.AllowedPaths...),
-		ProtectedPaths:   append([]string(nil), input.ProtectedPaths...),
-		KnowledgePack:    append([]ProfileSkill(nil), input.KnowledgePack...),
-		InputPath:        filepath.ToSlash(filepath.Join("jobs", input.JobID, "prepare", "builder-input.json")),
-		WorkspacePath:    filepath.ToSlash(workspacePath),
-		ArtifactDir:      filepath.ToSlash(artifactDir),
-		RunnerScriptPath: relToRoot(store.root, runnerScriptPath),
-		LaunchCommand:    launchCommand,
-		LaunchArgs:       launchArgs,
-		LogPath:          relToRoot(store.root, logPath),
-		EventsPath:       filepath.ToSlash(filepath.Join("jobs", input.JobID, "runs", runID, "events.jsonl")),
-		CreatedAt:        now,
-		UpdatedAt:        now,
-		StartedAt:        now,
+		RunID:               runID,
+		JobID:               input.JobID,
+		BuilderID:           builderID,
+		WorkerID:            workerID,
+		LeaseID:             leaseID,
+		Status:              StatusRunning,
+		ExecutorImage:       input.ExecutorImage,
+		GoalSummary:         input.GoalSummary,
+		HumanNotes:          append(json.RawMessage(nil), input.HumanNotes...),
+		TaskBundle:          append([]TaskBundleItem(nil), input.TaskBundle...),
+		AcceptanceChecks:    append([]AcceptanceCheck(nil), input.AcceptanceChecks...),
+		AllowedPaths:        append([]string(nil), input.AllowedPaths...),
+		ProtectedPaths:      append([]string(nil), input.ProtectedPaths...),
+		KnowledgePack:       append([]ProfileSkill(nil), input.KnowledgePack...),
+		PreparedInputDigest: PreparedInputDigest(input, input.ContextSourceDir),
+		InputPath:           filepath.ToSlash(filepath.Join("jobs", input.JobID, "prepare", "builder-input.json")),
+		WorkspacePath:       filepath.ToSlash(workspacePath),
+		ArtifactDir:         filepath.ToSlash(artifactDir),
+		RunnerScriptPath:    relToRoot(store.root, runnerScriptPath),
+		LaunchCommand:       launchCommand,
+		LaunchArgs:          launchArgs,
+		LogPath:             relToRoot(store.root, logPath),
+		EventsPath:          filepath.ToSlash(filepath.Join("jobs", input.JobID, "runs", runID, "events.jsonl")),
+		CreatedAt:           now,
+		UpdatedAt:           now,
+		StartedAt:           now,
 	}
 	if err := writeJSON(store.inputPath(input.JobID), input); err != nil {
 		return RunRecord{}, err
@@ -151,15 +160,69 @@ func (store *FileStore) UpdateHeartbeat(_ context.Context, runID string, heartbe
 		return RunRecord{}, ErrTerminalRun
 	}
 	now := time.Now().UTC()
+	eventType := strings.TrimSpace(heartbeat.EventType)
+	if eventType == "" {
+		eventType = "run_heartbeat"
+	}
 	record.LastStage = heartbeat.Stage
 	record.IterationCount = heartbeat.Iteration
 	record.TotalTokens = heartbeat.TotalTokens
 	record.FailureSignatures = append([]string(nil), heartbeat.FailureSignatures...)
+	if heartbeat.RoundState != nil {
+		record.RoundState = cloneRoundState(heartbeat.RoundState)
+	}
+	roundChanged := eventType == "run_heartbeat" && hasHeartbeatRoundTransition(record, heartbeat)
+	if heartbeat.RoundState != nil || strings.TrimSpace(heartbeat.RoundID) != "" || heartbeat.Attempt > 0 || len(heartbeat.TargetPaths) > 0 || strings.TrimSpace(heartbeat.CheckpointKey) != "" {
+		record.CurrentRoundID = strings.TrimSpace(heartbeat.RoundID)
+		record.CurrentRoundAttempt = heartbeat.Attempt
+		record.CurrentCheckpointKey = strings.TrimSpace(heartbeat.CheckpointKey)
+		record.CurrentRoundTargetPaths = trimAndDedupeEventPaths(heartbeat.TargetPaths)
+	}
 	record.UpdatedAt = now
 	if err := writeJSON(store.runPath(record.JobID, record.RunID), record); err != nil {
 		return RunRecord{}, err
 	}
-	if err := store.appendEvent(record, runEvent{At: now, Type: "run_heartbeat", RunID: record.RunID, JobID: record.JobID, Summary: heartbeat.Summary, Stage: heartbeat.Stage, Status: record.Status}); err != nil {
+	if roundChanged {
+		roundEvent := runEvent{
+			At:            now,
+			Type:          "run_round_started",
+			RunID:         record.RunID,
+			JobID:         record.JobID,
+			Summary:       buildRoundStartedSummary(heartbeat.RoundID, heartbeat.Attempt),
+			Stage:         heartbeat.Stage,
+			Status:        record.Status,
+			RoundID:       strings.TrimSpace(heartbeat.RoundID),
+			Attempt:       heartbeat.Attempt,
+			CheckpointKey: strings.TrimSpace(heartbeat.CheckpointKey),
+			TargetPaths:   trimAndDedupeEventPaths(heartbeat.TargetPaths),
+		}
+		if heartbeat.RoundState != nil {
+			roundEvent.CurrentPhase = heartbeat.RoundState.CurrentPhase
+			roundEvent.PhaseTrace = append([]RoundPhase(nil), heartbeat.RoundState.PhaseTrace...)
+		}
+		if err := store.appendEvent(record, roundEvent); err != nil {
+			return RunRecord{}, err
+		}
+	}
+	event := runEvent{
+		At:            now,
+		Type:          eventType,
+		RunID:         record.RunID,
+		JobID:         record.JobID,
+		Summary:       heartbeat.Summary,
+		Stage:         heartbeat.Stage,
+		Status:        record.Status,
+		RoundID:       strings.TrimSpace(heartbeat.RoundID),
+		Attempt:       heartbeat.Attempt,
+		CheckpointKey: strings.TrimSpace(heartbeat.CheckpointKey),
+	}
+	if heartbeat.RoundState != nil {
+		event.CurrentPhase = heartbeat.RoundState.CurrentPhase
+		event.PhaseTrace = append([]RoundPhase(nil), heartbeat.RoundState.PhaseTrace...)
+	}
+	event.TargetPaths = trimAndDedupeEventPaths(heartbeat.TargetPaths)
+	event.AffectedPaths = trimAndDedupeEventPaths(heartbeat.AffectedPaths)
+	if err := store.appendEvent(record, event); err != nil {
 		return RunRecord{}, err
 	}
 	return record, nil
@@ -188,6 +251,17 @@ func (store *FileStore) CompleteRun(_ context.Context, runID string, output Buil
 	record.DistinctFailureCount = output.Metrics.DistinctFailureSignatures
 	if err := writeJSON(store.outputPath(record.JobID, record.RunID), output); err != nil {
 		return RunRecord{}, err
+	}
+	existingPatchRounds, err := store.existingPatchEventRoundIDs(record)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	terminalEvents := buildRoundTerminalEvents(record, output, now, existingPatchRounds)
+	for index, event := range terminalEvents {
+		event.At = now.Add(-time.Duration(len(terminalEvents)-index) * time.Nanosecond)
+		if err := store.appendEvent(record, event); err != nil {
+			return RunRecord{}, err
+		}
 	}
 	if err := store.appendEvent(record, runEvent{At: now, Type: "run_completed", RunID: record.RunID, JobID: record.JobID, Summary: output.FinalSummary, Status: StatusCompleted}); err != nil {
 		return RunRecord{}, err
@@ -362,6 +436,175 @@ func (store *FileStore) metricsPath(jobID, runID string) string {
 
 func (store *FileStore) eventsPath(jobID, runID string) string {
 	return filepath.Join(store.root, "jobs", jobID, "runs", runID, "events.jsonl")
+}
+
+func trimAndDedupeEventPaths(items []string) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(items))
+	seen := map[string]struct{}{}
+	for _, item := range items {
+		normalized := strings.TrimSpace(item)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	slices.Sort(result)
+	return result
+}
+
+func hasHeartbeatRoundTransition(record RunRecord, heartbeat Heartbeat) bool {
+	roundID := strings.TrimSpace(heartbeat.RoundID)
+	if roundID == "" {
+		return false
+	}
+	if roundID != strings.TrimSpace(record.CurrentRoundID) {
+		return true
+	}
+	return heartbeat.Attempt > 0 && heartbeat.Attempt != record.CurrentRoundAttempt
+}
+
+func buildRoundStartedSummary(roundID string, attempt int) string {
+	roundID = strings.TrimSpace(roundID)
+	if roundID == "" {
+		return "round started"
+	}
+	if attempt > 0 {
+		return fmt.Sprintf("round %s started (attempt %d)", roundID, attempt)
+	}
+	return fmt.Sprintf("round %s started", roundID)
+}
+
+func buildRoundTerminalEvents(record RunRecord, output BuildOutput, completedAt time.Time, existingPatchRounds map[string]struct{}) []runEvent {
+	if len(output.RoundOutputs) == 0 {
+		return nil
+	}
+	roundInputsByID := map[string]RoundInput{}
+	for _, roundInput := range output.RoundInputs {
+		roundID := strings.TrimSpace(roundInput.RoundID)
+		if roundID == "" {
+			continue
+		}
+		roundInputsByID[roundID] = roundInput
+	}
+	events := make([]runEvent, 0, len(output.RoundOutputs))
+	for _, roundOutput := range output.RoundOutputs {
+		roundID := strings.TrimSpace(roundOutput.RoundID)
+		if _, ok := existingPatchRounds[roundID]; ok {
+			continue
+		}
+		roundInput := roundInputsByID[roundID]
+		affectedPaths := collectRoundOutputModifiedPaths(roundOutput)
+		if len(affectedPaths) == 0 {
+			continue
+		}
+		event := runEvent{
+			At:            completedAt,
+			Type:          "run_patch_applied",
+			RunID:         record.RunID,
+			JobID:         record.JobID,
+			Summary:       buildPatchAppliedSummary(roundID, len(affectedPaths)),
+			RoundID:       roundID,
+			Attempt:       roundInput.Attempt,
+			TargetPaths:   collectRoundInputTargetPaths(roundInput),
+			AffectedPaths: affectedPaths,
+		}
+		if roundOutput.State != nil {
+			event.CurrentPhase = roundOutput.State.CurrentPhase
+			event.PhaseTrace = append([]RoundPhase(nil), roundOutput.State.PhaseTrace...)
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+func (store *FileStore) existingPatchEventRoundIDs(record RunRecord) (map[string]struct{}, error) {
+	path := store.eventsPath(record.JobID, record.RunID)
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]struct{}{}, nil
+		}
+		return nil, fmt.Errorf("open job events: %w", err)
+	}
+	defer file.Close()
+	seen := map[string]struct{}{}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var event runEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			return nil, fmt.Errorf("decode job event: %w", err)
+		}
+		if strings.TrimSpace(event.Type) != "run_patch_applied" {
+			continue
+		}
+		roundID := strings.TrimSpace(event.RoundID)
+		if roundID == "" {
+			continue
+		}
+		seen[roundID] = struct{}{}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan job events: %w", err)
+	}
+	return seen, nil
+}
+
+func buildPatchAppliedSummary(roundID string, affectedPathCount int) string {
+	roundID = strings.TrimSpace(roundID)
+	if roundID == "" {
+		if affectedPathCount == 1 {
+			return "applied patch to 1 file"
+		}
+		return fmt.Sprintf("applied patch to %d files", affectedPathCount)
+	}
+	if affectedPathCount == 1 {
+		return fmt.Sprintf("round %s applied patch to 1 file", roundID)
+	}
+	return fmt.Sprintf("round %s applied patch to %d files", roundID, affectedPathCount)
+}
+
+func collectRoundInputTargetPaths(input RoundInput) []string {
+	paths := make([]string, 0)
+	seen := map[string]struct{}{}
+	appendPath := func(value string) {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			return
+		}
+		if _, ok := seen[normalized]; ok {
+			return
+		}
+		seen[normalized] = struct{}{}
+		paths = append(paths, normalized)
+	}
+	for _, task := range input.TaskBundle {
+		for _, targetPath := range task.TargetPaths {
+			appendPath(targetPath)
+		}
+	}
+	for _, allowedPath := range input.AllowedPaths {
+		appendPath(allowedPath)
+	}
+	slices.Sort(paths)
+	return paths
+}
+
+func collectRoundOutputModifiedPaths(output RoundOutput) []string {
+	if output.WorkspacePatch == nil {
+		return nil
+	}
+	return trimAndDedupeEventPaths(output.WorkspacePatch.ModifiedFiles)
 }
 
 func (store *FileStore) indexPath(runID string) string {
@@ -737,10 +980,7 @@ func dirHasEntries(path string) (bool, error) {
 }
 
 func seedWorkspace(input BuildInput, jobRoot, workspacePath string) error {
-	templateDir := strings.TrimSpace(input.TemplateSourceDir)
-	if templateDir == "" {
-		templateDir = defaultTemplateSourceDir(input.TemplateID)
-	}
+	templateDir := resolveTemplateSourceDir(input)
 	if templateDir == "" {
 		return nil
 	}
@@ -797,28 +1037,16 @@ func copyDir(src, dst string) error {
 			return nil
 		}
 		if entry.IsDir() {
-			if entry.Name() == ".dart_tool" || entry.Name() == ".idea" || entry.Name() == "build" {
+			if shouldSkipSeedWorkspaceDir(entry.Name()) {
 				return filepath.SkipDir
 			}
 			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
 		}
-		if strings.HasSuffix(entry.Name(), ".iml") {
+		if shouldSkipSeedWorkspaceFile(entry.Name()) {
 			return nil
 		}
 		return fileutil.CopyFile(path, filepath.Join(dst, rel), 0o644)
 	})
-}
-
-func defaultTemplateSourceDir(templateID string) string {
-	if strings.TrimSpace(templateID) == "" {
-		return ""
-	}
-	_, currentFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return ""
-	}
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", "..", ".."))
-	return filepath.Join(repoRoot, "examples", "appfactory", "templates", templateID)
 }
 
 func firstToken(command string) string {

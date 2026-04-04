@@ -70,4 +70,5 @@ docker/data
 .runtime/
 .artifacts/
 examples/appfactory/
+workspace/appfactory/
 logs/

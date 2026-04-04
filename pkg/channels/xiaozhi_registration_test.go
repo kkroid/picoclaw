@@ -16,6 +16,8 @@ func TestXiaozhiFactoryRegistered(t *testing.T) {
 	cfg.Channels.Xiaozhi.Enabled = true
 	cfg.Channels.Xiaozhi.Token = "dummy-token"
 	cfg.Channels.Xiaozhi.DefaultOwnerID = "test-owner"
+	cfg.Channels.Xiaozhi.ASRProvider = "funasr"
+	cfg.Channels.Xiaozhi.TTSProvider = "fishspeech"
 
 	mgr, err := channels.NewManager(cfg, bus.NewMessageBus(), nil)
 	if err != nil {

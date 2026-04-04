@@ -73,6 +73,120 @@ func TestInternalBuildersRegisterHeartbeatAndAllocateRelease(t *testing.T) {
 	}
 }
 
+func TestNewAppFactoryRunnerLoadsBuilderRuntimeConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.AppFactory.BuilderRuntime = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		UpgradeModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-32b-local"},
+		TaskRoutes: []config.BuilderRuntimeTaskRouteConfig{{
+			TaskType: "closure_repair",
+			Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-32b-local"},
+		}},
+	}
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	var runsSvc runService
+	runner := h.newAppFactoryRunner(runsSvc)
+	if runner.BuilderRuntimeConfig.Enabled != true {
+		t.Fatal("runner should load enabled builder_runtime config")
+	}
+	if runner.BuilderRuntimeConfig.DefaultModel == nil || runner.BuilderRuntimeConfig.DefaultModel.Primary != "qwen2.5-coder-14b-local" {
+		t.Fatalf("default model = %#v, want qwen2.5-coder-14b-local", runner.BuilderRuntimeConfig.DefaultModel)
+	}
+	if runner.BuilderRuntimeConfig.UpgradeModel == nil || runner.BuilderRuntimeConfig.UpgradeModel.Primary != "qwen2.5-coder-32b-local" {
+		t.Fatalf("upgrade model = %#v, want qwen2.5-coder-32b-local", runner.BuilderRuntimeConfig.UpgradeModel)
+	}
+	if len(runner.BuilderRuntimeConfig.TaskRoutes) != 1 || runner.BuilderRuntimeConfig.TaskRoutes[0].TaskType != "closure_repair" {
+		t.Fatalf("task routes = %#v, want closure_repair route", runner.BuilderRuntimeConfig.TaskRoutes)
+	}
+}
+
+func TestRunServiceRunnerBackendResolvesExecutionPaths(t *testing.T) {
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	backend := runServiceRunnerBackend{
+		runsSvc: stubRunService{
+			run: appruns.RunRecord{
+				RunID:         "run-1",
+				JobID:         "job-1",
+				WorkspacePath: filepath.ToSlash(filepath.Join("jobs", "job-1", "workspace")),
+				ArtifactDir:   filepath.ToSlash(filepath.Join("jobs", "job-1", "artifacts")),
+				LogPath:       filepath.ToSlash(filepath.Join("jobs", "job-1", "logs", "builder.log")),
+			},
+		},
+		workspaceRoot: workspaceRoot,
+	}
+
+	run, err := backend.GetRun(context.Background(), "run-1")
+	if err != nil {
+		t.Fatalf("GetRun() error = %v", err)
+	}
+	if run.WorkspacePath != filepath.Join(workspaceRoot, "appfactory", "jobs", "job-1", "workspace") {
+		t.Fatalf("WorkspacePath = %q", run.WorkspacePath)
+	}
+	if run.ArtifactDir != filepath.Join(workspaceRoot, "appfactory", "jobs", "job-1", "artifacts") {
+		t.Fatalf("ArtifactDir = %q", run.ArtifactDir)
+	}
+	if run.LogPath != filepath.Join(workspaceRoot, "appfactory", "jobs", "job-1", "logs", "builder.log") {
+		t.Fatalf("LogPath = %q", run.LogPath)
+	}
+	if run.RunID != "run-1" {
+		t.Fatalf("RunID = %q, want run-1", run.RunID)
+	}
+	if run.JobID != "job-1" {
+		t.Fatalf("JobID = %q, want job-1", run.JobID)
+	}
+	absolute := normalizeRunRecordForExecution(appruns.RunRecord{WorkspacePath: "/tmp/workspace"}, workspaceRoot)
+	if absolute.WorkspacePath != "/tmp/workspace" {
+		t.Fatalf("absolute workspace path should be preserved, got %q", absolute.WorkspacePath)
+	}
+	blank := normalizeRunRecordForExecution(appruns.RunRecord{WorkspacePath: "jobs/job-2/workspace"}, "")
+	if blank.WorkspacePath != "jobs/job-2/workspace" {
+		t.Fatalf("blank workspace root should preserve original path, got %q", blank.WorkspacePath)
+	}
+}
+
+type stubRunService struct {
+	run appruns.RunRecord
+}
+
+func (stub stubRunService) Create(context.Context, string, string, string, appruns.BuildInput) (appruns.RunRecord, error) {
+	return appruns.RunRecord{}, fmt.Errorf("not implemented")
+}
+
+func (stub stubRunService) Get(context.Context, string) (appruns.RunRecord, error) {
+	return stub.run, nil
+}
+
+func (stub stubRunService) Heartbeat(context.Context, string, appruns.Heartbeat) (appruns.RunRecord, error) {
+	return appruns.RunRecord{}, fmt.Errorf("not implemented")
+}
+
+func (stub stubRunService) Complete(context.Context, string, appruns.BuildOutput) (appruns.RunRecord, error) {
+	return appruns.RunRecord{}, fmt.Errorf("not implemented")
+}
+
+func (stub stubRunService) Fail(context.Context, string, appruns.FailureReport) (appruns.RunRecord, error) {
+	return appruns.RunRecord{}, fmt.Errorf("not implemented")
+}
+
+func (stub stubRunService) Cancel(context.Context, string, string) (appruns.RunRecord, error) {
+	return appruns.RunRecord{}, fmt.Errorf("not implemented")
+}
+
+func (stub stubRunService) IndexArtifacts(context.Context, string, appruns.ArtifactManifest) (appruns.RunRecord, error) {
+	return appruns.RunRecord{}, fmt.Errorf("not implemented")
+}
+
+func (stub stubRunService) IndexMetrics(context.Context, string, appruns.Metrics) (appruns.RunRecord, error) {
+	return appruns.RunRecord{}, fmt.Errorf("not implemented")
+}
+
 func TestInternalPreserveWorkerDrainsBuilder(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
@@ -393,6 +507,85 @@ func TestCompilePRDWritesBundleWithoutRun(t *testing.T) {
 	}
 }
 
+func TestCompilePRDGeneratesUniqueDefaultIDsForJobsUI(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resp := postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text":   "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"requirement_source": "jobs-ui",
+	}, http.StatusOK)
+	jobID, _ := resp["job_id"].(string)
+	prdID, _ := resp["prd_id"].(string)
+	if !strings.HasPrefix(jobID, "JOB_") {
+		t.Fatalf("job_id = %q, want generated jobs-ui job prefix", jobID)
+	}
+	if !strings.HasPrefix(prdID, "PRD_") {
+		t.Fatalf("prd_id = %q, want generated jobs-ui prd prefix", prdID)
+	}
+	if strings.TrimPrefix(jobID, "JOB_") != strings.TrimPrefix(prdID, "PRD_") {
+		t.Fatalf("job_id = %q and prd_id = %q, want shared timestamp suffix", jobID, prdID)
+	}
+	bundleDir, _ := resp["bundle_dir"].(string)
+	if !strings.Contains(bundleDir, filepath.Join("jobs", jobID, "prepare")) {
+		t.Fatalf("bundle_dir = %q, want generated job-specific prepare dir", bundleDir)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, "appfactory", "jobs", jobID, "prepare", "builder-input.json")); err != nil {
+		t.Fatalf("expected generated job prepare bundle to exist: %v", err)
+	}
+}
+
+func TestCompilePRDRejectsGenericFallbackForJobsUIRealChecks(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	req := httptest.NewRequest(http.MethodPost, server.URL+"/api/v1/prds:compile", bytes.NewBufferString(`{"requirement_text":"做一个简单应用，先看看能不能自动生成。","requirement_source":"jobs-ui","real_checks":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	var resp internalErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if resp.ErrorCode != "PREPARE_COMPILE_FAILED" {
+		t.Fatalf("error_code = %q, want PREPARE_COMPILE_FAILED", resp.ErrorCode)
+	}
+	if !strings.Contains(resp.Message, "generic fallback") || !strings.Contains(resp.Message, "concrete domain requirement") {
+		t.Fatalf("message = %q, want generic fallback guidance", resp.Message)
+	}
+	jobsRoot := filepath.Join(workspace, "appfactory", "jobs", "job-generic-mvp")
+	if _, err := os.Stat(jobsRoot); !os.IsNotExist(err) {
+		t.Fatalf("expected generic fallback job bundle to be rejected before write, stat err=%v", err)
+	}
+}
+
 func TestCompilePRDRejectsUnknownTemplate(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
@@ -515,6 +708,7 @@ func TestCreateAndGetPublicJob(t *testing.T) {
 
 	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
 		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"title":            "轻量记账 App",
 		"job_id":           "job-public-bookkeeping",
 		"prd_id":           "prd-public-bookkeeping",
 	}, http.StatusOK)
@@ -530,6 +724,9 @@ func TestCreateAndGetPublicJob(t *testing.T) {
 	if created["status"] != "queued" {
 		t.Fatalf("status = %v, want queued", created["status"])
 	}
+	if created["title"] != "轻量记账 App" {
+		t.Fatalf("title = %v, want 轻量记账 App", created["title"])
+	}
 	if created["phase"] != "builder" {
 		t.Fatalf("phase = %v, want builder", created["phase"])
 	}
@@ -540,12 +737,1644 @@ func TestCreateAndGetPublicJob(t *testing.T) {
 	if got["template_id"] != "flutter-finance-lite" {
 		t.Fatalf("template_id = %v, want flutter-finance-lite", got["template_id"])
 	}
+	if got["title"] != "轻量记账 App" {
+		t.Fatalf("title = %v, want 轻量记账 App", got["title"])
+	}
 	approvals, ok := got["human_approvals"].([]any)
 	if !ok || len(approvals) != 2 {
 		t.Fatalf("human_approvals = %v, want 2 approval paths", got["human_approvals"])
 	}
 	if _, err := os.Stat(filepath.Join(workspace, "appfactory", "jobs", "job-public-bookkeeping", "job.json")); err != nil {
 		t.Fatalf("expected job.json to exist: %v", err)
+	}
+}
+
+func TestGetPublicJobReflectsUpdatedPreparedBundleInputs(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-input-refresh",
+		"prd_id":           "prd-public-input-refresh",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-input-refresh",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+
+	prepareDir := filepath.Join(workspace, "appfactory", "jobs", "job-public-input-refresh", "prepare")
+	prdPath := filepath.Join(prepareDir, "PRD.json")
+	prdData, err := os.ReadFile(prdPath)
+	if err != nil {
+		t.Fatalf("ReadFile(PRD.json) error = %v", err)
+	}
+	var prd map[string]any
+	if err := json.Unmarshal(prdData, &prd); err != nil {
+		t.Fatalf("Unmarshal(PRD.json) error = %v", err)
+	}
+	prd["version"] = "0.2.0"
+	updatedPRD, err := json.MarshalIndent(prd, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(PRD.json) error = %v", err)
+	}
+	if err := os.WriteFile(prdPath, append(updatedPRD, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(PRD.json) error = %v", err)
+	}
+
+	builderInputPath := filepath.Join(prepareDir, "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["template_id"] = "flutter-template-demo"
+	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	if err := os.WriteFile(builderInputPath, append(updatedBuilderInput, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-input-refresh", http.StatusOK)
+	if loaded["prd_version"] != "0.2.0" {
+		t.Fatalf("prd_version = %v, want 0.2.0 from updated prepared PRD", loaded["prd_version"])
+	}
+	if loaded["template_id"] != "flutter-template-demo" {
+		t.Fatalf("template_id = %v, want flutter-template-demo from updated builder-input", loaded["template_id"])
+	}
+	if loaded["builder_input_path"] != "jobs/job-public-input-refresh/prepare/builder-input.json" {
+		t.Fatalf("builder_input_path = %v, want prepare builder-input path", loaded["builder_input_path"])
+	}
+}
+
+func TestCreatePublicJobAppliesGoalSummaryAndHumanNotesOverridesToPreparedBuilderInput(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-create-overrides",
+		"prd_id":           "prd-public-create-overrides",
+	}, http.StatusOK)
+	created := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":       "prd-public-create-overrides",
+		"template_id":  "flutter-finance-lite",
+		"goal_summary": "build android app with live repair canary setup",
+		"human_notes": []map[string]any{{
+			"note_id": "note-canary",
+			"summary": "prefer stable public jobs repair canary",
+			"scope":   "engineering",
+		}},
+	}, http.StatusOK)
+	if created["job_id"] != "job-public-create-overrides" {
+		t.Fatalf("job_id = %v, want job-public-create-overrides", created["job_id"])
+	}
+	builderInput := requireJSONObjectFile(t, filepath.Join(workspace, "appfactory", "jobs", "job-public-create-overrides", "prepare", "builder-input.json"))
+	if builderInput["goal_summary"] != "build android app with live repair canary setup" {
+		t.Fatalf("goal_summary = %v, want override applied", builderInput["goal_summary"])
+	}
+	humanNotes, ok := builderInput["human_notes"].([]any)
+	if !ok || len(humanNotes) != 1 {
+		t.Fatalf("human_notes = %#v, want one note", builderInput["human_notes"])
+	}
+	firstNote, ok := humanNotes[0].(map[string]any)
+	if !ok {
+		t.Fatalf("human_notes[0] = %T, want object", humanNotes[0])
+	}
+	if firstNote["note_id"] != "note-canary" {
+		t.Fatalf("note_id = %v, want note-canary", firstNote["note_id"])
+	}
+	if firstNote["summary"] != "prefer stable public jobs repair canary" {
+		t.Fatalf("summary = %v, want override summary", firstNote["summary"])
+	}
+}
+
+func TestStartPublicJobUsesCurrentApprovalSnapshotsAfterJobCreation(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-current-approval-snapshots",
+		"prd_id":           "prd-public-current-approval-snapshots",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-current-approval-snapshots",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	prepareDir := filepath.Join(workspace, "appfactory", "jobs", "job-public-current-approval-snapshots", "prepare")
+	prdApprovalPath := filepath.Join(prepareDir, appruns.PRDApprovalFileName)
+	prdApprovalData, err := os.ReadFile(prdApprovalPath)
+	if err != nil {
+		t.Fatalf("ReadFile(prd-approval.json) error = %v", err)
+	}
+	var prdApproval appruns.ApprovalRecord
+	if err := json.Unmarshal(prdApprovalData, &prdApproval); err != nil {
+		t.Fatalf("Unmarshal(prd-approval.json) error = %v", err)
+	}
+	originalSubjectVersion := prdApproval.SubjectVersion
+	prdApproval.Status = appruns.ApprovalStatusPending
+	prdApproval.SubjectVersion = "prd-public-current-approval-snapshots@0.2.0"
+	updatedPRDApproval, err := json.MarshalIndent(prdApproval, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(prd-approval.json) error = %v", err)
+	}
+	if err := os.WriteFile(prdApprovalPath, append(updatedPRDApproval, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(prd-approval.json) error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-current-approval-snapshots:start", bytes.NewReader([]byte(`{}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+	var body internalErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if body.ErrorCode != "JOB_START_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_START_CONFLICT", body.ErrorCode)
+	}
+	if !strings.Contains(body.Message, "approvals not ready") || !strings.Contains(body.Message, "prd=pending") {
+		t.Fatalf("message = %q, want current approval snapshot conflict", body.Message)
+	}
+
+	prdApproval.Status = appruns.ApprovalStatusApproved
+	prdApproval.SubjectVersion = originalSubjectVersion
+	updatedPRDApproval, err = json.MarshalIndent(prdApproval, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(restored prd-approval.json) error = %v", err)
+	}
+	if err := os.WriteFile(prdApprovalPath, append(updatedPRDApproval, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(restored prd-approval.json) error = %v", err)
+	}
+
+	started := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-current-approval-snapshots:start", map[string]any{}, http.StatusOK)
+	if started["status"] != "running_builder" {
+		t.Fatalf("status = %v, want running_builder after restored approval snapshot", started["status"])
+	}
+}
+
+func TestStartPublicJobRejectsWhenApprovedPRDVersionNoLongerMatchesPreparedBundle(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-prd-version-drift",
+		"prd_id":           "prd-public-prd-version-drift",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-prd-version-drift",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+
+	prepareDir := filepath.Join(workspace, "appfactory", "jobs", "job-public-prd-version-drift", "prepare")
+	prdPath := filepath.Join(prepareDir, "PRD.json")
+	prdData, err := os.ReadFile(prdPath)
+	if err != nil {
+		t.Fatalf("ReadFile(PRD.json) error = %v", err)
+	}
+	var prd map[string]any
+	if err := json.Unmarshal(prdData, &prd); err != nil {
+		t.Fatalf("Unmarshal(PRD.json) error = %v", err)
+	}
+	prd["version"] = "0.2.0"
+	updatedPRD, err := json.MarshalIndent(prd, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(PRD.json) error = %v", err)
+	}
+	if err := os.WriteFile(prdPath, append(updatedPRD, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(PRD.json) error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-prd-version-drift:start", bytes.NewReader([]byte(`{}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+	var body internalErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if body.ErrorCode != "JOB_START_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_START_CONFLICT", body.ErrorCode)
+	}
+	if !strings.Contains(body.Message, "approval snapshot conflict") || !strings.Contains(body.Message, "prd approval subject_version mismatch") || !strings.Contains(body.Message, "want prd-public-prd-version-drift@0.2.0@sha256:") || !strings.Contains(body.Message, "got prd-public-prd-version-drift@0.1.0@sha256:") {
+		t.Fatalf("message = %q, want prd subject_version drift conflict", body.Message)
+	}
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-prd-version-drift", http.StatusOK)
+	if loaded["prd_version"] != "0.2.0" {
+		t.Fatalf("prd_version = %v, want 0.2.0 after prepared bundle drift", loaded["prd_version"])
+	}
+	if loaded["status"] != "awaiting_prd_approval" {
+		t.Fatalf("status = %v, want awaiting_prd_approval after approval drift", loaded["status"])
+	}
+	if loaded["phase"] != "approval" {
+		t.Fatalf("phase = %v, want approval after approval drift", loaded["phase"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "prd_approval_drift" {
+		t.Fatalf("reason_code = %v, want prd_approval_drift", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "submit_prd_approval" {
+		t.Fatalf("suggested_action = %v, want submit_prd_approval", statusContext["suggested_action"])
+	}
+}
+
+func TestSubmitPRDApprovalRequiresPrepareRecompileAfterPRDVersionDrift(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-prd-reapproval",
+		"prd_id":           "prd-public-prd-reapproval",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-prd-reapproval",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	prepareDir := filepath.Join(workspace, "appfactory", "jobs", "job-public-prd-reapproval", "prepare")
+	prdPath := filepath.Join(prepareDir, "PRD.json")
+	prdData, err := os.ReadFile(prdPath)
+	if err != nil {
+		t.Fatalf("ReadFile(PRD.json) error = %v", err)
+	}
+	var prd map[string]any
+	if err := json.Unmarshal(prdData, &prd); err != nil {
+		t.Fatalf("Unmarshal(PRD.json) error = %v", err)
+	}
+	prd["version"] = "0.2.0"
+	updatedPRD, err := json.MarshalIndent(prd, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(PRD.json) error = %v", err)
+	}
+	if err := os.WriteFile(prdPath, append(updatedPRD, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(PRD.json) error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-prd-reapproval:start", bytes.NewReader([]byte(`{}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+
+	reapproval := postJSONURL(t, server.Client(), server.URL+"/api/v1/prds/prd-public-prd-reapproval:submit-approval", map[string]any{
+		"job_id":  "job-public-prd-reapproval",
+		"summary": "确认当前 PRD 0.2.0 可继续执行。",
+	}, http.StatusOK)
+	subjectVersion, _ := reapproval["subject_version"].(string)
+	if !strings.HasPrefix(subjectVersion, "prd-public-prd-reapproval@0.2.0@sha256:") {
+		t.Fatalf("subject_version = %v, want PRD content-bound subject version after reapproval", reapproval["subject_version"])
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-prd-reapproval", http.StatusOK)
+	if loaded["status"] != "awaiting_prepare_recompile" {
+		t.Fatalf("status = %v, want awaiting_prepare_recompile after PRD reapproval", loaded["status"])
+	}
+	if loaded["phase"] != "prepare" {
+		t.Fatalf("phase = %v, want prepare after PRD reapproval", loaded["phase"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "prepared_prd_source_stale" {
+		t.Fatalf("reason_code = %v, want prepared_prd_source_stale", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "compile_prepare_bundle" {
+		t.Fatalf("suggested_action = %v, want compile_prepare_bundle", statusContext["suggested_action"])
+	}
+	if _, ok := loaded["resume_context"]; ok {
+		t.Fatalf("resume_context should be omitted while prepare recompile is required, got %v", loaded["resume_context"])
+	}
+
+	req, err = http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-prd-reapproval:start", bytes.NewReader([]byte(`{}`)))
+	if err != nil {
+		t.Fatalf("NewRequest(recompile required start) error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do(recompile required start) error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+	var body internalErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode(recompile required start) error = %v", err)
+	}
+	if body.ErrorCode != "JOB_START_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_START_CONFLICT", body.ErrorCode)
+	}
+	if !strings.Contains(body.Message, "requires prepare recompile") {
+		t.Fatalf("message = %q, want prepare recompile conflict", body.Message)
+	}
+
+	recompiled := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-prd-reapproval:compile-prepare", map[string]any{}, http.StatusOK)
+	if recompiled["status"] != "queued" {
+		t.Fatalf("status = %v, want queued after compile prepare", recompiled["status"])
+	}
+	if recompiled["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after compile prepare", recompiled["phase"])
+	}
+	if rawStatusContext, ok := recompiled["status_context"]; ok && rawStatusContext != nil {
+		statusContext, ok = rawStatusContext.(map[string]any)
+		if !ok {
+			t.Fatalf("status_context after compile = %T, want map[string]any", rawStatusContext)
+		}
+		if statusContext["reason_code"] != "prepared_input_stale" {
+			t.Fatalf("reason_code after compile = %v, want prepared_input_stale", statusContext["reason_code"])
+		}
+		if statusContext["suggested_action"] != "start" {
+			t.Fatalf("suggested_action after compile = %v, want start", statusContext["suggested_action"])
+		}
+	}
+
+	builderInputPath := filepath.Join(prepareDir, "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	preparedPRDSubjectVersion, _ := builderInput["prepared_prd_subject_version"].(string)
+	if !strings.HasPrefix(preparedPRDSubjectVersion, "prd-public-prd-reapproval@0.2.0@sha256:") {
+		t.Fatalf("prepared_prd_subject_version = %q, want refreshed 0.2.0 source", preparedPRDSubjectVersion)
+	}
+}
+
+func TestPRDMarkdownDriftRequiresPRDReapprovalInsteadOfPreparedStale(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-prd-markdown-reapproval",
+		"prd_id":           "prd-public-prd-markdown-reapproval",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-prd-markdown-reapproval",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-prd-markdown-reapproval",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-prd-markdown-reapproval", "prd-public-prd-markdown-reapproval", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	prdMarkdownPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-prd-markdown-reapproval", "prepare", "PRD.md")
+	prdMarkdownData, err := os.ReadFile(prdMarkdownPath)
+	if err != nil {
+		t.Fatalf("ReadFile(PRD.md) error = %v", err)
+	}
+	if err := os.WriteFile(prdMarkdownPath, append(prdMarkdownData, []byte("\n- 新增人工说明：首页概览必须强调本月结余口径。\n")...), 0o644); err != nil {
+		t.Fatalf("WriteFile(PRD.md) error = %v", err)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-prd-markdown-reapproval", http.StatusOK)
+	if loaded["status"] != "awaiting_prd_approval" {
+		t.Fatalf("status = %v, want awaiting_prd_approval after PRD markdown drift", loaded["status"])
+	}
+	if loaded["phase"] != "approval" {
+		t.Fatalf("phase = %v, want approval after PRD markdown drift", loaded["phase"])
+	}
+	if _, ok := loaded["resume_context"]; ok {
+		t.Fatalf("resume_context should be omitted while PRD reapproval is required, got %v", loaded["resume_context"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "prd_approval_drift" {
+		t.Fatalf("reason_code = %v, want prd_approval_drift", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "submit_prd_approval" {
+		t.Fatalf("suggested_action = %v, want submit_prd_approval", statusContext["suggested_action"])
+	}
+
+	reapproval := postJSONURL(t, server.Client(), server.URL+"/api/v1/prds/prd-public-prd-markdown-reapproval:submit-approval", map[string]any{
+		"job_id":  "job-public-prd-markdown-reapproval",
+		"summary": "确认更新后的 PRD 说明仍然沿用当前 failed run 的结构化输入。",
+	}, http.StatusOK)
+	if subjectVersion, _ := reapproval["subject_version"].(string); !strings.HasPrefix(subjectVersion, "prd-public-prd-markdown-reapproval@0.1.0@sha256:") || strings.Count(subjectVersion, "@sha256:") != 2 {
+		t.Fatalf("subject_version = %v, want PRD approval version bound to markdown drift", reapproval["subject_version"])
+	}
+
+	resumed := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-prd-markdown-reapproval:resume", map[string]any{
+		"resume_mode": "retry_failed_run",
+	}, http.StatusOK)
+	if resumed["status"] != "queued" && resumed["status"] != "running_builder" {
+		t.Fatalf("status = %v, want queued or running_builder after PRD markdown reapproval resume", resumed["status"])
+	}
+	if resumed["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after PRD markdown reapproval resume", resumed["phase"])
+	}
+	execution := readPublicJobExecutionRecord(t, workspace, "job-public-prd-markdown-reapproval")
+	if execution.Action != "resume" {
+		t.Fatalf("execution action = %q, want resume after PRD markdown reapproval", execution.Action)
+	}
+}
+
+func TestRequirementDriftRequiresPRDReapprovalInsteadOfPreparedStale(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-requirement-reapproval",
+		"prd_id":           "prd-public-requirement-reapproval",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-requirement-reapproval",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-requirement-reapproval",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-requirement-reapproval", "prd-public-requirement-reapproval", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	requirementPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-requirement-reapproval", "prepare", "requirement.md")
+	requirementData, err := os.ReadFile(requirementPath)
+	if err != nil {
+		t.Fatalf("ReadFile(requirement.md) error = %v", err)
+	}
+	if err := os.WriteFile(requirementPath, append(requirementData, []byte("\n- 新增原始需求备注：首页必须保留一块本月结余解释说明。\n")...), 0o644); err != nil {
+		t.Fatalf("WriteFile(requirement.md) error = %v", err)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-requirement-reapproval", http.StatusOK)
+	if loaded["status"] != "awaiting_prd_approval" {
+		t.Fatalf("status = %v, want awaiting_prd_approval after requirement drift", loaded["status"])
+	}
+	if loaded["phase"] != "approval" {
+		t.Fatalf("phase = %v, want approval after requirement drift", loaded["phase"])
+	}
+	if _, ok := loaded["resume_context"]; ok {
+		t.Fatalf("resume_context should be omitted while PRD reapproval is required, got %v", loaded["resume_context"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "prd_approval_drift" {
+		t.Fatalf("reason_code = %v, want prd_approval_drift", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "submit_prd_approval" {
+		t.Fatalf("suggested_action = %v, want submit_prd_approval", statusContext["suggested_action"])
+	}
+
+	reapproval := postJSONURL(t, server.Client(), server.URL+"/api/v1/prds/prd-public-requirement-reapproval:submit-approval", map[string]any{
+		"job_id":  "job-public-requirement-reapproval",
+		"summary": "确认更新后的原始需求说明仍然沿用当前 failed run 的结构化 PRD。",
+	}, http.StatusOK)
+	if subjectVersion, _ := reapproval["subject_version"].(string); !strings.HasPrefix(subjectVersion, "prd-public-requirement-reapproval@0.1.0@sha256:") || strings.Count(subjectVersion, "@sha256:") != 2 {
+		t.Fatalf("subject_version = %v, want PRD approval version bound to requirement drift", reapproval["subject_version"])
+	}
+
+	resumed := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-requirement-reapproval:resume", map[string]any{
+		"resume_mode": "retry_failed_run",
+	}, http.StatusOK)
+	if resumed["status"] != "queued" && resumed["status"] != "running_builder" {
+		t.Fatalf("status = %v, want queued or running_builder after requirement reapproval resume", resumed["status"])
+	}
+	if resumed["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after requirement reapproval resume", resumed["phase"])
+	}
+	execution := readPublicJobExecutionRecord(t, workspace, "job-public-requirement-reapproval")
+	if execution.Action != "resume" {
+		t.Fatalf("execution action = %q, want resume after requirement reapproval", execution.Action)
+	}
+}
+
+func TestGetPublicJobReturnsQueuedAfterRecompileInvalidatesFailedRun(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-recompile-invalidates-failed-run",
+		"prd_id":           "prd-public-recompile-invalidates-failed-run",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-recompile-invalidates-failed-run",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-recompile-invalidates-failed-run",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-recompile-invalidates-failed-run", "prd-public-recompile-invalidates-failed-run", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，重新整理需求后保留首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-recompile-invalidates-failed-run",
+		"prd_id":           "prd-public-recompile-invalidates-failed-run",
+	}, http.StatusOK)
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-recompile-invalidates-failed-run", http.StatusOK)
+	if loaded["status"] != "queued" {
+		t.Fatalf("status = %v, want queued after recompile invalidates failed run", loaded["status"])
+	}
+	if loaded["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after recompile invalidates failed run", loaded["phase"])
+	}
+	if _, exists := loaded["resume_context"]; exists {
+		t.Fatalf("resume_context should be omitted after recompile invalidates failed run, got %v", loaded["resume_context"])
+	}
+}
+
+func TestStartPublicJobAllowsRestartAfterRecompileInvalidatesFailedRun(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-recompile-restart",
+		"prd_id":           "prd-public-recompile-restart",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-recompile-restart",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-recompile-restart",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-recompile-restart", "prd-public-recompile-restart", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，重新编译后作为新一轮执行输入。",
+		"job_id":           "job-public-recompile-restart",
+		"prd_id":           "prd-public-recompile-restart",
+	}, http.StatusOK)
+
+	started := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-recompile-restart:start", map[string]any{}, http.StatusOK)
+	if started["status"] != "queued" && started["status"] != "running_builder" {
+		t.Fatalf("status = %v, want queued or running_builder after restart from recompiled bundle", started["status"])
+	}
+	if started["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after restart from recompiled bundle", started["phase"])
+	}
+	execution := readPublicJobExecutionRecord(t, workspace, "job-public-recompile-restart")
+	if execution.Action != "start" {
+		t.Fatalf("execution action = %q, want start after recompiled bundle restart", execution.Action)
+	}
+}
+
+func TestGetPublicJobReturnsQueuedWhenPreparedBuilderInputChangesAfterFailure(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-builder-input-stale-view",
+		"prd_id":           "prd-public-builder-input-stale-view",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-builder-input-stale-view",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-builder-input-stale-view",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-builder-input-stale-view", "prd-public-builder-input-stale-view", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	prepareDir := filepath.Join(workspace, "appfactory", "jobs", "job-public-builder-input-stale-view", "prepare")
+	builderInputPath := filepath.Join(prepareDir, "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["iteration_budget"] = 5
+	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	if err := os.WriteFile(builderInputPath, append(updatedBuilderInput, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-builder-input-stale-view", http.StatusOK)
+	if loaded["status"] != "queued" {
+		t.Fatalf("status = %v, want queued after prepared builder-input drift", loaded["status"])
+	}
+	if loaded["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after prepared builder-input drift", loaded["phase"])
+	}
+	if _, exists := loaded["resume_context"]; exists {
+		t.Fatalf("resume_context should be omitted after prepared builder-input drift, got %v", loaded["resume_context"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "prepared_input_stale" {
+		t.Fatalf("reason_code = %v, want prepared_input_stale", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "start" {
+		t.Fatalf("suggested_action = %v, want start", statusContext["suggested_action"])
+	}
+	if budgets, ok := loaded["budgets"].(map[string]any); !ok || budgets["iteration_budget"] != float64(5) {
+		t.Fatalf("budgets = %v, want iteration_budget=5 from current builder-input", loaded["budgets"])
+	}
+}
+
+func TestStartPublicJobAllowsRestartWhenPreparedBuilderInputChangesAfterFailure(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-builder-input-stale-start",
+		"prd_id":           "prd-public-builder-input-stale-start",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-builder-input-stale-start",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-builder-input-stale-start",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-builder-input-stale-start", "prd-public-builder-input-stale-start", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	builderInputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-builder-input-stale-start", "prepare", "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["goal_summary"] = "build android app with refreshed prepared input"
+	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	if err := os.WriteFile(builderInputPath, append(updatedBuilderInput, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	started := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-builder-input-stale-start:start", map[string]any{}, http.StatusOK)
+	if started["status"] != "queued" && started["status"] != "running_builder" {
+		t.Fatalf("status = %v, want queued or running_builder after prepared builder-input drift", started["status"])
+	}
+	if started["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after prepared builder-input drift", started["phase"])
+	}
+	execution := readPublicJobExecutionRecord(t, workspace, "job-public-builder-input-stale-start")
+	if execution.Action != "start" {
+		t.Fatalf("execution action = %q, want start after prepared builder-input drift", execution.Action)
+	}
+}
+
+func TestGetPublicJobReturnsQueuedWhenPreparedPlanChangesAfterFailure(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-plan-stale-view",
+		"prd_id":           "prd-public-plan-stale-view",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-plan-stale-view",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-plan-stale-view",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-plan-stale-view", "prd-public-plan-stale-view", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+	bundleBefore, err := h.loadPreparedBundleByJobID("job-public-plan-stale-view")
+	if err != nil {
+		t.Fatalf("loadPreparedBundleByJobID() before plan drift error = %v", err)
+	}
+	if !strings.Contains(string(bundleBefore.BuilderInput.ContextFiles), "implementation_plan_path") {
+		t.Fatal("context_files should include implementation_plan_path")
+	}
+	runsSvc, err := h.buildRunsControlPlane()
+	if err != nil {
+		t.Fatalf("buildRunsControlPlane() error = %v", err)
+	}
+	runBefore, err := runsSvc.Get(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("runsSvc.Get() error = %v", err)
+	}
+	beforeDigest := appruns.PreparedInputDigest(bundleBefore.BuilderInput, bundleBefore.PrepareDir)
+	if beforeDigest != strings.TrimSpace(runBefore.PreparedInputDigest) {
+		t.Fatalf("prepared digest before plan drift = %q, run digest = %q, want equal", beforeDigest, runBefore.PreparedInputDigest)
+	}
+
+	planPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-plan-stale-view", "prepare", "implementation-plan.md")
+	planData, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("ReadFile(implementation-plan.md) error = %v", err)
+	}
+	updatedPlanData := append(append([]byte(nil), planData...), []byte("\n- 新增人工修订约束：首页概览必须先展示本月结余。\n")...)
+	if err := os.WriteFile(planPath, updatedPlanData, 0o644); err != nil {
+		t.Fatalf("WriteFile(implementation-plan.md) error = %v", err)
+	}
+	planDataAfterWrite, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("ReadFile(implementation-plan.md after write) error = %v", err)
+	}
+	if bytes.Equal(planData, planDataAfterWrite) {
+		t.Fatal("implementation-plan.md content should change after write")
+	}
+	bundleAfter, err := h.loadPreparedBundleByJobID("job-public-plan-stale-view")
+	if err != nil {
+		t.Fatalf("loadPreparedBundleByJobID() after plan drift error = %v", err)
+	}
+	afterDigest := appruns.PreparedInputDigest(bundleAfter.BuilderInput, bundleAfter.PrepareDir)
+	if afterDigest == beforeDigest {
+		t.Fatalf("prepared digest should change after implementation-plan drift: before=%q after=%q", beforeDigest, afterDigest)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-plan-stale-view", http.StatusOK)
+	if loaded["status"] != "queued" {
+		t.Fatalf("status = %v, want queued after prepared plan drift", loaded["status"])
+	}
+	if loaded["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after prepared plan drift", loaded["phase"])
+	}
+	if _, exists := loaded["resume_context"]; exists {
+		t.Fatalf("resume_context should be omitted after prepared plan drift, got %v", loaded["resume_context"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "prepared_input_stale" {
+		t.Fatalf("reason_code = %v, want prepared_input_stale", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "start" {
+		t.Fatalf("suggested_action = %v, want start", statusContext["suggested_action"])
+	}
+	if budgets, ok := loaded["budgets"].(map[string]any); !ok || budgets["iteration_budget"] != float64(3) {
+		t.Fatalf("budgets = %v, want current builder budgets to remain intact", loaded["budgets"])
+	}
+}
+
+func TestResumeFailedPublicJobRejectsWhenPreparedPlanChangesAfterFailure(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-resume-plan-conflict",
+		"prd_id":           "prd-public-resume-plan-conflict",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-resume-plan-conflict",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-resume-plan-conflict",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-resume-plan-conflict", "prd-public-resume-plan-conflict", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	planPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-plan-conflict", "prepare", "implementation-plan.md")
+	planData, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("ReadFile(implementation-plan.md) error = %v", err)
+	}
+	if err := os.WriteFile(planPath, append(planData, []byte("\n- 新增人工修订约束：账单列表必须先显示未分类条目。\n")...), 0o644); err != nil {
+		t.Fatalf("WriteFile(implementation-plan.md) error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-resume-plan-conflict:resume", bytes.NewReader([]byte(`{"resume_mode":"retry_failed_run"}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+	var body internalErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if body.ErrorCode != "JOB_RESUME_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_RESUME_CONFLICT", body.ErrorCode)
+	}
+	if !strings.Contains(body.Message, "use start instead of resume") {
+		t.Fatalf("message = %q, want stale prepared run conflict after plan drift", body.Message)
+	}
+}
+
+func TestTemplateFitReportDriftRequiresTemplateReapprovalInsteadOfPreparedStale(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-template-fit-reapproval",
+		"prd_id":           "prd-public-template-fit-reapproval",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-template-fit-reapproval",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-template-fit-reapproval",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-template-fit-reapproval", "prd-public-template-fit-reapproval", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	fitReportPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-template-fit-reapproval", "prepare", "template-fit-report.md")
+	fitReportData, err := os.ReadFile(fitReportPath)
+	if err != nil {
+		t.Fatalf("ReadFile(template-fit-report.md) error = %v", err)
+	}
+	if err := os.WriteFile(fitReportPath, append(fitReportData, []byte("\n- 新增人工备注：当前模板需要补看离线账单归档场景。\n")...), 0o644); err != nil {
+		t.Fatalf("WriteFile(template-fit-report.md) error = %v", err)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-template-fit-reapproval", http.StatusOK)
+	if loaded["status"] != "awaiting_template_approval" {
+		t.Fatalf("status = %v, want awaiting_template_approval after fit report drift", loaded["status"])
+	}
+	if loaded["phase"] != "approval" {
+		t.Fatalf("phase = %v, want approval after fit report drift", loaded["phase"])
+	}
+	if _, ok := loaded["resume_context"]; ok {
+		t.Fatalf("resume_context should be omitted while template reapproval is required, got %v", loaded["resume_context"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "template_approval_drift" {
+		t.Fatalf("reason_code = %v, want template_approval_drift", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "submit_template_approval" {
+		t.Fatalf("suggested_action = %v, want submit_template_approval", statusContext["suggested_action"])
+	}
+
+	reapproval := postJSONURL(t, server.Client(), server.URL+"/api/v1/templates/flutter-finance-lite:submit-approval", map[string]any{
+		"job_id":  "job-public-template-fit-reapproval",
+		"prd_id":  "prd-public-template-fit-reapproval",
+		"summary": "确认更新后的模板匹配结果仍然可以沿用当前 failed run 继续恢复。",
+	}, http.StatusOK)
+	if subjectVersion, _ := reapproval["subject_version"].(string); !strings.HasPrefix(subjectVersion, "selected-template@flutter-finance-lite@v0.1.0@sha256:") {
+		t.Fatalf("subject_version = %v, want content-bound template approval version after fit report reapproval", reapproval["subject_version"])
+	}
+
+	resumed := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-template-fit-reapproval:resume", map[string]any{
+		"resume_mode": "retry_failed_run",
+	}, http.StatusOK)
+	if resumed["status"] != "queued" && resumed["status"] != "running_builder" {
+		t.Fatalf("status = %v, want queued or running_builder after fit report reapproval resume", resumed["status"])
+	}
+	if resumed["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after fit report reapproval resume", resumed["phase"])
+	}
+	execution := readPublicJobExecutionRecord(t, workspace, "job-public-template-fit-reapproval")
+	if execution.Action != "resume" {
+		t.Fatalf("execution action = %q, want resume after fit report reapproval", execution.Action)
+	}
+}
+
+func TestGetPublicJobReturnsQueuedWhenTemplateSeedChangesAfterFailure(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-template-seed-stale-view",
+		"prd_id":           "prd-public-template-seed-stale-view",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-template-seed-stale-view",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	templateDir := filepath.Join(t.TempDir(), "template-seed")
+	if err := os.MkdirAll(filepath.Join(templateDir, "lib"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(templateDir) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "pubspec.yaml"), []byte("name: template_seed\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pubspec.yaml) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "main.dart"), []byte("void main() => print('seed-v1');\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart) error = %v", err)
+	}
+	builderInputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-template-seed-stale-view", "prepare", "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["template_source_dir"] = templateDir
+	updatedBuilderInputData, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	updatedBuilderInputData = append(updatedBuilderInputData, '\n')
+	if err := os.WriteFile(builderInputPath, updatedBuilderInputData, 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-template-seed-stale-view",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	buildInput := sampleBuildRunInputFor("job-public-template-seed-stale-view", "prd-public-template-seed-stale-view", "flutter-finance-lite")
+	buildInput["template_source_dir"] = templateDir
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": buildInput,
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	bundleBefore, err := h.loadPreparedBundleByJobID("job-public-template-seed-stale-view")
+	if err != nil {
+		t.Fatalf("loadPreparedBundleByJobID() before template drift error = %v", err)
+	}
+	runsSvc, err := h.buildRunsControlPlane()
+	if err != nil {
+		t.Fatalf("buildRunsControlPlane() error = %v", err)
+	}
+	runBefore, err := runsSvc.Get(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("runsSvc.Get() error = %v", err)
+	}
+	beforeDigest := appruns.PreparedInputDigest(bundleBefore.BuilderInput, bundleBefore.PrepareDir)
+	if beforeDigest != strings.TrimSpace(runBefore.PreparedInputDigest) {
+		t.Fatalf("prepared digest before template drift = %q, run digest = %q, want equal", beforeDigest, runBefore.PreparedInputDigest)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "main.dart"), []byte("void main() => print('seed-v2');\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart) error = %v", err)
+	}
+	bundleAfter, err := h.loadPreparedBundleByJobID("job-public-template-seed-stale-view")
+	if err != nil {
+		t.Fatalf("loadPreparedBundleByJobID() after template drift error = %v", err)
+	}
+	afterDigest := appruns.PreparedInputDigest(bundleAfter.BuilderInput, bundleAfter.PrepareDir)
+	if afterDigest == beforeDigest {
+		t.Fatalf("prepared digest should change after template seed drift: before=%q after=%q", beforeDigest, afterDigest)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-template-seed-stale-view", http.StatusOK)
+	if loaded["status"] != "queued" {
+		t.Fatalf("status = %v, want queued after template seed drift", loaded["status"])
+	}
+	if loaded["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after template seed drift", loaded["phase"])
+	}
+	if _, exists := loaded["resume_context"]; exists {
+		t.Fatalf("resume_context should be omitted after template seed drift, got %v", loaded["resume_context"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "prepared_input_stale" {
+		t.Fatalf("reason_code = %v, want prepared_input_stale", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "start" {
+		t.Fatalf("suggested_action = %v, want start", statusContext["suggested_action"])
+	}
+}
+
+func TestResumeFailedPublicJobRejectsWhenTemplateSeedChangesAfterFailure(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-resume-template-seed-conflict",
+		"prd_id":           "prd-public-resume-template-seed-conflict",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-resume-template-seed-conflict",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	templateDir := filepath.Join(t.TempDir(), "template-seed")
+	if err := os.MkdirAll(filepath.Join(templateDir, "lib"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(templateDir) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "pubspec.yaml"), []byte("name: template_seed\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pubspec.yaml) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "main.dart"), []byte("void main() => print('seed-v1');\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart) error = %v", err)
+	}
+	builderInputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-template-seed-conflict", "prepare", "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["template_source_dir"] = templateDir
+	updatedBuilderInputData, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	updatedBuilderInputData = append(updatedBuilderInputData, '\n')
+	if err := os.WriteFile(builderInputPath, updatedBuilderInputData, 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-resume-template-seed-conflict",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	buildInput := sampleBuildRunInputFor("job-public-resume-template-seed-conflict", "prd-public-resume-template-seed-conflict", "flutter-finance-lite")
+	buildInput["template_source_dir"] = templateDir
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": buildInput,
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "main.dart"), []byte("void main() => print('seed-v2');\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart) error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-resume-template-seed-conflict:resume", bytes.NewReader([]byte(`{"resume_mode":"retry_failed_run"}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+	var body internalErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if body.ErrorCode != "JOB_RESUME_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_RESUME_CONFLICT", body.ErrorCode)
+	}
+	if !strings.Contains(body.Message, "use start instead of resume") {
+		t.Fatalf("message = %q, want stale prepared run conflict after template seed drift", body.Message)
+	}
+}
+
+func TestStartPublicJobAllowsRestartWhenTemplateSeedChangesAfterFailure(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-template-seed-stale-start",
+		"prd_id":           "prd-public-template-seed-stale-start",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-template-seed-stale-start",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	templateDir := filepath.Join(t.TempDir(), "template-seed")
+	if err := os.MkdirAll(filepath.Join(templateDir, "lib"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(templateDir) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "pubspec.yaml"), []byte("name: template_seed\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pubspec.yaml) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "main.dart"), []byte("void main() => print('seed-v1');\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart) error = %v", err)
+	}
+	builderInputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-template-seed-stale-start", "prepare", "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["template_source_dir"] = templateDir
+	updatedBuilderInputData, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	updatedBuilderInputData = append(updatedBuilderInputData, '\n')
+	if err := os.WriteFile(builderInputPath, updatedBuilderInputData, 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-template-seed-stale-start",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	buildInput := sampleBuildRunInputFor("job-public-template-seed-stale-start", "prd-public-template-seed-stale-start", "flutter-finance-lite")
+	buildInput["template_source_dir"] = templateDir
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": buildInput,
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "main.dart"), []byte("void main() => print('seed-v2');\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart) error = %v", err)
+	}
+
+	started := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-template-seed-stale-start:start", map[string]any{}, http.StatusOK)
+	if started["status"] != "queued" && started["status"] != "running_builder" {
+		t.Fatalf("status = %v, want queued or running_builder after template seed drift", started["status"])
+	}
+	if started["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after template seed drift", started["phase"])
+	}
+	execution := readPublicJobExecutionRecord(t, workspace, "job-public-template-seed-stale-start")
+	if execution.Action != "start" {
+		t.Fatalf("execution action = %q, want start after template seed drift", execution.Action)
 	}
 }
 
@@ -662,19 +2491,104 @@ func TestGetPublicJobEventsReturnsAggregatedTimeline(t *testing.T) {
 	}, http.StatusOK)
 	runID, _ := createdRun["run_id"].(string)
 	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/heartbeat", map[string]any{
-		"stage":        "baseline",
-		"iteration":    1,
+		"stage":          "baseline",
+		"iteration":      1,
+		"round_id":       "round-1",
+		"attempt":        1,
+		"checkpoint_key": "check-flutter-pub-get",
+		"round_state": map[string]any{
+			"current_phase": "validate",
+			"phase_trace":   []string{"inspect", "edit", "validate"},
+		},
+		"target_paths": []string{"lib/main.dart", "pubspec.yaml"},
 		"total_tokens": 128,
 		"summary":      "baseline passed",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/heartbeat", map[string]any{
+		"event_type":     "run_patch_generation_started",
+		"stage":          "baseline",
+		"iteration":      1,
+		"round_id":       "round-1",
+		"attempt":        1,
+		"checkpoint_key": "thin-prepare",
+		"round_state": map[string]any{
+			"current_phase": "edit",
+			"phase_trace":   []string{"inspect", "edit"},
+		},
+		"target_paths": []string{"lib/main.dart"},
+		"summary":      "round round-1 started patch generation for 1 file",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/heartbeat", map[string]any{
+		"event_type":     "run_patch_generated",
+		"stage":          "baseline",
+		"iteration":      1,
+		"round_id":       "round-1",
+		"attempt":        1,
+		"checkpoint_key": "thin-prepare",
+		"round_state": map[string]any{
+			"current_phase": "edit",
+			"phase_trace":   []string{"inspect", "edit"},
+		},
+		"target_paths": []string{"lib/main.dart"},
+		"summary":      "round round-1 generated patch for 1 file",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/heartbeat", map[string]any{
+		"event_type":     "run_patch_generation_failed",
+		"stage":          "baseline",
+		"iteration":      1,
+		"round_id":       "round-1",
+		"attempt":        1,
+		"checkpoint_key": "thin-prepare",
+		"round_state": map[string]any{
+			"current_phase": "edit",
+			"phase_trace":   []string{"inspect", "edit"},
+		},
+		"target_paths": []string{"lib/main.dart"},
+		"summary":      "round round-1 failed patch generation for 1 file: invalid patch schema",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/heartbeat", map[string]any{
+		"event_type":     "run_patch_applied",
+		"stage":          "baseline",
+		"iteration":      1,
+		"round_id":       "round-1",
+		"attempt":        1,
+		"checkpoint_key": "check-flutter-pub-get",
+		"round_state": map[string]any{
+			"current_phase": "edit",
+			"phase_trace":   []string{"inspect", "edit"},
+		},
+		"target_paths":   []string{"lib/main.dart", "pubspec.yaml"},
+		"affected_paths": []string{"lib/main.dart"},
+		"summary":        "round round-1 applied patch to 1 file",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/heartbeat", map[string]any{
+		"event_type":     "run_patch_apply_failed",
+		"stage":          "baseline",
+		"iteration":      1,
+		"round_id":       "round-1",
+		"attempt":        1,
+		"checkpoint_key": "thin-prepare",
+		"round_state": map[string]any{
+			"current_phase": "edit",
+			"phase_trace":   []string{"inspect", "edit"},
+		},
+		"target_paths": []string{"lib/main.dart"},
+		"summary":      "round round-1 patch apply failed for 1 file: protected path violation",
 	}, http.StatusOK)
 
 	events := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-events/events", http.StatusOK)
 	items, ok := events["items"].([]any)
-	if !ok || len(items) < 4 {
-		t.Fatalf("items = %v, want at least 4 timeline items", events["items"])
+	if !ok || len(items) < 7 {
+		t.Fatalf("items = %v, want at least 7 timeline items", events["items"])
 	}
 	foundCreated := false
 	foundHeartbeat := false
+	foundRoundStarted := false
+	foundPatchGenerationStarted := false
+	foundPatchGenerated := false
+	foundPatchGenerationFailed := false
+	foundPatchApplied := false
+	foundPatchApplyFailed := false
 	for _, item := range items {
 		event, ok := item.(map[string]any)
 		if !ok {
@@ -685,10 +2599,169 @@ func TestGetPublicJobEventsReturnsAggregatedTimeline(t *testing.T) {
 		}
 		if event["type"] == "run_heartbeat" {
 			foundHeartbeat = true
+			if event["round_id"] != "round-1" {
+				t.Fatalf("run_heartbeat round_id = %v, want round-1", event["round_id"])
+			}
+			if event["attempt"] != float64(1) {
+				t.Fatalf("run_heartbeat attempt = %v, want 1", event["attempt"])
+			}
+			if event["checkpoint_key"] != "check-flutter-pub-get" {
+				t.Fatalf("run_heartbeat checkpoint_key = %v, want check-flutter-pub-get", event["checkpoint_key"])
+			}
+			if event["current_phase"] != "validate" {
+				t.Fatalf("run_heartbeat current_phase = %v, want validate", event["current_phase"])
+			}
+			phaseTrace, ok := event["phase_trace"].([]any)
+			if !ok || len(phaseTrace) != 3 {
+				t.Fatalf("run_heartbeat phase_trace = %v, want 3 phases", event["phase_trace"])
+			}
+			targetPaths, ok := event["target_paths"].([]any)
+			if !ok || len(targetPaths) == 0 {
+				t.Fatalf("run_heartbeat target_paths = %v, want non-empty array", event["target_paths"])
+			}
+		}
+		if event["type"] == "run_round_started" {
+			foundRoundStarted = true
+			if event["round_id"] != "round-1" {
+				t.Fatalf("run_round_started round_id = %v, want round-1", event["round_id"])
+			}
+			if event["attempt"] != float64(1) {
+				t.Fatalf("run_round_started attempt = %v, want 1", event["attempt"])
+			}
+		}
+		if event["type"] == "run_patch_generation_started" {
+			foundPatchGenerationStarted = true
+			if event["checkpoint_key"] != "thin-prepare" {
+				t.Fatalf("run_patch_generation_started checkpoint_key = %v, want thin-prepare", event["checkpoint_key"])
+			}
+		}
+		if event["type"] == "run_patch_generated" {
+			foundPatchGenerated = true
+			if event["checkpoint_key"] != "thin-prepare" {
+				t.Fatalf("run_patch_generated checkpoint_key = %v, want thin-prepare", event["checkpoint_key"])
+			}
+			targetPaths, ok := event["target_paths"].([]any)
+			if !ok || len(targetPaths) != 1 {
+				t.Fatalf("run_patch_generated target_paths = %v, want 1 path", event["target_paths"])
+			}
+			fileFacts, ok := event["file_facts"].([]any)
+			if !ok || len(fileFacts) != 1 {
+				t.Fatalf("run_patch_generated file_facts = %v, want 1 fact", event["file_facts"])
+			}
+		}
+		if event["type"] == "run_patch_generation_failed" {
+			foundPatchGenerationFailed = true
+			if event["checkpoint_key"] != "thin-prepare" {
+				t.Fatalf("run_patch_generation_failed checkpoint_key = %v, want thin-prepare", event["checkpoint_key"])
+			}
+		}
+		if event["type"] == "run_patch_applied" {
+			foundPatchApplied = true
+			if event["checkpoint_key"] != "check-flutter-pub-get" {
+				t.Fatalf("run_patch_applied checkpoint_key = %v, want check-flutter-pub-get", event["checkpoint_key"])
+			}
+			affectedPaths, ok := event["affected_paths"].([]any)
+			if !ok || len(affectedPaths) != 1 {
+				t.Fatalf("run_patch_applied affected_paths = %v, want 1 path", event["affected_paths"])
+			}
+			fileFacts, ok := event["file_facts"].([]any)
+			if !ok || len(fileFacts) != 1 {
+				t.Fatalf("run_patch_applied file_facts = %v, want 1 fact", event["file_facts"])
+			}
+		}
+		if event["type"] == "run_patch_apply_failed" {
+			foundPatchApplyFailed = true
+			if event["checkpoint_key"] != "thin-prepare" {
+				t.Fatalf("run_patch_apply_failed checkpoint_key = %v, want thin-prepare", event["checkpoint_key"])
+			}
 		}
 	}
-	if !foundCreated || !foundHeartbeat {
-		t.Fatalf("events missing expected items: created=%v heartbeat=%v items=%v", foundCreated, foundHeartbeat, items)
+	if !foundCreated || !foundHeartbeat || !foundRoundStarted || !foundPatchGenerationStarted || !foundPatchGenerated || !foundPatchGenerationFailed || !foundPatchApplied || !foundPatchApplyFailed {
+		t.Fatalf("events missing expected items: created=%v heartbeat=%v round_started=%v patch_generation_started=%v patch_generated=%v patch_generation_failed=%v patch_applied=%v patch_apply_failed=%v items=%v", foundCreated, foundHeartbeat, foundRoundStarted, foundPatchGenerationStarted, foundPatchGenerated, foundPatchGenerationFailed, foundPatchApplied, foundPatchApplyFailed, items)
+	}
+}
+
+func TestGetPublicJobExposesCurrentRoundWhileRunIsActive(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-current-round",
+		"prd_id":           "prd-public-current-round",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-current-round",
+		"prd_version": "0.1.0",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":   "builder-a",
+		"display_name": "Builder A",
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-current-round",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-current-round", "prd-public-current-round", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/heartbeat", map[string]any{
+		"stage":          "baseline",
+		"iteration":      1,
+		"round_id":       "round-1",
+		"attempt":        1,
+		"checkpoint_key": "check-flutter-pub-get",
+		"round_state": map[string]any{
+			"current_phase": "validate",
+			"phase_trace":   []string{"inspect", "edit", "validate"},
+		},
+		"target_paths": []string{"lib/main.dart", "pubspec.yaml"},
+		"total_tokens": 128,
+		"summary":      "baseline passed",
+	}, http.StatusOK)
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-current-round", http.StatusOK)
+	currentRound, ok := loaded["current_round"].(map[string]any)
+	if !ok {
+		t.Fatalf("current_round = %T, want object", loaded["current_round"])
+	}
+	if currentRound["round_id"] != "round-1" {
+		t.Fatalf("current_round.round_id = %v, want round-1", currentRound["round_id"])
+	}
+	if currentRound["attempt"] != float64(1) {
+		t.Fatalf("current_round.attempt = %v, want 1", currentRound["attempt"])
+	}
+	if currentRound["checkpoint_key"] != "check-flutter-pub-get" {
+		t.Fatalf("current_round.checkpoint_key = %v, want check-flutter-pub-get", currentRound["checkpoint_key"])
+	}
+	if currentRound["current_phase"] != "validate" {
+		t.Fatalf("current_round.current_phase = %v, want validate", currentRound["current_phase"])
+	}
+	phaseTrace, ok := currentRound["phase_trace"].([]any)
+	if !ok || len(phaseTrace) != 3 {
+		t.Fatalf("current_round.phase_trace = %v, want 3 phases", currentRound["phase_trace"])
+	}
+	targetPaths, ok := currentRound["target_paths"].([]any)
+	if !ok || len(targetPaths) == 0 {
+		t.Fatalf("current_round.target_paths = %v, want non-empty array", currentRound["target_paths"])
 	}
 }
 
@@ -764,6 +2837,16 @@ func TestStartPublicJobRunsToCompletion(t *testing.T) {
 	foundExecutionFinished := false
 	foundRunCreated := false
 	foundRunCompleted := false
+	foundRunHeartbeat := false
+	foundRunRoundStarted := false
+	foundRunPatchGenerationStarted := false
+	foundRunPatchGenerated := false
+	foundRunPatchGenerationFailed := false
+	foundRunPatchApplied := false
+	foundRunPatchApplyFailed := false
+	runPatchGenerationStartedCount := 0
+	runPatchGeneratedCount := 0
+	runPatchAppliedCount := 0
 	for _, item := range items {
 		event, ok := item.(map[string]any)
 		if !ok {
@@ -777,17 +2860,114 @@ func TestStartPublicJobRunsToCompletion(t *testing.T) {
 		}
 		if event["type"] == "run_created" {
 			foundRunCreated = true
+			targetPaths, ok := event["target_paths"].([]any)
+			if !ok || len(targetPaths) == 0 {
+				t.Fatalf("run_created target_paths = %v, want non-empty array", event["target_paths"])
+			}
+		}
+		if event["type"] == "run_heartbeat" {
+			foundRunHeartbeat = true
+			if strings.TrimSpace(fmt.Sprint(event["round_id"])) == "" {
+				t.Fatalf("run_heartbeat round_id = %v, want non-empty string", event["round_id"])
+			}
+			if event["attempt"] != float64(1) {
+				t.Fatalf("run_heartbeat attempt = %v, want 1", event["attempt"])
+			}
+			if strings.TrimSpace(fmt.Sprint(event["current_phase"])) == "" {
+				t.Fatalf("run_heartbeat current_phase = %v, want non-empty string", event["current_phase"])
+			}
+			targetPaths, ok := event["target_paths"].([]any)
+			if !ok || len(targetPaths) == 0 {
+				t.Fatalf("run_heartbeat target_paths = %v, want non-empty array", event["target_paths"])
+			}
+		}
+		if event["type"] == "run_round_started" {
+			foundRunRoundStarted = true
+			if strings.TrimSpace(fmt.Sprint(event["round_id"])) == "" {
+				t.Fatalf("run_round_started round_id = %v, want non-empty string", event["round_id"])
+			}
+			if event["attempt"] != float64(1) {
+				t.Fatalf("run_round_started attempt = %v, want 1", event["attempt"])
+			}
+		}
+		if event["type"] == "run_patch_generation_started" {
+			foundRunPatchGenerationStarted = true
+			runPatchGenerationStartedCount++
+			targetPaths, ok := event["target_paths"].([]any)
+			if !ok || len(targetPaths) == 0 {
+				t.Fatalf("run_patch_generation_started target_paths = %v, want non-empty array", event["target_paths"])
+			}
+		}
+		if event["type"] == "run_patch_generated" {
+			foundRunPatchGenerated = true
+			runPatchGeneratedCount++
+			targetPaths, ok := event["target_paths"].([]any)
+			if !ok || len(targetPaths) == 0 {
+				t.Fatalf("run_patch_generated target_paths = %v, want non-empty array", event["target_paths"])
+			}
+		}
+		if event["type"] == "run_patch_generation_failed" {
+			foundRunPatchGenerationFailed = true
+		}
+		if event["type"] == "run_patch_applied" {
+			foundRunPatchApplied = true
+			runPatchAppliedCount++
+			affectedPaths, ok := event["affected_paths"].([]any)
+			if !ok || len(affectedPaths) == 0 {
+				t.Fatalf("run_patch_applied affected_paths = %v, want non-empty array", event["affected_paths"])
+			}
+			targetPaths, ok := event["target_paths"].([]any)
+			if !ok || len(targetPaths) == 0 {
+				t.Fatalf("run_patch_applied target_paths = %v, want non-empty array", event["target_paths"])
+			}
+		}
+		if event["type"] == "run_patch_apply_failed" {
+			foundRunPatchApplyFailed = true
 		}
 		if event["type"] == "run_completed" {
 			foundRunCompleted = true
+			affectedPaths, ok := event["affected_paths"].([]any)
+			if !ok || len(affectedPaths) == 0 {
+				t.Fatalf("run_completed affected_paths = %v, want non-empty array", event["affected_paths"])
+			}
+			roundSummaries, ok := event["round_summaries"].([]any)
+			if !ok || len(roundSummaries) == 0 {
+				t.Fatalf("run_completed round_summaries = %v, want non-empty array", event["round_summaries"])
+			}
+			firstRound, ok := roundSummaries[0].(map[string]any)
+			if !ok {
+				t.Fatalf("run_completed round_summaries[0] = %T, want object", roundSummaries[0])
+			}
+			if firstRound["attempt"] != float64(1) {
+				t.Fatalf("run_completed round_summaries[0].attempt = %v, want 1", firstRound["attempt"])
+			}
+			targetPaths, ok := firstRound["target_paths"].([]any)
+			if !ok || len(targetPaths) == 0 {
+				t.Fatalf("run_completed round_summaries[0].target_paths = %v, want non-empty array", firstRound["target_paths"])
+			}
 		}
 	}
-	if !foundExecutionEnqueued || !foundExecutionFinished || !foundRunCreated || !foundRunCompleted {
-		t.Fatalf("missing events: execution_enqueued=%v execution_finished=%v run_created=%v run_completed=%v items=%v", foundExecutionEnqueued, foundExecutionFinished, foundRunCreated, foundRunCompleted, items)
+	if !foundExecutionEnqueued || !foundExecutionFinished || !foundRunCreated || !foundRunHeartbeat || !foundRunRoundStarted || !foundRunPatchGenerationStarted || !foundRunPatchGenerated || !foundRunPatchApplied || !foundRunCompleted {
+		t.Fatalf("missing events: execution_enqueued=%v execution_finished=%v run_created=%v run_heartbeat=%v run_round_started=%v run_patch_generation_started=%v run_patch_generated=%v run_patch_applied=%v run_completed=%v items=%v", foundExecutionEnqueued, foundExecutionFinished, foundRunCreated, foundRunHeartbeat, foundRunRoundStarted, foundRunPatchGenerationStarted, foundRunPatchGenerated, foundRunPatchApplied, foundRunCompleted, items)
+	}
+	if foundRunPatchGenerationFailed {
+		t.Fatalf("run_patch_generation_failed should not appear in successful run, items=%v", items)
+	}
+	if foundRunPatchApplyFailed {
+		t.Fatalf("run_patch_apply_failed should not appear in successful run, items=%v", items)
+	}
+	if runPatchGenerationStartedCount != 1 {
+		t.Fatalf("run_patch_generation_started count = %d, want 1", runPatchGenerationStartedCount)
+	}
+	if runPatchGeneratedCount != 1 {
+		t.Fatalf("run_patch_generated count = %d, want 1", runPatchGeneratedCount)
+	}
+	if runPatchAppliedCount != 1 {
+		t.Fatalf("run_patch_applied count = %d, want 1 to avoid duplicate terminal replay", runPatchAppliedCount)
 	}
 }
 
-func TestStartPublicJobDefaultExecutorCreatesFlutterLandingFiles(t *testing.T) {
+func TestStartPublicJobDefaultExecutorWritesFlutterFallbackProbe(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
@@ -832,8 +3012,8 @@ func TestStartPublicJobDefaultExecutorCreatesFlutterLandingFiles(t *testing.T) {
 	}
 	builderOutput := requireJSONObjectFile(t, filepath.Join(workspace, "appfactory", filepath.FromSlash(builderOutputPath)))
 	modifiedFiles, ok := builderOutput["modified_files"].([]any)
-	if !ok || len(modifiedFiles) < 4 {
-		t.Fatalf("modified_files = %T %#v, want multiple flutter landing files", builderOutput["modified_files"], builderOutput["modified_files"])
+	if !ok {
+		t.Fatalf("modified_files = %T, want array", builderOutput["modified_files"])
 	}
 	modifiedPaths := make(map[string]bool, len(modifiedFiles))
 	for _, item := range modifiedFiles {
@@ -844,47 +3024,28 @@ func TestStartPublicJobDefaultExecutorCreatesFlutterLandingFiles(t *testing.T) {
 		pathValue, _ := change["path"].(string)
 		modifiedPaths[pathValue] = true
 	}
-	for _, wanted := range []string{"lib/main.dart", "lib/views/entry_form_page.dart", "lib/repositories/entry_repository.dart"} {
-		if !modifiedPaths[wanted] {
-			t.Fatalf("modified_paths missing %s: %#v", wanted, modifiedPaths)
-		}
-	}
 	jobWorkspace := filepath.Join(workspace, "appfactory", "jobs", "job-public-default-landing", "workspace")
-	mainDart := string(mustReadFileBytes(t, filepath.Join(jobWorkspace, "lib", "main.dart")))
-	if !strings.Contains(mainDart, "BookkeepingApp") {
-		t.Fatalf("lib/main.dart = %q, want bookkeeping shell", mainDart)
+	if !modifiedPaths["lib/picoclaw_executor_probe.dart"] {
+		t.Fatalf("modified_files = %v, want probe path", modifiedPaths)
 	}
-	for _, forbidden := range []string{"Flutter Demo Home Page", "You have pushed the button this many times", "_counter", "_incrementCounter", "MyHomePage"} {
-		if strings.Contains(mainDart, forbidden) {
-			t.Fatalf("lib/main.dart should not contain demo marker %q\n%s", forbidden, mainDart)
-		}
+	probe := string(mustReadFileBytes(t, filepath.Join(jobWorkspace, "lib", "picoclaw_executor_probe.dart")))
+	if !strings.Contains(probe, "Generated by PicoClaw thin executor.") || !strings.Contains(probe, "'goalSummary': '生成一个围绕首页概览、记账录入、账单列表三块核心功能的记账 App 最小输入包，并驱动当前 P0 Builder 默认执行器写入交接探针，证明 inspect/edit/validate 闭环可用。'") {
+		t.Fatalf("probe = %q, want fallback metadata", probe)
 	}
-	entryForm := string(mustReadFileBytes(t, filepath.Join(jobWorkspace, "lib", "views", "entry_form_page.dart")))
-	if !strings.Contains(entryForm, "TextFormField") || !strings.Contains(entryForm, "showDatePicker") {
-		t.Fatalf("entry_form_page.dart = %q, want real form wiring", entryForm)
+	if strings.Contains(probe, "BookkeepingApp") {
+		t.Fatalf("probe should not embed hardcoded Flutter business implementation\n%s", probe)
 	}
-	repository := string(mustReadFileBytes(t, filepath.Join(jobWorkspace, "lib", "repositories", "entry_repository.dart")))
-	if !strings.Contains(repository, "SharedPreferences") {
-		t.Fatalf("entry_repository.dart = %q, want local persistence wiring", repository)
+	if _, err := os.Stat(filepath.Join(jobWorkspace, "lib", "main.dart")); err != nil {
+		t.Fatalf("expected seed file lib/main.dart to remain available: %v", err)
 	}
-	pubspec := string(mustReadFileBytes(t, filepath.Join(jobWorkspace, "pubspec.yaml")))
-	if !strings.Contains(pubspec, "shared_preferences: ^2.2.3") {
-		t.Fatalf("pubspec.yaml = %q, want shared_preferences dependency", pubspec)
+	if _, err := os.Stat(filepath.Join(jobWorkspace, "lib", "models", "entry.dart")); err != nil {
+		t.Fatalf("expected seeded bookkeeping model to remain available: %v", err)
 	}
-	if strings.Contains(pubspec, "A new Flutter project.") {
-		t.Fatalf("pubspec.yaml should not keep default template description\n%s", pubspec)
+	if modifiedPaths["lib/models/entry.dart"] || modifiedPaths["lib/views/home_page.dart"] || modifiedPaths["lib/repositories/entry_repository.dart"] {
+		t.Fatalf("thin executor fallback should only add the handoff probe, modified_paths=%v", modifiedPaths)
 	}
-	widgetTest := string(mustReadFileBytes(t, filepath.Join(jobWorkspace, "test", "widget_test.dart")))
-	if !strings.Contains(widgetTest, "bookkeeping shell renders") {
-		t.Fatalf("widget_test.dart = %q, want bookkeeping smoke test", widgetTest)
-	}
-	for _, forbidden := range []string{"Counter increments smoke test", "MyHomePage", "_incrementCounter"} {
-		if strings.Contains(widgetTest, forbidden) {
-			t.Fatalf("widget_test.dart should not contain demo marker %q\n%s", forbidden, widgetTest)
-		}
-	}
-	if _, err := os.Stat(filepath.Join(jobWorkspace, "lib", "picoclaw_executor_probe.dart")); !os.IsNotExist(err) {
-		t.Fatalf("probe file should not be created on flutter landing path, stat err=%v", err)
+	if _, err := os.Stat(filepath.Join(jobWorkspace, "pubspec.yaml")); err != nil {
+		t.Fatalf("expected seed file pubspec.yaml to remain available: %v", err)
 	}
 	validationResults, ok := builderOutput["validation_results"].([]any)
 	if !ok || len(validationResults) == 0 {
@@ -899,7 +3060,7 @@ func TestStartPublicJobDefaultExecutorCreatesFlutterLandingFiles(t *testing.T) {
 		checkID, _ := result["check_id"].(string)
 		seenChecks[checkID] = true
 	}
-	for _, checkID := range []string{"check-counter-demo-removed", "check-entry-form-wiring", "check-local-persistence-wiring"} {
+	for _, checkID := range []string{"check-structural-template-files-ready", "check-legacy-thin-fallback-probe", "check-legacy-thin-fallback-metadata"} {
 		if !seenChecks[checkID] {
 			t.Fatalf("validation_results missing %s: %v", checkID, seenChecks)
 		}
@@ -1042,6 +3203,218 @@ func TestStartPublicJobWritesStructuredRoundOutputForFlutterProfile(t *testing.T
 			t.Fatalf("change summary should not contain legacy plan-only marker %q\n%s", forbidden, changeSummary)
 		}
 	}
+}
+
+func TestStartPublicJobAutoRepairsFlutterAnalyzeFailureThroughPublicJobsAPI(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	h.appFactory.runnerFactory = func(runsSvc runService) *appadapter.Runner {
+		runner := appadapter.NewRunnerWithBackend(runServiceRunnerBackend{runsSvc: runsSvc})
+		runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+			Enabled:      true,
+			DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+			TaskRoutes: []config.BuilderRuntimeTaskRouteConfig{{
+				TaskType: "analyze_repair",
+				Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+			}},
+		}
+		runner.PatchGenerator = &publicJobAutoRepairPatchGenerator{responses: map[string][]appadapter.BuilderRuntimePatchResponse{
+			"qwen2.5-coder-14b-local": {
+				{Content: `{"patch_id":"initial-edit","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Old Title';\n"}]}`},
+				{Content: `{"patch_id":"analyze-repair","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Budget Flow';\n"}]}`},
+			},
+		}}
+		runner.Executor = publicJobAutoRepairExecutor{
+			checkID:  "check-flutter-analyze",
+			label:    "flutter analyze",
+			stage:    appruns.StageCheap,
+			commands: []string{"flutter analyze"},
+			script:   "grep -q 'Budget Flow' lib/main.dart || { echo flutter analyze failed before repair >&2; exit 1; }",
+		}
+		return runner
+	}
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-auto-repair",
+		"prd_id":           "prd-public-auto-repair",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-auto-repair",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	started := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-auto-repair:start", map[string]any{}, http.StatusOK)
+	if started["status"] != "running_builder" {
+		t.Fatalf("status = %v, want running_builder", started["status"])
+	}
+	completed := waitForJobStatus(t, server.Client(), server.URL+"/api/v1/jobs/job-public-auto-repair", "completed", 5*time.Second)
+	builderOutputPath, _ := completed["builder_output_path"].(string)
+	if builderOutputPath == "" {
+		t.Fatal("builder_output_path should not be empty after async completion")
+	}
+	builderOutput := requireJSONObjectFile(t, filepath.Join(workspace, "appfactory", filepath.FromSlash(builderOutputPath)))
+
+	roundOutputs, ok := builderOutput["round_outputs"].([]any)
+	if !ok || len(roundOutputs) != 1 {
+		t.Fatalf("round_outputs = %T %#v, want one round output", builderOutput["round_outputs"], builderOutput["round_outputs"])
+	}
+	firstRound, ok := roundOutputs[0].(map[string]any)
+	if !ok {
+		t.Fatalf("round_output[0] = %T, want object", roundOutputs[0])
+	}
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["task_type"] != "analyze_repair" {
+		t.Fatalf("task_type = %v, want analyze_repair", builderRuntime["task_type"])
+	}
+	if builderRuntime["attempts"] != float64(2) {
+		t.Fatalf("attempts = %v, want 2", builderRuntime["attempts"])
+	}
+	validationResults, ok := firstRound["validation_results"].([]any)
+	if !ok || len(validationResults) != 1 {
+		t.Fatalf("validation_results = %T %#v, want one validation result", firstRound["validation_results"], firstRound["validation_results"])
+	}
+	validationResult, ok := validationResults[0].(map[string]any)
+	if !ok {
+		t.Fatalf("validation_result = %T, want object", validationResults[0])
+	}
+	if validationResult["check_id"] != "check-flutter-analyze" {
+		t.Fatalf("check_id = %v, want check-flutter-analyze", validationResult["check_id"])
+	}
+	checksPassed, ok := builderOutput["checks_passed"].([]any)
+	if !ok || len(checksPassed) != 1 {
+		t.Fatalf("checks_passed = %#v, want one passed check", builderOutput["checks_passed"])
+	}
+	workspacePatch, ok := firstRound["workspace_patch"].(map[string]any)
+	if !ok {
+		t.Fatalf("workspace_patch = %T, want object", firstRound["workspace_patch"])
+	}
+	if workspacePatch["status"] != "applied" {
+		t.Fatalf("workspace_patch.status = %v, want applied", workspacePatch["status"])
+	}
+	events := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-auto-repair/events", http.StatusOK)
+	items, ok := events["items"].([]any)
+	if !ok || len(items) == 0 {
+		t.Fatalf("events.items = %T %#v, want non-empty array", events["items"], events["items"])
+	}
+	seenAutoRepairHeartbeat := false
+	foundRunCreatedTargets := false
+	foundRunCompletedAffected := false
+	for _, item := range items {
+		event, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if event["type"] == "run_created" {
+			targetPaths, ok := event["target_paths"].([]any)
+			if ok {
+				for _, path := range targetPaths {
+					if fmt.Sprint(path) == "lib/main.dart" {
+						foundRunCreatedTargets = true
+						break
+					}
+				}
+			}
+		}
+		if event["type"] == "run_completed" {
+			affectedPaths, ok := event["affected_paths"].([]any)
+			if ok {
+				for _, path := range affectedPaths {
+					if fmt.Sprint(path) == "lib/main.dart" {
+						foundRunCompletedAffected = true
+						break
+					}
+				}
+			}
+			fileFacts, ok := event["file_facts"].([]any)
+			if !ok || len(fileFacts) == 0 {
+				t.Fatalf("run_completed file_facts = %v, want non-empty array", event["file_facts"])
+			}
+			roundSummaries, ok := event["round_summaries"].([]any)
+			if ok && len(roundSummaries) > 0 {
+				firstRound, ok := roundSummaries[0].(map[string]any)
+				if !ok {
+					t.Fatalf("round_summaries[0] = %T, want object", roundSummaries[0])
+				}
+				if firstRound["attempt"] != float64(1) {
+					t.Fatalf("round_summaries[0].attempt = %v, want 1", firstRound["attempt"])
+				}
+				targetPaths, ok := firstRound["target_paths"].([]any)
+				if !ok || len(targetPaths) == 0 {
+					t.Fatalf("round_summaries[0].target_paths = %v, want non-empty array", firstRound["target_paths"])
+				}
+				modifiedPaths, ok := firstRound["modified_paths"].([]any)
+				if !ok || len(modifiedPaths) == 0 {
+					t.Fatalf("round_summaries[0].modified_paths = %v, want non-empty array", firstRound["modified_paths"])
+				}
+				fileFacts, ok := firstRound["file_facts"].([]any)
+				if !ok || len(fileFacts) == 0 {
+					t.Fatalf("round_summaries[0].file_facts = %v, want non-empty array", firstRound["file_facts"])
+				}
+				summary := fmt.Sprint(firstRound["summary"])
+				if strings.TrimSpace(summary) == "" {
+					t.Fatalf("round_summaries[0].summary = %v, want non-empty string", firstRound["summary"])
+				}
+			}
+		}
+		summary := fmt.Sprint(event["summary"])
+		if strings.Contains(summary, "builder-runtime auto repair: check-flutter-analyze | task_type=analyze_repair") {
+			seenAutoRepairHeartbeat = true
+			if event["attempt"] != float64(2) {
+				t.Fatalf("auto repair heartbeat attempt = %v, want 2", event["attempt"])
+			}
+			if event["current_phase"] != "repair" {
+				t.Fatalf("auto repair heartbeat current_phase = %v, want repair", event["current_phase"])
+			}
+			targetPaths, ok := event["target_paths"].([]any)
+			if !ok || len(targetPaths) == 0 {
+				t.Fatalf("auto repair heartbeat target_paths = %v, want non-empty array", event["target_paths"])
+			}
+		}
+	}
+	if !seenAutoRepairHeartbeat {
+		t.Fatalf("events = %#v, want auto repair heartbeat", items)
+	}
+	mainDartPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-auto-repair", "workspace", "lib", "main.dart")
+	content, err := os.ReadFile(mainDartPath)
+	if err != nil {
+		t.Fatalf("ReadFile(lib/main.dart) error = %v", err)
+	}
+	if !strings.Contains(string(content), "Budget Flow") {
+		t.Fatalf("lib/main.dart = %q, want repaired content", string(content))
+	}
+	if !foundRunCreatedTargets || !foundRunCompletedAffected {
+		t.Fatalf("events should expose file facts: run_created_targets=%v run_completed_affected=%v items=%v", foundRunCreatedTargets, foundRunCompletedAffected, items)
+	}
+	t.Logf("public_jobs_auto_repair_task_type=%v", builderRuntime["task_type"])
+	t.Logf("public_jobs_auto_repair_attempts=%v", builderRuntime["attempts"])
+	t.Logf("public_jobs_auto_repair_recovered_check=%s", "check-flutter-analyze")
+	t.Logf("public_jobs_auto_repair_job_id=%s", "job-public-auto-repair")
+	t.Logf("public_jobs_auto_repair_heartbeat=%t", seenAutoRepairHeartbeat)
 }
 
 func TestStartPublicJobRejectsWhenApprovalsNotReady(t *testing.T) {
@@ -1374,6 +3747,128 @@ func TestCancelQueuedExecutionMarksExecutionCancelledAndDoesNotReplay(t *testing
 	}
 }
 
+func TestCancelRunningExecutionMarksExecutionCancelledAndDoesNotReplay(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-cancel-running-execution",
+		"prd_id":           "prd-cancel-running-execution",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-cancel-running-execution",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	builderSvc, err := h.buildersControlPlane()
+	if err != nil {
+		t.Fatalf("buildersControlPlane() error = %v", err)
+	}
+	runsSvc, err := h.buildRunsControlPlane()
+	if err != nil {
+		t.Fatalf("buildRunsControlPlane() error = %v", err)
+	}
+	bundle, err := h.loadPreparedBundleByJobID("job-cancel-running-execution")
+	if err != nil {
+		t.Fatalf("loadPreparedBundleByJobID() error = %v", err)
+	}
+	preparedInput := bundle.BuilderInput
+	preparedInput.ContextSourceDir = bundle.PrepareDir
+	dispatch, err := builderSvc.Dispatch(context.Background(), appbuilders.Requirement{JobID: "job-cancel-running-execution"})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+	run, err := runsSvc.Create(context.Background(), dispatch.Node.BuilderID, dispatch.Node.BuilderID, dispatch.Lease.LeaseID, preparedInput)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if err := builderSvc.BindRun(context.Background(), dispatch.Lease.LeaseID, run.RunID); err != nil {
+		t.Fatalf("BindRun() error = %v", err)
+	}
+	if err := h.persistPublicJobExecutionRecord(publicJobExecutionRecord{
+		SchemaVersion:   "0.1.0",
+		JobID:           "job-cancel-running-execution",
+		RunID:           run.RunID,
+		Action:          "start",
+		Status:          "running",
+		AttemptCount:    1,
+		LeaseOwnerID:    h.orchestratorInstanceID,
+		LeaseAcquiredAt: time.Now().UTC().Add(-20 * time.Second).Format(time.RFC3339),
+		LeaseExpiresAt:  time.Now().UTC().Add(90 * time.Second).Format(time.RFC3339),
+		TimeoutSeconds:  300,
+		RequestedAt:     time.Now().UTC().Add(-30 * time.Second).Format(time.RFC3339),
+		StartedAt:       time.Now().UTC().Add(-25 * time.Second).Format(time.RFC3339),
+		Attempts: []publicJobExecutionAttempt{{
+			Attempt:       1,
+			OwnerID:       h.orchestratorInstanceID,
+			ClaimedAt:     time.Now().UTC().Add(-25 * time.Second).Format(time.RFC3339),
+			LastRenewedAt: time.Now().UTC().Add(-10 * time.Second).Format(time.RFC3339),
+		}},
+	}); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord() error = %v", err)
+	}
+
+	cancelled := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-cancel-running-execution:cancel", map[string]any{
+		"reason": "cancel running execution before recovery replay",
+	}, http.StatusOK)
+	if cancelled["status"] != "cancelled" {
+		t.Fatalf("status = %v, want cancelled", cancelled["status"])
+	}
+	execution := readPublicJobExecutionRecord(t, workspace, "job-cancel-running-execution")
+	if execution.Status != "cancelled" {
+		t.Fatalf("execution status = %q, want cancelled", execution.Status)
+	}
+	if execution.LeaseOwnerID != "" {
+		t.Fatalf("lease_owner_id = %q, want cleared after cancel", execution.LeaseOwnerID)
+	}
+	if len(execution.Attempts) != 1 || execution.Attempts[0].ReleaseReason != "cancelled" {
+		t.Fatalf("attempt audit = %+v, want single cancelled attempt", execution.Attempts)
+	}
+
+	restarted := NewHandler(configPath)
+	restarted.EnableStartupOrchestrator()
+	t.Cleanup(restarted.waitForAsyncJobs)
+	restartedMux := http.NewServeMux()
+	restarted.RegisterRoutes(restartedMux)
+	restarted.waitForAsyncJobs()
+
+	reloadedExecution := readPublicJobExecutionRecord(t, workspace, "job-cancel-running-execution")
+	if reloadedExecution.Status != "cancelled" {
+		t.Fatalf("reloaded execution status = %q, want cancelled", reloadedExecution.Status)
+	}
+	if reloadedExecution.AttemptCount != 1 {
+		t.Fatalf("attempt_count = %d, want 1 after restart", reloadedExecution.AttemptCount)
+	}
+	recoveredRun, err := runsSvc.Get(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if recoveredRun.Status != appruns.StatusCancelled {
+		t.Fatalf("run status = %s, want cancelled", recoveredRun.Status)
+	}
+}
+
 func TestResumeFailedPublicJobRunsToCompletion(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
@@ -1552,14 +4047,24 @@ func TestGetFailedPublicJobIncludesResumeContext(t *testing.T) {
 	if resumeContext["preserved_workspace_path"] != "jobs/job-public-resume-context-failed/workspace-preserved" {
 		t.Fatalf("preserved_workspace_path = %v, want preserved path from builder output", resumeContext["preserved_workspace_path"])
 	}
-	if resumeContext["next_action"] != "inspect_failure_then_retry" {
-		t.Fatalf("next_action = %v, want inspect_failure_then_retry", resumeContext["next_action"])
+	if resumeContext["suggested_action"] != "inspect_failure_then_retry" {
+		t.Fatalf("suggested_action = %v, want inspect_failure_then_retry", resumeContext["suggested_action"])
 	}
 	if resumeContext["failure_category"] != "builder_runtime_failure" {
 		t.Fatalf("failure_category = %v, want builder_runtime_failure", resumeContext["failure_category"])
 	}
 	if resumeContext["failure_domain"] != "environment" {
 		t.Fatalf("failure_domain = %v, want environment", resumeContext["failure_domain"])
+	}
+	failureContext, ok := loaded["failure_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("failure_context = %T, want map[string]any", loaded["failure_context"])
+	}
+	if failureContext["failure_category"] != "builder_runtime_failure" {
+		t.Fatalf("failure_context.failure_category = %v, want builder_runtime_failure", failureContext["failure_category"])
+	}
+	if failureContext["failure_domain"] != "environment" {
+		t.Fatalf("failure_context.failure_domain = %v, want environment", failureContext["failure_domain"])
 	}
 	if resumeContext["recommended_resume_mode"] != "resume_from_failure" {
 		t.Fatalf("recommended_resume_mode = %v, want resume_from_failure", resumeContext["recommended_resume_mode"])
@@ -1632,14 +4137,24 @@ func TestGetFailedPublicJobSynthesizesResumeContextWhenOutputMissing(t *testing.
 	if resumeContext["preserved_workspace_path"] != "jobs/job-public-resume-context-synth/workspace" {
 		t.Fatalf("preserved_workspace_path = %v, want synthesized workspace path", resumeContext["preserved_workspace_path"])
 	}
-	if resumeContext["next_action"] != "retry_failed_run" {
-		t.Fatalf("next_action = %v, want retry_failed_run", resumeContext["next_action"])
+	if resumeContext["suggested_action"] != "retry_failed_run" {
+		t.Fatalf("suggested_action = %v, want retry_failed_run", resumeContext["suggested_action"])
 	}
 	if resumeContext["failure_category"] != "builder_runtime_failure" {
 		t.Fatalf("failure_category = %v, want builder_runtime_failure", resumeContext["failure_category"])
 	}
 	if resumeContext["failure_domain"] != "environment" {
 		t.Fatalf("failure_domain = %v, want environment", resumeContext["failure_domain"])
+	}
+	failureContext, ok := loaded["failure_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("failure_context = %T, want map[string]any", loaded["failure_context"])
+	}
+	if failureContext["failure_category"] != "builder_runtime_failure" {
+		t.Fatalf("failure_context.failure_category = %v, want builder_runtime_failure", failureContext["failure_category"])
+	}
+	if failureContext["failure_domain"] != "environment" {
+		t.Fatalf("failure_context.failure_domain = %v, want environment", failureContext["failure_domain"])
 	}
 	if resumeContext["recommended_resume_mode"] != "retry_failed_run" {
 		t.Fatalf("recommended_resume_mode = %v, want retry_failed_run", resumeContext["recommended_resume_mode"])
@@ -1732,8 +4247,8 @@ func TestGetFailedPublicJobSynthesizesResumeContextFromRepairContextWhenOutputMi
 	if resumeContext["recommended_resume_mode"] != "retry_failed_run" {
 		t.Fatalf("recommended_resume_mode = %v, want retry_failed_run", resumeContext["recommended_resume_mode"])
 	}
-	if resumeContext["next_action"] != "retry_failed_run" {
-		t.Fatalf("next_action = %v, want retry_failed_run", resumeContext["next_action"])
+	if resumeContext["suggested_action"] != "retry_failed_run" {
+		t.Fatalf("suggested_action = %v, want retry_failed_run", resumeContext["suggested_action"])
 	}
 	if resumeContext["requires_human_confirmation"] != false {
 		t.Fatalf("requires_human_confirmation = %v, want false", resumeContext["requires_human_confirmation"])
@@ -1823,8 +4338,8 @@ func TestGetFailedPublicJobSynthesizesPatchApplyFailureResumeContextWhenOutputMi
 	if resumeContext["recommended_resume_mode"] != "retry_failed_run" {
 		t.Fatalf("recommended_resume_mode = %v, want retry_failed_run", resumeContext["recommended_resume_mode"])
 	}
-	if resumeContext["next_action"] != "inspect_failure_and_confirm_resume" {
-		t.Fatalf("next_action = %v, want inspect_failure_and_confirm_resume", resumeContext["next_action"])
+	if resumeContext["suggested_action"] != "inspect_failure_and_confirm_resume" {
+		t.Fatalf("suggested_action = %v, want inspect_failure_and_confirm_resume", resumeContext["suggested_action"])
 	}
 	if resumeContext["requires_human_confirmation"] != true {
 		t.Fatalf("requires_human_confirmation = %v, want true", resumeContext["requires_human_confirmation"])
@@ -1894,8 +4409,8 @@ func TestGetFailedPublicJobSynthesizesInterruptedResumeContextWhenDispatcherLost
 	if resumeContext["resume_allowed"] != true {
 		t.Fatalf("resume_allowed = %v, want true", resumeContext["resume_allowed"])
 	}
-	if resumeContext["next_action"] != "resume_interrupted_job" {
-		t.Fatalf("next_action = %v, want resume_interrupted_job", resumeContext["next_action"])
+	if resumeContext["suggested_action"] != "resume_interrupted_job" {
+		t.Fatalf("suggested_action = %v, want resume_interrupted_job", resumeContext["suggested_action"])
 	}
 	if resumeContext["preserved_workspace_path"] != "jobs/job-public-resume-context-dispatcher-lost/workspace" {
 		t.Fatalf("preserved_workspace_path = %v, want synthesized workspace path", resumeContext["preserved_workspace_path"])
@@ -1905,6 +4420,16 @@ func TestGetFailedPublicJobSynthesizesInterruptedResumeContextWhenDispatcherLost
 	}
 	if resumeContext["failure_domain"] != "environment" {
 		t.Fatalf("failure_domain = %v, want environment", resumeContext["failure_domain"])
+	}
+	failureContext, ok := loaded["failure_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("failure_context = %T, want map[string]any", loaded["failure_context"])
+	}
+	if failureContext["failure_category"] != "execution_interrupted" {
+		t.Fatalf("failure_context.failure_category = %v, want execution_interrupted", failureContext["failure_category"])
+	}
+	if failureContext["failure_domain"] != "environment" {
+		t.Fatalf("failure_context.failure_domain = %v, want environment", failureContext["failure_domain"])
 	}
 	if resumeContext["recommended_resume_mode"] != "resume_interrupted_job" {
 		t.Fatalf("recommended_resume_mode = %v, want resume_interrupted_job", resumeContext["recommended_resume_mode"])
@@ -1981,6 +4506,7 @@ func TestDerivePublicJobFailureDomainSupportsSkillSignatures(t *testing.T) {
 	}{
 		{name: "native skill signature", category: "skill_direct_edit_noop", want: "skill"},
 		{name: "legacy legacy-builder signature", category: "legacy-builder_direct_edit_noop", want: "skill"},
+		{name: "device verification signature", category: "device_check_failed:adb_device_unavailable", want: "device"},
 	}
 
 	for _, tc := range testCases {
@@ -1989,6 +4515,45 @@ func TestDerivePublicJobFailureDomainSupportsSkillSignatures(t *testing.T) {
 				t.Fatalf("derivePublicJobFailureDomain(%q) = %q, want %q", tc.category, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestPublicDeviceFailureSuggestedAction(t *testing.T) {
+	testCases := []struct {
+		name     string
+		domain   string
+		category string
+		want     string
+	}{
+		{name: "device domain", domain: "device", category: "device_check_failed:adb_device_unavailable", want: "inspect_device_evidence"},
+		{name: "device environment category", domain: "environment", category: "environment_check_failed:debug_apk_missing", want: "inspect_device_evidence"},
+		{name: "other environment category", domain: "environment", category: "runner_exit_nonzero", want: ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := publicDeviceFailureSuggestedAction(tc.domain, tc.category); got != tc.want {
+				t.Fatalf("publicDeviceFailureSuggestedAction(%q, %q) = %q, want %q", tc.domain, tc.category, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPublicExecutionNotificationDescriptorUsesDeviceSuggestedAction(t *testing.T) {
+	record := publicJobRecord{
+		ResumeContext: &publicJobResumeContext{
+			FailureDomain:         "device",
+			FailureCategory:       "device_check_failed:app_runtime_crash",
+			RecommendedResumeMode: "resume_from_failure",
+		},
+	}
+
+	notificationType, suggestedAction := publicExecutionNotificationDescriptor(record, publicJobEvent{Type: "execution_failed"})
+	if notificationType != "execution_failed" {
+		t.Fatalf("notificationType = %q, want execution_failed", notificationType)
+	}
+	if suggestedAction != "inspect_device_evidence" {
+		t.Fatalf("suggestedAction = %q, want inspect_device_evidence", suggestedAction)
 	}
 }
 
@@ -2009,6 +4574,7 @@ func TestListPublicJobsSupportsStatusFilter(t *testing.T) {
 
 	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
 		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"title":            "运行中记账 App",
 		"job_id":           "job-list-running",
 		"prd_id":           "prd-list-running",
 	}, http.StatusOK)
@@ -2019,6 +4585,7 @@ func TestListPublicJobsSupportsStatusFilter(t *testing.T) {
 
 	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
 		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"title":            "已取消记账 App",
 		"job_id":           "job-list-cancelled",
 		"prd_id":           "prd-list-cancelled",
 	}, http.StatusOK)
@@ -2047,6 +4614,9 @@ func TestListPublicJobsSupportsStatusFilter(t *testing.T) {
 	}
 	if record["job_id"] != "job-list-cancelled" {
 		t.Fatalf("job_id = %v, want job-list-cancelled", record["job_id"])
+	}
+	if record["title"] != "已取消记账 App" {
+		t.Fatalf("title = %v, want 已取消记账 App", record["title"])
 	}
 }
 
@@ -2205,6 +4775,714 @@ func TestResumeFailedPublicJobReturnsConflictWhenResumeDisallowed(t *testing.T) 
 	}
 }
 
+func TestResumeFailedPublicJobReturnsConflictWhenExecutionAlreadyActive(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-resume-active-execution",
+		"prd_id":           "prd-public-resume-active-execution",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-resume-active-execution",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	if err := h.persistPublicJobExecutionRecord(publicJobExecutionRecord{
+		SchemaVersion:   "0.1.0",
+		JobID:           "job-public-resume-active-execution",
+		RunID:           "run-resume-active-execution",
+		Action:          "resume",
+		Status:          "running",
+		TimeoutSeconds:  300,
+		RequestedAt:     time.Now().UTC().Add(-30 * time.Second).Format(time.RFC3339),
+		StartedAt:       time.Now().UTC().Add(-25 * time.Second).Format(time.RFC3339),
+		LeaseOwnerID:    h.orchestratorInstanceID,
+		LeaseAcquiredAt: time.Now().UTC().Add(-25 * time.Second).Format(time.RFC3339),
+		LeaseExpiresAt:  time.Now().UTC().Add(90 * time.Second).Format(time.RFC3339),
+	}); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord() error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-resume-active-execution:resume", bytes.NewReader([]byte(`{"resume_mode":"retry_failed_run"}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+	var body internalErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if body.ErrorCode != "JOB_RESUME_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_RESUME_CONFLICT", body.ErrorCode)
+	}
+}
+
+func TestResumeFailedPublicJobRejectsWhenApprovedTemplateVersionNoLongerMatchesPreparedBundle(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-resume-template-version-drift",
+		"prd_id":           "prd-public-resume-template-version-drift",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-resume-template-version-drift",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-resume-template-version-drift",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-resume-template-version-drift", "prd-public-resume-template-version-drift", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	outputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-template-version-drift", "runs", runID, "builder-output.json")
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	output := sampleBuildRunOutputFor("job-public-resume-template-version-drift")
+	output["status"] = "failed"
+	output["resume_context"] = map[string]any{
+		"resume_allowed":          true,
+		"recommended_resume_mode": "retry_failed_run",
+		"next_action":             "retry_failed_run",
+	}
+	data, err := json.Marshal(output)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if err := os.WriteFile(outputPath, append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	builderInputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-template-version-drift", "prepare", "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["template_id"] = "flutter-template-demo"
+	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	if err := os.WriteFile(builderInputPath, append(updatedBuilderInput, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-resume-template-version-drift:resume", bytes.NewReader([]byte(`{"resume_mode":"retry_failed_run"}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+	var body internalErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if body.ErrorCode != "JOB_RESUME_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_RESUME_CONFLICT", body.ErrorCode)
+	}
+	if !strings.Contains(body.Message, "approval snapshot conflict") || !strings.Contains(body.Message, "template approval subject_version mismatch") || !strings.Contains(body.Message, "selected-template@flutter-template-demo@v0.1.0@sha256:") || !strings.Contains(body.Message, "selected-template@flutter-finance-lite@v0.1.0@sha256:") {
+		t.Fatalf("message = %q, want template subject_version drift conflict", body.Message)
+	}
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-resume-template-version-drift", http.StatusOK)
+	if loaded["template_id"] != "flutter-template-demo" {
+		t.Fatalf("template_id = %v, want flutter-template-demo after prepared bundle drift", loaded["template_id"])
+	}
+	if loaded["status"] != "awaiting_template_approval" {
+		t.Fatalf("status = %v, want awaiting_template_approval after template approval drift", loaded["status"])
+	}
+	if loaded["phase"] != "approval" {
+		t.Fatalf("phase = %v, want approval after template approval drift", loaded["phase"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "template_approval_drift" {
+		t.Fatalf("reason_code = %v, want template_approval_drift", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "submit_template_approval" {
+		t.Fatalf("suggested_action = %v, want submit_template_approval", statusContext["suggested_action"])
+	}
+	if _, exists := loaded["resume_context"]; exists {
+		t.Fatalf("resume_context should be omitted after template approval drift, got %v", loaded["resume_context"])
+	}
+}
+
+func TestSubmitTemplateApprovalPromotesFreshStartAfterTemplateSelectionChange(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-template-reapproval",
+		"prd_id":           "prd-public-template-reapproval",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-template-reapproval",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-template-reapproval",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-template-reapproval", "prd-public-template-reapproval", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	outputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-template-reapproval", "runs", runID, "builder-output.json")
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	output := sampleBuildRunOutputFor("job-public-template-reapproval")
+	output["status"] = "failed"
+	output["resume_context"] = map[string]any{
+		"resume_allowed":          true,
+		"recommended_resume_mode": "retry_failed_run",
+		"next_action":             "retry_failed_run",
+	}
+	data, err := json.Marshal(output)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if err := os.WriteFile(outputPath, append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	builderInputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-template-reapproval", "prepare", "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["template_id"] = "flutter-template-demo"
+	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	if err := os.WriteFile(builderInputPath, append(updatedBuilderInput, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-template-reapproval:resume", bytes.NewReader([]byte(`{"resume_mode":"retry_failed_run"}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+
+	reapproval := postJSONURL(t, server.Client(), server.URL+"/api/v1/templates/flutter-template-demo:submit-approval", map[string]any{
+		"job_id":  "job-public-template-reapproval",
+		"prd_id":  "prd-public-template-reapproval",
+		"summary": "确认切换到 flutter-template-demo 后可以继续恢复。",
+	}, http.StatusOK)
+	if subjectVersion, _ := reapproval["subject_version"].(string); !strings.HasPrefix(subjectVersion, "selected-template@flutter-template-demo@v0.1.0@sha256:") {
+		t.Fatalf("subject_version = %v, want content-bound template approval version after template reapproval", reapproval["subject_version"])
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-template-reapproval", http.StatusOK)
+	if loaded["status"] != "queued" {
+		t.Fatalf("status = %v, want queued after template reapproval promotes fresh start semantics", loaded["status"])
+	}
+	if loaded["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after template reapproval promotes fresh start semantics", loaded["phase"])
+	}
+	if _, ok := loaded["resume_context"]; ok {
+		t.Fatalf("resume_context should be omitted after template selection changes current builder-input, got %v", loaded["resume_context"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "prepared_input_stale" {
+		t.Fatalf("reason_code = %v, want prepared_input_stale", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "start" {
+		t.Fatalf("suggested_action = %v, want start", statusContext["suggested_action"])
+	}
+
+	started := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-template-reapproval:start", map[string]any{}, http.StatusOK)
+	if started["status"] != "queued" && started["status"] != "running_builder" {
+		t.Fatalf("status = %v, want queued or running_builder after template reapproval fresh start", started["status"])
+	}
+	if started["phase"] != "builder" {
+		t.Fatalf("phase = %v, want builder after template reapproval fresh start", started["phase"])
+	}
+}
+
+func TestSubmitTemplateApprovalRequiresPrepareRecompileAfterTemplateSourceVersionDrift(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-template-source-reapproval",
+		"prd_id":           "prd-public-template-source-reapproval",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-template-source-reapproval",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-template-source-reapproval",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-template-source-reapproval", "prd-public-template-source-reapproval", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	outputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-template-source-reapproval", "runs", runID, "builder-output.json")
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	output := sampleBuildRunOutputFor("job-public-template-source-reapproval")
+	output["status"] = "failed"
+	output["resume_context"] = map[string]any{
+		"resume_allowed":          true,
+		"recommended_resume_mode": "retry_failed_run",
+		"next_action":             "retry_failed_run",
+	}
+	data, err := json.Marshal(output)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if err := os.WriteFile(outputPath, append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	prepareDir := filepath.Join(workspace, "appfactory", "jobs", "job-public-template-source-reapproval", "prepare")
+	templateApprovalPath := filepath.Join(prepareDir, appruns.TemplateApprovalFileName)
+	templateApprovalData, err := os.ReadFile(templateApprovalPath)
+	if err != nil {
+		t.Fatalf("ReadFile(template-approval.json) error = %v", err)
+	}
+	var templateApproval map[string]any
+	if err := json.Unmarshal(templateApprovalData, &templateApproval); err != nil {
+		t.Fatalf("Unmarshal(template-approval.json) error = %v", err)
+	}
+	templateApproval["subject_version"] = "selected-template@flutter-finance-lite@v0.0.9"
+	updatedTemplateApproval, err := json.MarshalIndent(templateApproval, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(template-approval.json) error = %v", err)
+	}
+	if err := os.WriteFile(templateApprovalPath, append(updatedTemplateApproval, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(template-approval.json) error = %v", err)
+	}
+
+	builderInputPath := filepath.Join(prepareDir, "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["prepared_template_subject_version"] = "selected-template@flutter-finance-lite@v0.0.9"
+	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	if err := os.WriteFile(builderInputPath, append(updatedBuilderInput, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-template-source-reapproval", http.StatusOK)
+	if loaded["status"] != "awaiting_template_approval" {
+		t.Fatalf("status = %v, want awaiting_template_approval after template approval drift", loaded["status"])
+	}
+	if loaded["phase"] != "approval" {
+		t.Fatalf("phase = %v, want approval after template approval drift", loaded["phase"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "template_approval_drift" {
+		t.Fatalf("reason_code = %v, want template_approval_drift before reapproval", statusContext["reason_code"])
+	}
+
+	reapproval := postJSONURL(t, server.Client(), server.URL+"/api/v1/templates/flutter-finance-lite:submit-approval", map[string]any{
+		"job_id":  "job-public-template-source-reapproval",
+		"prd_id":  "prd-public-template-source-reapproval",
+		"summary": "确认当前模板冻结版本升级后需要重新编译 prepare 产物。",
+	}, http.StatusOK)
+	if subjectVersion, _ := reapproval["subject_version"].(string); !strings.HasPrefix(subjectVersion, "selected-template@flutter-finance-lite@v0.1.0@sha256:") {
+		t.Fatalf("subject_version = %v, want content-bound template approval version after template reapproval", reapproval["subject_version"])
+	}
+
+	loaded = getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-template-source-reapproval", http.StatusOK)
+	if loaded["status"] != "awaiting_prepare_recompile" {
+		t.Fatalf("status = %v, want awaiting_prepare_recompile after template reapproval", loaded["status"])
+	}
+	if loaded["phase"] != "prepare" {
+		t.Fatalf("phase = %v, want prepare after template reapproval", loaded["phase"])
+	}
+	statusContext, ok = loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "prepared_template_source_stale" {
+		t.Fatalf("reason_code = %v, want prepared_template_source_stale", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "compile_prepare_bundle" {
+		t.Fatalf("suggested_action = %v, want compile_prepare_bundle", statusContext["suggested_action"])
+	}
+	if _, ok := loaded["resume_context"]; ok {
+		t.Fatalf("resume_context should be omitted while template prepare recompile is required, got %v", loaded["resume_context"])
+	}
+
+	startReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-template-source-reapproval:start", bytes.NewReader([]byte(`{}`)))
+	if err != nil {
+		t.Fatalf("NewRequest(start) error = %v", err)
+	}
+	startReq.Header.Set("Content-Type", "application/json")
+	startResp, err := server.Client().Do(startReq)
+	if err != nil {
+		t.Fatalf("Do(start) error = %v", err)
+	}
+	defer startResp.Body.Close()
+	if startResp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", startResp.StatusCode, http.StatusConflict)
+	}
+	var startBody internalErrorResponse
+	if err := json.NewDecoder(startResp.Body).Decode(&startBody); err != nil {
+		t.Fatalf("Decode(start) error = %v", err)
+	}
+	if startBody.ErrorCode != "JOB_START_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_START_CONFLICT", startBody.ErrorCode)
+	}
+	if !strings.Contains(startBody.Message, "requires prepare recompile") || !strings.Contains(startBody.Message, "prepared_template_subject_version mismatch") {
+		t.Fatalf("message = %q, want template prepare recompile conflict", startBody.Message)
+	}
+
+	resumeReq, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-template-source-reapproval:resume", bytes.NewReader([]byte(`{"resume_mode":"retry_failed_run"}`)))
+	if err != nil {
+		t.Fatalf("NewRequest(resume) error = %v", err)
+	}
+	resumeReq.Header.Set("Content-Type", "application/json")
+	resumeResp, err := server.Client().Do(resumeReq)
+	if err != nil {
+		t.Fatalf("Do(resume) error = %v", err)
+	}
+	defer resumeResp.Body.Close()
+	if resumeResp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resumeResp.StatusCode, http.StatusConflict)
+	}
+	var resumeBody internalErrorResponse
+	if err := json.NewDecoder(resumeResp.Body).Decode(&resumeBody); err != nil {
+		t.Fatalf("Decode(resume) error = %v", err)
+	}
+	if resumeBody.ErrorCode != "JOB_RESUME_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_RESUME_CONFLICT", resumeBody.ErrorCode)
+	}
+	if !strings.Contains(resumeBody.Message, "requires prepare recompile") || !strings.Contains(resumeBody.Message, "prepared_template_subject_version mismatch") {
+		t.Fatalf("message = %q, want template prepare recompile conflict", resumeBody.Message)
+	}
+}
+
+func TestResumeFailedPublicJobRejectsWhenPreparedBundleRecompiledAfterFailure(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-resume-recompile-conflict",
+		"prd_id":           "prd-public-resume-recompile-conflict",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-resume-recompile-conflict",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-resume-recompile-conflict",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-resume-recompile-conflict", "prd-public-resume-recompile-conflict", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，重新编译后进入新的执行轮次。",
+		"job_id":           "job-public-resume-recompile-conflict",
+		"prd_id":           "prd-public-resume-recompile-conflict",
+	}, http.StatusOK)
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-resume-recompile-conflict:resume", bytes.NewReader([]byte(`{"resume_mode":"retry_failed_run"}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+	var body internalErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if body.ErrorCode != "JOB_RESUME_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_RESUME_CONFLICT", body.ErrorCode)
+	}
+	if !strings.Contains(body.Message, "use start instead of resume") {
+		t.Fatalf("message = %q, want stale prepared run conflict", body.Message)
+	}
+}
+
+func TestResumeFailedPublicJobRejectsWhenPreparedBuilderInputChangesAfterFailure(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-resume-builder-input-conflict",
+		"prd_id":           "prd-public-resume-builder-input-conflict",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-resume-builder-input-conflict",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-resume-builder-input-conflict",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-resume-builder-input-conflict", "prd-public-resume-builder-input-conflict", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	builderInputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-builder-input-conflict", "prepare", "builder-input.json")
+	builderInputData, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	builderInput["token_budget"] = 4096
+	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal(builder-input.json) error = %v", err)
+	}
+	if err := os.WriteFile(builderInputPath, append(updatedBuilderInput, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile(builder-input.json) error = %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/job-public-resume-builder-input-conflict:resume", bytes.NewReader([]byte(`{"resume_mode":"retry_failed_run"}`)))
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+	var body internalErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if body.ErrorCode != "JOB_RESUME_CONFLICT" {
+		t.Fatalf("error_code = %q, want JOB_RESUME_CONFLICT", body.ErrorCode)
+	}
+	if !strings.Contains(body.Message, "use start instead of resume") {
+		t.Fatalf("message = %q, want stale prepared run conflict after builder-input drift", body.Message)
+	}
+}
+
 func TestResumeFailedPublicJobRestoresPreservedWorkspace(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
@@ -2342,6 +5620,212 @@ func TestResumeFailedPublicJobRestoresPreservedWorkspace(t *testing.T) {
 	}
 	if !foundWorkspaceArchived || !foundWorkspaceRestored {
 		t.Fatalf("missing workspace lifecycle events: archived=%v restored=%v items=%v", foundWorkspaceArchived, foundWorkspaceRestored, items)
+	}
+}
+
+func TestResumeFailedPublicJobFallsBackToJobWorkspaceWhenPreservedWorkspacePathMissing(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-resume-preserved-missing-path",
+		"prd_id":           "prd-public-resume-preserved-missing-path",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-resume-preserved-missing-path",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-resume-preserved-missing-path",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-resume-preserved-missing-path", "prd-public-resume-preserved-missing-path", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	if err := os.WriteFile(filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-preserved-missing-path", "workspace", "resume-marker.txt"), []byte("resume-fallback-workspace\n"), 0o644); err != nil {
+		if err := os.MkdirAll(filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-preserved-missing-path", "workspace"), 0o755); err != nil {
+			t.Fatalf("MkdirAll(workspace) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-preserved-missing-path", "workspace", "resume-marker.txt"), []byte("resume-fallback-workspace\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile(resume-marker.txt) error = %v", err)
+		}
+	}
+
+	outputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-preserved-missing-path", "runs", runID, "builder-output.json")
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	output := sampleBuildRunOutputFor("job-public-resume-preserved-missing-path")
+	output["status"] = "failed"
+	output["resume_context"] = map[string]any{
+		"resume_allowed":               true,
+		"failure_category":             "builder_runtime_failure",
+		"requires_preserved_workspace": true,
+		"preserved_workspace_path":     "",
+		"next_action":                  "inspect_preserved_workspace",
+	}
+	data, err := json.Marshal(output)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if err := os.WriteFile(outputPath, append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-resume-preserved-missing-path", http.StatusOK)
+	resumeContext, ok := loaded["resume_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("resume_context = %T, want map[string]any", loaded["resume_context"])
+	}
+	if resumeContext["preserved_workspace_path"] != "jobs/job-public-resume-preserved-missing-path/workspace" {
+		t.Fatalf("preserved_workspace_path = %v, want synthesized workspace path", resumeContext["preserved_workspace_path"])
+	}
+	if resumeContext["recommended_resume_mode"] != "resume_from_failure" {
+		t.Fatalf("recommended_resume_mode = %v, want resume_from_failure", resumeContext["recommended_resume_mode"])
+	}
+
+	resumed := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-resume-preserved-missing-path:resume", map[string]any{
+		"resume_mode": "resume_from_failure",
+	}, http.StatusOK)
+	if resumed["status"] != "running_builder" {
+		t.Fatalf("status = %v, want running_builder", resumed["status"])
+	}
+	completed := waitForJobStatus(t, server.Client(), server.URL+"/api/v1/jobs/job-public-resume-preserved-missing-path", "completed", 5*time.Second)
+	if completed["builder_output_path"] == "" {
+		t.Fatal("builder_output_path should not be empty after fallback workspace resume completion")
+	}
+	markerData, err := os.ReadFile(filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-preserved-missing-path", "workspace", "resume-marker.txt"))
+	if err != nil {
+		t.Fatalf("ReadFile(resume-marker.txt) error = %v", err)
+	}
+	if strings.TrimSpace(string(markerData)) != "resume-fallback-workspace" {
+		t.Fatalf("resume-marker.txt = %q, want resume-fallback-workspace", string(markerData))
+	}
+}
+
+func TestResumeFailedPublicJobDefaultsToResumeFromFailureWhenPreservedWorkspaceRequired(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-public-resume-preserved-default-mode",
+		"prd_id":           "prd-public-resume-preserved-default-mode",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-resume-preserved-default-mode",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-public-resume-preserved-default-mode",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-public-resume-preserved-default-mode", "prd-public-resume-preserved-default-mode", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/fail", map[string]any{
+		"summary":             "builder runtime crashed",
+		"recovery_suggestion": "retry later",
+		"failure_signatures":  []string{"runtime_crash"},
+	}, http.StatusOK)
+
+	preservedDir := filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-preserved-default-mode", "snapshots", "preserved", "resume-1")
+	if err := os.MkdirAll(preservedDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(preservedDir) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(preservedDir, "resume-marker.txt"), []byte("resume-default-mode\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(resume-marker.txt) error = %v", err)
+	}
+
+	outputPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-preserved-default-mode", "runs", runID, "builder-output.json")
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	output := sampleBuildRunOutputFor("job-public-resume-preserved-default-mode")
+	output["status"] = "failed"
+	output["resume_context"] = map[string]any{
+		"resume_allowed":               true,
+		"failure_category":             "builder_runtime_failure",
+		"requires_preserved_workspace": true,
+		"preserved_workspace_path":     "jobs/job-public-resume-preserved-default-mode/snapshots/preserved/resume-1",
+		"next_action":                  "resume_from_failure",
+	}
+	data, err := json.Marshal(output)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if err := os.WriteFile(outputPath, append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	resumed := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-resume-preserved-default-mode:resume", map[string]any{}, http.StatusOK)
+	if resumed["status"] != "running_builder" {
+		t.Fatalf("status = %v, want running_builder", resumed["status"])
+	}
+	completed := waitForJobStatus(t, server.Client(), server.URL+"/api/v1/jobs/job-public-resume-preserved-default-mode", "completed", 5*time.Second)
+	if completed["builder_output_path"] == "" {
+		t.Fatal("builder_output_path should not be empty after default resume_from_failure completion")
+	}
+	markerData, err := os.ReadFile(filepath.Join(workspace, "appfactory", "jobs", "job-public-resume-preserved-default-mode", "workspace", "resume-marker.txt"))
+	if err != nil {
+		t.Fatalf("ReadFile(resume-marker.txt) error = %v", err)
+	}
+	if strings.TrimSpace(string(markerData)) != "resume-default-mode" {
+		t.Fatalf("resume-marker.txt = %q, want resume-default-mode", string(markerData))
 	}
 }
 
@@ -2705,6 +6189,68 @@ func TestGetNotificationsReturnsPendingApprovalsAndFailedJobs(t *testing.T) {
 
 	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
 		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-notify-execution-failed",
+		"prd_id":           "prd-notify-execution-failed",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-notify-execution-failed",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	if err := h.persistPublicJobExecutionRecord(publicJobExecutionRecord{
+		SchemaVersion: "0.1.0",
+		JobID:         "job-notify-execution-failed",
+		RunID:         "run-notify-execution-failed",
+		Action:        "start",
+		Status:        "failed",
+		AttemptCount:  1,
+		RequestedAt:   time.Now().UTC().Add(-75 * time.Second).Format(time.RFC3339),
+		FinishedAt:    time.Now().UTC().Add(-70 * time.Second).Format(time.RFC3339),
+		LastError:     "executor crashed before run status could be finalized",
+		Attempts: []publicJobExecutionAttempt{{
+			Attempt:       1,
+			OwnerID:       h.orchestratorInstanceID,
+			ClaimedAt:     time.Now().UTC().Add(-74 * time.Second).Format(time.RFC3339),
+			LastRenewedAt: time.Now().UTC().Add(-72 * time.Second).Format(time.RFC3339),
+			ReleasedAt:    time.Now().UTC().Add(-70 * time.Second).Format(time.RFC3339),
+			ReleaseReason: "failed",
+		}},
+	}); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord() error = %v", err)
+	}
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-notify-execution-cancelled",
+		"prd_id":           "prd-notify-execution-cancelled",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-notify-execution-cancelled",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	if err := h.persistPublicJobExecutionRecord(publicJobExecutionRecord{
+		SchemaVersion: "0.1.0",
+		JobID:         "job-notify-execution-cancelled",
+		RunID:         "run-notify-execution-cancelled",
+		Action:        "resume",
+		Status:        "cancelled",
+		AttemptCount:  1,
+		RequestedAt:   time.Now().UTC().Add(-68 * time.Second).Format(time.RFC3339),
+		FinishedAt:    time.Now().UTC().Add(-64 * time.Second).Format(time.RFC3339),
+		LastError:     "operator cancelled orchestrator execution before dispatch stabilized",
+		Attempts: []publicJobExecutionAttempt{{
+			Attempt:       1,
+			OwnerID:       h.orchestratorInstanceID,
+			ClaimedAt:     time.Now().UTC().Add(-67 * time.Second).Format(time.RFC3339),
+			LastRenewedAt: time.Now().UTC().Add(-65 * time.Second).Format(time.RFC3339),
+			ReleasedAt:    time.Now().UTC().Add(-64 * time.Second).Format(time.RFC3339),
+			ReleaseReason: "cancelled",
+		}},
+	}); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord() error = %v", err)
+	}
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
 		"job_id":           "job-notify-cancelled",
 		"prd_id":           "prd-notify-cancelled",
 	}, http.StatusOK)
@@ -2726,11 +6272,13 @@ func TestGetNotificationsReturnsPendingApprovalsAndFailedJobs(t *testing.T) {
 
 	notifications := getJSONURL(t, server.Client(), server.URL+"/api/v1/notifications", http.StatusOK)
 	items, ok := notifications["items"].([]any)
-	if !ok || len(items) < 6 {
-		t.Fatalf("items = %v, want at least 6 notifications", notifications["items"])
+	if !ok || len(items) < 8 {
+		t.Fatalf("items = %v, want at least 8 notifications", notifications["items"])
 	}
 	foundApprovalRequested := false
 	foundBuilderFailed := false
+	foundExecutionFailed := false
+	foundExecutionCancelled := false
 	foundExecutionInterrupted := false
 	foundExecutionHandoff := false
 	foundExecutionRecoveryFailed := false
@@ -2768,6 +6316,18 @@ func TestGetNotificationsReturnsPendingApprovalsAndFailedJobs(t *testing.T) {
 				t.Fatalf("execution_interrupted suggested_action = %v, want resume_interrupted_job", notification["suggested_action"])
 			}
 		}
+		if notification["type"] == "execution_failed" {
+			foundExecutionFailed = true
+			if notification["suggested_action"] != "inspect_failure_and_retry_later" {
+				t.Fatalf("execution_failed suggested_action = %v, want inspect_failure_and_retry_later", notification["suggested_action"])
+			}
+		}
+		if notification["type"] == "execution_cancelled" {
+			foundExecutionCancelled = true
+			if notification["suggested_action"] != "inspect_execution_history" {
+				t.Fatalf("execution_cancelled suggested_action = %v, want inspect_execution_history", notification["suggested_action"])
+			}
+		}
 		if notification["type"] == "execution_handoff" {
 			foundExecutionHandoff = true
 			if notification["suggested_action"] != "inspect_execution_history" {
@@ -2787,8 +6347,8 @@ func TestGetNotificationsReturnsPendingApprovalsAndFailedJobs(t *testing.T) {
 			}
 		}
 	}
-	if !foundApprovalRequested || !foundBuilderFailed || !foundExecutionInterrupted || !foundExecutionHandoff || !foundExecutionRecoveryFailed || !foundWorkspacePreserved {
-		t.Fatalf("missing notification types: approval=%v builder_failed=%v execution_interrupted=%v execution_handoff=%v execution_recovery_failed=%v workspace_preserved=%v items=%v", foundApprovalRequested, foundBuilderFailed, foundExecutionInterrupted, foundExecutionHandoff, foundExecutionRecoveryFailed, foundWorkspacePreserved, items)
+	if !foundApprovalRequested || !foundBuilderFailed || !foundExecutionFailed || !foundExecutionCancelled || !foundExecutionInterrupted || !foundExecutionHandoff || !foundExecutionRecoveryFailed || !foundWorkspacePreserved {
+		t.Fatalf("missing notification types: approval=%v builder_failed=%v execution_failed=%v execution_cancelled=%v execution_interrupted=%v execution_handoff=%v execution_recovery_failed=%v workspace_preserved=%v items=%v", foundApprovalRequested, foundBuilderFailed, foundExecutionFailed, foundExecutionCancelled, foundExecutionInterrupted, foundExecutionHandoff, foundExecutionRecoveryFailed, foundWorkspacePreserved, items)
 	}
 	notificationIndexPath := filepath.Join(workspace, "appfactory", "notifications", "index.json")
 	indexData, err := os.ReadFile(notificationIndexPath)
@@ -2799,10 +6359,13 @@ func TestGetNotificationsReturnsPendingApprovalsAndFailedJobs(t *testing.T) {
 	if err := json.Unmarshal(indexData, &persisted); err != nil {
 		t.Fatalf("Unmarshal(notification index) error = %v", err)
 	}
-	requireExactObjectKeys(t, persisted, []string{"items"})
+	requireExactObjectKeys(t, persisted, []string{"generated_at", "items"})
+	if generatedAt, _ := persisted["generated_at"].(string); strings.TrimSpace(generatedAt) == "" {
+		t.Fatalf("generated_at = %v, want non-empty", persisted["generated_at"])
+	}
 	persistedItems, ok := persisted["items"].([]any)
-	if !ok || len(persistedItems) < 6 {
-		t.Fatalf("persisted items = %v, want at least 6 notifications", persisted["items"])
+	if !ok || len(persistedItems) < 8 {
+		t.Fatalf("persisted items = %v, want at least 8 notifications", persisted["items"])
 	}
 	for _, item := range persistedItems {
 		notification, ok := item.(map[string]any)
@@ -2898,6 +6461,9 @@ func TestNotificationsSupportAckFilterAndRebuild(t *testing.T) {
 	rebuilt := postJSONURL(t, server.Client(), server.URL+"/api/v1/notifications:rebuild", map[string]any{}, http.StatusOK)
 	if rebuilt["rebuild"] != true {
 		t.Fatalf("rebuild = %v, want true", rebuilt["rebuild"])
+	}
+	if generatedAt, _ := rebuilt["generated_at"].(string); strings.TrimSpace(generatedAt) == "" {
+		t.Fatalf("generated_at = %v, want non-empty", rebuilt["generated_at"])
 	}
 	rebuiltItems, ok := rebuilt["items"].([]any)
 	if !ok || len(rebuiltItems) == 0 {
@@ -3003,6 +6569,148 @@ func TestRunOrchestratorPassEndpointReturnsUpdatedStatus(t *testing.T) {
 	}
 	if status["foreign_live_lease_skips"] != float64(1) {
 		t.Fatalf("foreign_live_lease_skips = %v, want 1", status["foreign_live_lease_skips"])
+	}
+}
+
+func TestRunPublicJobOrchestratorPassAccumulatesForeignLiveLeaseSkipsAcrossPasses(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	if err := h.persistPublicJobExecutionRecord(publicJobExecutionRecord{
+		SchemaVersion:   "0.1.0",
+		JobID:           "job-pass-accumulate-skip",
+		RunID:           "run-pass-accumulate-skip",
+		Action:          "resume",
+		Status:          "queued",
+		LeaseOwnerID:    "orchestrator-foreign",
+		LeaseAcquiredAt: time.Now().UTC().Add(-10 * time.Second).Format(time.RFC3339),
+		LeaseExpiresAt:  time.Now().UTC().Add(90 * time.Second).Format(time.RFC3339),
+		RequestedAt:     time.Now().UTC().Add(-10 * time.Second).Format(time.RFC3339),
+	}); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord() error = %v", err)
+	}
+
+	firstStatus, err := h.RunPublicJobOrchestratorPass("test_accumulate_skip_first")
+	if err != nil {
+		t.Fatalf("RunPublicJobOrchestratorPass(first) error = %v", err)
+	}
+	if firstStatus.ForeignLiveLeaseSkips != 1 {
+		t.Fatalf("foreign_live_lease_skips = %d, want 1 after first pass", firstStatus.ForeignLiveLeaseSkips)
+	}
+	if firstStatus.LastTrigger != "test_accumulate_skip_first" {
+		t.Fatalf("last_trigger = %q, want test_accumulate_skip_first", firstStatus.LastTrigger)
+	}
+
+	secondStatus, err := h.RunPublicJobOrchestratorPass("test_accumulate_skip_second")
+	if err != nil {
+		t.Fatalf("RunPublicJobOrchestratorPass(second) error = %v", err)
+	}
+	if secondStatus.ForeignLiveLeaseSkips != 2 {
+		t.Fatalf("foreign_live_lease_skips = %d, want 2 after second pass", secondStatus.ForeignLiveLeaseSkips)
+	}
+	if secondStatus.LastTrigger != "test_accumulate_skip_second" {
+		t.Fatalf("last_trigger = %q, want test_accumulate_skip_second", secondStatus.LastTrigger)
+	}
+
+	loaded, err := h.LoadPublicJobOrchestratorStatus()
+	if err != nil {
+		t.Fatalf("LoadPublicJobOrchestratorStatus() error = %v", err)
+	}
+	if loaded.ForeignLiveLeaseSkips != 2 {
+		t.Fatalf("persisted foreign_live_lease_skips = %d, want 2", loaded.ForeignLiveLeaseSkips)
+	}
+	if loaded.LastTrigger != "test_accumulate_skip_second" {
+		t.Fatalf("persisted last_trigger = %q, want test_accumulate_skip_second", loaded.LastTrigger)
+	}
+}
+
+func TestRunPublicJobOrchestratorPassRetainsQueuedAndRunningRecoveryCountersAcrossPasses(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	requestedAt := time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339)
+	if err := h.persistPublicJobExecutionRecord(publicJobExecutionRecord{
+		SchemaVersion:  "0.1.0",
+		JobID:          "job-pass-queued-recovery",
+		RunID:          "run-pass-queued-recovery",
+		Action:         "start",
+		Status:         "queued",
+		TimeoutSeconds: 300,
+		RequestedAt:    requestedAt,
+	}); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord(queued) error = %v", err)
+	}
+	if err := h.persistPublicJobExecutionRecord(publicJobExecutionRecord{
+		SchemaVersion:  "0.1.0",
+		JobID:          "job-pass-running-recovery",
+		RunID:          "run-pass-running-recovery",
+		Action:         "resume",
+		Status:         "running",
+		TimeoutSeconds: 300,
+		RequestedAt:    requestedAt,
+		StartedAt:      time.Now().UTC().Add(-90 * time.Second).Format(time.RFC3339),
+	}); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord(running) error = %v", err)
+	}
+
+	firstStatus, err := h.RunPublicJobOrchestratorPass("test_recovery_counters_first")
+	if err != nil {
+		t.Fatalf("RunPublicJobOrchestratorPass(first) error = %v", err)
+	}
+	h.waitForAsyncJobs()
+	if firstStatus.QueuedRecoveries != 1 {
+		t.Fatalf("queued_recoveries = %d, want 1 after first pass", firstStatus.QueuedRecoveries)
+	}
+	if firstStatus.RunningRecoveries != 1 {
+		t.Fatalf("running_recoveries = %d, want 1 after first pass", firstStatus.RunningRecoveries)
+	}
+
+	queuedExecution := readPublicJobExecutionRecord(t, workspace, "job-pass-queued-recovery")
+	if queuedExecution.Status != "failed" {
+		t.Fatalf("queued execution status = %q, want failed after first recovery attempt", queuedExecution.Status)
+	}
+	runningExecution := readPublicJobExecutionRecord(t, workspace, "job-pass-running-recovery")
+	if runningExecution.Status != "failed" {
+		t.Fatalf("running execution status = %q, want failed after first recovery attempt", runningExecution.Status)
+	}
+
+	secondStatus, err := h.RunPublicJobOrchestratorPass("test_recovery_counters_second")
+	if err != nil {
+		t.Fatalf("RunPublicJobOrchestratorPass(second) error = %v", err)
+	}
+	h.waitForAsyncJobs()
+	if secondStatus.QueuedRecoveries != firstStatus.QueuedRecoveries {
+		t.Fatalf("queued_recoveries = %d, want retained %d after second pass", secondStatus.QueuedRecoveries, firstStatus.QueuedRecoveries)
+	}
+	if secondStatus.RunningRecoveries != firstStatus.RunningRecoveries {
+		t.Fatalf("running_recoveries = %d, want retained %d after second pass", secondStatus.RunningRecoveries, firstStatus.RunningRecoveries)
+	}
+
+	loaded, err := h.LoadPublicJobOrchestratorStatus()
+	if err != nil {
+		t.Fatalf("LoadPublicJobOrchestratorStatus() error = %v", err)
+	}
+	if loaded.QueuedRecoveries != 1 {
+		t.Fatalf("persisted queued_recoveries = %d, want 1", loaded.QueuedRecoveries)
+	}
+	if loaded.RunningRecoveries != 1 {
+		t.Fatalf("persisted running_recoveries = %d, want 1", loaded.RunningRecoveries)
+	}
+	if loaded.LastTrigger != "test_recovery_counters_second" {
+		t.Fatalf("persisted last_trigger = %q, want test_recovery_counters_second", loaded.LastTrigger)
 	}
 }
 
@@ -3153,6 +6861,23 @@ func TestUnlockOrchestratorWatchEndpointRejectsForeignActiveLockWithoutForce(t *
 	if body["error_code"] != "APPFACTORY_ORCHESTRATOR_WATCH_LOCK_CONFLICT" {
 		t.Fatalf("error_code = %v, want APPFACTORY_ORCHESTRATOR_WATCH_LOCK_CONFLICT", body["error_code"])
 	}
+	audits := requireJSONLinesObjectsFile(t, filepath.Join(workspace, "appfactory", "orchestrator", "watch-events.jsonl"))
+	if len(audits) != 1 {
+		t.Fatalf("audits = %v, want exactly 1 rejected unlock audit", audits)
+	}
+	audit := audits[0]
+	if audit["action"] != "orchestrator_watch_unlock_rejected" {
+		t.Fatalf("audit action = %v, want orchestrator_watch_unlock_rejected", audit["action"])
+	}
+	if audit["watch_lock_state"] != "held_by_other" {
+		t.Fatalf("watch_lock_state = %v, want held_by_other", audit["watch_lock_state"])
+	}
+	if audit["watch_lock_owner_id"] != "orchestrator-foreign" {
+		t.Fatalf("watch_lock_owner_id = %v, want orchestrator-foreign", audit["watch_lock_owner_id"])
+	}
+	if !strings.Contains(fmt.Sprint(audit["summary"]), "rerun with force") {
+		t.Fatalf("summary = %v, want force hint", audit["summary"])
+	}
 }
 
 func TestUnlockOrchestratorWatchEndpointForceClearsForeignActiveLock(t *testing.T) {
@@ -3286,6 +7011,23 @@ func TestStartOrchestratorWatchEndpointRejectsDuplicateStart(t *testing.T) {
 	}
 	if body["error_code"] != "APPFACTORY_ORCHESTRATOR_WATCH_CONFLICT" {
 		t.Fatalf("error_code = %v, want APPFACTORY_ORCHESTRATOR_WATCH_CONFLICT", body["error_code"])
+	}
+	audits := requireJSONLinesObjectsFile(t, filepath.Join(workspace, "appfactory", "orchestrator", "watch-events.jsonl"))
+	if len(audits) < 2 {
+		t.Fatalf("audits = %v, want started + rejected start audits", audits)
+	}
+	lastAudit := audits[len(audits)-1]
+	if lastAudit["action"] != "orchestrator_watch_start_rejected" {
+		t.Fatalf("last audit action = %v, want orchestrator_watch_start_rejected", lastAudit["action"])
+	}
+	if lastAudit["watch_runner_state"] != "running" {
+		t.Fatalf("watch_runner_state = %v, want running", lastAudit["watch_runner_state"])
+	}
+	if lastAudit["watch_lock_state"] != "held_by_self" {
+		t.Fatalf("watch_lock_state = %v, want held_by_self", lastAudit["watch_lock_state"])
+	}
+	if !strings.Contains(fmt.Sprint(lastAudit["summary"]), "already running") {
+		t.Fatalf("summary = %v, want already running", lastAudit["summary"])
 	}
 }
 
@@ -3916,14 +7658,17 @@ func TestRecordDeliveryEndpointPersistsDeliveryRecordAndProjectsSignals(t *testi
 	}, http.StatusOK)
 
 	recorded := postJSONURL(t, server.Client(), server.URL+"/internal/v1/deliveries:record", map[string]any{
-		"run_id":                runID,
-		"reviewer_id":           "qa-owner",
-		"status":                "staged",
-		"release_channel":       "canary",
-		"rollout_percent":       20,
-		"summary":               "canary rollout approved",
-		"evidence_paths":        []string{"reports/review-bundle.md", "reports/handoff-checklist.md"},
-		"signed_artifact_paths": []string{"artifacts/app-signed.apk"},
+		"run_id":                             runID,
+		"reviewer_id":                        "qa-owner",
+		"status":                             "staged",
+		"release_channel":                    "canary",
+		"rollout_percent":                    20,
+		"summary":                            "canary rollout approved",
+		"evidence_paths":                     []string{"reports/review-bundle.md", "reports/handoff-checklist.md"},
+		"signed_artifact_paths":              []string{"artifacts/app-signed.apk"},
+		"device_verification_status":         "pending",
+		"device_verification_summary":        "waiting for device validation",
+		"device_verification_evidence_paths": []string{"reports/smoke-test-report.md"},
 	}, http.StatusOK)
 	if recorded["ack"] != true {
 		t.Fatalf("ack = %v, want true", recorded["ack"])
@@ -3945,6 +7690,7 @@ func TestRecordDeliveryEndpointPersistsDeliveryRecordAndProjectsSignals(t *testi
 		"reviewer_id",
 		"evidence_paths",
 		"signed_artifact_paths",
+		"device_verification",
 		"recorded_at",
 	})
 	if delivery["status"] != "staged" {
@@ -3953,13 +7699,21 @@ func TestRecordDeliveryEndpointPersistsDeliveryRecordAndProjectsSignals(t *testi
 	if delivery["release_channel"] != "canary" {
 		t.Fatalf("delivery release_channel = %v, want canary", delivery["release_channel"])
 	}
+	deviceVerification, ok := delivery["device_verification"].(map[string]any)
+	if !ok {
+		t.Fatalf("delivery.device_verification = %T, want map[string]any", delivery["device_verification"])
+	}
+	if deviceVerification["status"] != "pending" {
+		t.Fatalf("device_verification.status = %v, want pending", deviceVerification["status"])
+	}
 
 	manifest := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-delivery-record/artifacts", http.StatusOK)
 	items, ok := manifest["items"].([]any)
-	if !ok || len(items) < 8 {
-		t.Fatalf("items = %v, want at least 8 artifacts", manifest["items"])
+	if !ok || len(items) < 9 {
+		t.Fatalf("items = %v, want at least 9 artifacts", manifest["items"])
 	}
 	foundDeliveryRecord := false
+	foundDeviceVerification := false
 	for _, item := range items {
 		artifact, ok := item.(map[string]any)
 		if !ok {
@@ -3971,9 +7725,18 @@ func TestRecordDeliveryEndpointPersistsDeliveryRecordAndProjectsSignals(t *testi
 				t.Fatalf("delivery-record path = %v, want reports/delivery-record.json", artifact["path"])
 			}
 		}
+		if artifact["artifact_id"] == "device-verification" {
+			foundDeviceVerification = true
+			if artifact["path"] != "reports/device-verification.json" {
+				t.Fatalf("device-verification path = %v, want reports/device-verification.json", artifact["path"])
+			}
+		}
 	}
 	if !foundDeliveryRecord {
 		t.Fatalf("delivery-record artifact missing from manifest: %v", items)
+	}
+	if !foundDeviceVerification {
+		t.Fatalf("device-verification artifact missing from manifest: %v", items)
 	}
 
 	job := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-delivery-record", http.StatusOK)
@@ -3986,6 +7749,16 @@ func TestRecordDeliveryEndpointPersistsDeliveryRecordAndProjectsSignals(t *testi
 	}
 	if deliveryContext["delivery_record_path"] != "jobs/job-delivery-record/reports/delivery-record.json" {
 		t.Fatalf("delivery_context.delivery_record_path = %v, want jobs/job-delivery-record/reports/delivery-record.json", deliveryContext["delivery_record_path"])
+	}
+	if deliveryContext["suggested_action"] != "verify_staged_release" {
+		t.Fatalf("delivery_context.suggested_action = %v, want verify_staged_release", deliveryContext["suggested_action"])
+	}
+	deviceVerificationContext, ok := deliveryContext["device_verification"].(map[string]any)
+	if !ok {
+		t.Fatalf("delivery_context.device_verification = %T, want map[string]any", deliveryContext["device_verification"])
+	}
+	if deviceVerificationContext["status"] != "pending" {
+		t.Fatalf("delivery_context.device_verification.status = %v, want pending", deviceVerificationContext["status"])
 	}
 
 	events := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-delivery-record/events", http.StatusOK)
@@ -4012,6 +7785,22 @@ func TestRecordDeliveryEndpointPersistsDeliveryRecordAndProjectsSignals(t *testi
 	if !foundDeliveryEvent {
 		t.Fatalf("delivery_staged event missing: %v", eventItems)
 	}
+	foundDeviceVerificationEvent := false
+	for _, raw := range eventItems {
+		event, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if event["type"] == "device_verification_updated" {
+			foundDeviceVerificationEvent = true
+			if event["device_verification_status"] != "pending" {
+				t.Fatalf("device verification event status = %v, want pending", event["device_verification_status"])
+			}
+		}
+	}
+	if !foundDeviceVerificationEvent {
+		t.Fatalf("device_verification_updated event missing: %v", eventItems)
+	}
 
 	notifications := getJSONURL(t, server.Client(), server.URL+"/api/v1/notifications?job_id=job-delivery-record", http.StatusOK)
 	notificationItems, ok := notifications["items"].([]any)
@@ -4036,6 +7825,168 @@ func TestRecordDeliveryEndpointPersistsDeliveryRecordAndProjectsSignals(t *testi
 	}
 	if !foundDeliveryNotification {
 		t.Fatalf("delivery_staged notification missing: %v", notificationItems)
+	}
+	foundDeviceVerificationNotification := false
+	for _, raw := range notificationItems {
+		notification, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if notification["type"] == "device_verification_updated" {
+			foundDeviceVerificationNotification = true
+			if notification["device_verification_status"] != "pending" {
+				t.Fatalf("device verification notification status = %v, want pending", notification["device_verification_status"])
+			}
+		}
+	}
+	if !foundDeviceVerificationNotification {
+		t.Fatalf("device_verification_updated notification missing: %v", notificationItems)
+	}
+}
+
+func TestRecordDeliveryFollowUpPersistsAndProjectsSignals(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-delivery-follow-up",
+		"prd_id":           "prd-delivery-follow-up",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-delivery-follow-up",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+	allocated := postJSONURL(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{
+		"job_id": "job-delivery-follow-up",
+	}, http.StatusOK)
+	leaseID, _ := allocated["lease_id"].(string)
+	createdRun := postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputFor("job-delivery-follow-up", "prd-delivery-follow-up", "flutter-finance-lite"),
+	}, http.StatusOK)
+	runID, _ := createdRun["run_id"].(string)
+	finishedAt := time.Now().UTC()
+	startedAt := finishedAt.Add(-30 * time.Second)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID+"/complete", map[string]any{
+		"builder_output": map[string]any{
+			"schema_version":     "0.1.0",
+			"job_id":             "job-delivery-follow-up",
+			"status":             "success",
+			"exit_reason":        "completed",
+			"worker_id":          "builder-a",
+			"started_at":         startedAt.Format(time.RFC3339),
+			"finished_at":        finishedAt.Format(time.RFC3339),
+			"final_summary":      "builder completed for delivery follow-up",
+			"modified_files":     []any{},
+			"checks_passed":      []any{},
+			"checks_failed":      []any{},
+			"next_human_actions": []any{},
+			"artifacts":          map[string]any{"manifest_path": "", "primary_outputs": []any{}},
+			"metrics":            map[string]any{"metrics_path": "", "total_iterations": 1, "total_tokens": 0, "distinct_failure_signatures": 0},
+			"report_paths":       map[string]any{"change_summary_path": "", "build_report_path": "", "smoke_test_report_path": ""},
+		},
+	}, http.StatusOK)
+
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/deliveries:record", map[string]any{
+		"run_id":          runID,
+		"reviewer_id":     "release-owner",
+		"status":          "released",
+		"release_channel": "production",
+		"summary":         "production release approved",
+		"evidence_paths":  []string{"reports/review-bundle.md"},
+	}, http.StatusOK)
+
+	followUp := postJSONURL(t, server.Client(), server.URL+"/internal/v1/deliveries:follow-up", map[string]any{
+		"run_id":         runID,
+		"owner_id":       "release-duty",
+		"status":         "monitoring",
+		"summary":        "monitoring production feedback",
+		"evidence_paths": []string{"reports/release-feedback.md"},
+	}, http.StatusOK)
+	if followUp["follow_up_record_path"] != "reports/release-follow-up.json" {
+		t.Fatalf("follow_up_record_path = %v, want reports/release-follow-up.json", followUp["follow_up_record_path"])
+	}
+
+	delivery := requireJSONObjectFile(t, filepath.Join(workspace, "appfactory", "jobs", "job-delivery-follow-up", "reports", "delivery-record.json"))
+	releaseFollowUp, ok := delivery["release_follow_up"].(map[string]any)
+	if !ok {
+		t.Fatalf("delivery.release_follow_up = %T, want map[string]any", delivery["release_follow_up"])
+	}
+	if releaseFollowUp["status"] != "monitoring" {
+		t.Fatalf("release_follow_up.status = %v, want monitoring", releaseFollowUp["status"])
+	}
+
+	job := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-delivery-follow-up", http.StatusOK)
+	deliveryContext, ok := job["delivery_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("delivery_context = %v, want object", job["delivery_context"])
+	}
+	followUpContext, ok := deliveryContext["release_follow_up"].(map[string]any)
+	if !ok {
+		t.Fatalf("delivery_context.release_follow_up = %T, want map[string]any", deliveryContext["release_follow_up"])
+	}
+	if followUpContext["status"] != "monitoring" {
+		t.Fatalf("delivery_context.release_follow_up.status = %v, want monitoring", followUpContext["status"])
+	}
+
+	events := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-delivery-follow-up/events", http.StatusOK)
+	eventItems, _ := events["items"].([]any)
+	foundFollowUpEvent := false
+	for _, raw := range eventItems {
+		event, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if event["type"] == "delivery_follow_up_updated" {
+			foundFollowUpEvent = true
+			if event["release_follow_up_status"] != "monitoring" {
+				t.Fatalf("release_follow_up event status = %v, want monitoring", event["release_follow_up_status"])
+			}
+		}
+	}
+	if !foundFollowUpEvent {
+		t.Fatalf("delivery_follow_up_updated event missing: %v", eventItems)
+	}
+
+	notifications := getJSONURL(t, server.Client(), server.URL+"/api/v1/notifications?job_id=job-delivery-follow-up", http.StatusOK)
+	notificationItems, _ := notifications["items"].([]any)
+	foundFollowUpNotification := false
+	for _, raw := range notificationItems {
+		notification, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if notification["type"] == "delivery_follow_up_updated" {
+			foundFollowUpNotification = true
+			if notification["release_follow_up_status"] != "monitoring" {
+				t.Fatalf("release_follow_up notification status = %v, want monitoring", notification["release_follow_up_status"])
+			}
+		}
+	}
+	if !foundFollowUpNotification {
+		t.Fatalf("delivery_follow_up_updated notification missing: %v", notificationItems)
 	}
 }
 
@@ -4482,6 +8433,237 @@ func TestQueuedPublicJobExecutionRecoveryReclaimsExpiredLease(t *testing.T) {
 	}
 }
 
+func TestRunningPublicJobExecutionRecoverySkipsForeignLiveLeaseThenReclaimsExpiredLease(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-running-lease-handoff",
+		"prd_id":           "prd-running-lease-handoff",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-running-lease-handoff",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	builderSvc, err := h.buildersControlPlane()
+	if err != nil {
+		t.Fatalf("buildersControlPlane() error = %v", err)
+	}
+	runsSvc, err := h.buildRunsControlPlane()
+	if err != nil {
+		t.Fatalf("buildRunsControlPlane() error = %v", err)
+	}
+	bundle, err := h.loadPreparedBundleByJobID("job-running-lease-handoff")
+	if err != nil {
+		t.Fatalf("loadPreparedBundleByJobID() error = %v", err)
+	}
+	preparedInput := bundle.BuilderInput
+	preparedInput.ContextSourceDir = bundle.PrepareDir
+	dispatch, err := builderSvc.Dispatch(context.Background(), appbuilders.Requirement{JobID: "job-running-lease-handoff"})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+	run, err := runsSvc.Create(context.Background(), dispatch.Node.BuilderID, dispatch.Node.BuilderID, dispatch.Lease.LeaseID, preparedInput)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if err := builderSvc.BindRun(context.Background(), dispatch.Lease.LeaseID, run.RunID); err != nil {
+		t.Fatalf("BindRun() error = %v", err)
+	}
+
+	claimedAt := time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339)
+	lastRenewedAt := time.Now().UTC().Add(-4 * time.Minute).Format(time.RFC3339)
+	if err := h.persistPublicJobExecutionRecord(publicJobExecutionRecord{
+		SchemaVersion:   "0.1.0",
+		JobID:           "job-running-lease-handoff",
+		RunID:           run.RunID,
+		Action:          "resume",
+		Status:          "running",
+		AttemptCount:    1,
+		LeaseOwnerID:    "orchestrator-foreign",
+		LeaseAcquiredAt: claimedAt,
+		LeaseExpiresAt:  time.Now().UTC().Add(90 * time.Second).Format(time.RFC3339),
+		TimeoutSeconds:  300,
+		RequestedAt:     time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339),
+		StartedAt:       time.Now().UTC().Add(-4 * time.Minute).Format(time.RFC3339),
+		Attempts: []publicJobExecutionAttempt{{
+			Attempt:       1,
+			OwnerID:       "orchestrator-foreign",
+			ClaimedAt:     claimedAt,
+			LastRenewedAt: lastRenewedAt,
+		}},
+	}); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord() error = %v", err)
+	}
+
+	restarted := NewHandler(configPath)
+	t.Cleanup(restarted.waitForAsyncJobs)
+	restartedMux := http.NewServeMux()
+	restarted.RegisterRoutes(restartedMux)
+	restartedServer := httptest.NewServer(restartedMux)
+	defer restartedServer.Close()
+
+	firstStatus, err := restarted.RunPublicJobOrchestratorPass("test_running_foreign_lease_skip")
+	if err != nil {
+		t.Fatalf("RunPublicJobOrchestratorPass(skip) error = %v", err)
+	}
+	restarted.waitForAsyncJobs()
+	if firstStatus.ForeignLiveLeaseSkips != 1 {
+		t.Fatalf("foreign_live_lease_skips = %d, want 1", firstStatus.ForeignLiveLeaseSkips)
+	}
+	execution := readPublicJobExecutionRecord(t, workspace, "job-running-lease-handoff")
+	if execution.Status != "running" {
+		t.Fatalf("execution status = %q, want running after foreign live lease skip", execution.Status)
+	}
+	if execution.LeaseOwnerID != "orchestrator-foreign" {
+		t.Fatalf("lease_owner_id = %q, want orchestrator-foreign after skip", execution.LeaseOwnerID)
+	}
+	if execution.AttemptCount != 1 || len(execution.Attempts) != 1 {
+		t.Fatalf("attempt audit = %+v, want single foreign attempt after skip", execution.Attempts)
+	}
+	if execution.Attempts[0].ReleasedAt != "" {
+		t.Fatalf("released_at = %q, want empty before lease expiry handoff", execution.Attempts[0].ReleasedAt)
+	}
+
+	execution.LeaseExpiresAt = time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339)
+	if err := restarted.persistPublicJobExecutionRecord(execution); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord(expired) error = %v", err)
+	}
+
+	secondStatus, err := restarted.RunPublicJobOrchestratorPass("test_running_expired_lease_reclaim")
+	if err != nil {
+		t.Fatalf("RunPublicJobOrchestratorPass(reclaim) error = %v", err)
+	}
+	restarted.waitForAsyncJobs()
+	if secondStatus.ForeignLiveLeaseSkips != firstStatus.ForeignLiveLeaseSkips {
+		t.Fatalf("foreign_live_lease_skips = %d, want unchanged %d after lease expiry reclaim", secondStatus.ForeignLiveLeaseSkips, firstStatus.ForeignLiveLeaseSkips)
+	}
+
+	failed := waitForJobStatus(t, restartedServer.Client(), restartedServer.URL+"/api/v1/jobs/job-running-lease-handoff", "failed", 5*time.Second)
+	failureContext, ok := failed["failure_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("failure_context = %T, want map[string]any", failed["failure_context"])
+	}
+	if !strings.Contains(strings.TrimSpace(toString(failureContext["last_error_summary"])), "dispatcher") {
+		t.Fatalf("last_error_summary = %v, want dispatcher-lost summary", failureContext["last_error_summary"])
+	}
+	if failureContext["failure_category"] != "execution_interrupted" {
+		t.Fatalf("failure_category = %v, want execution_interrupted", failureContext["failure_category"])
+	}
+	statusContext, ok := failed["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", failed["status_context"])
+	}
+	if statusContext["reason_code"] != "execution_interrupted" {
+		t.Fatalf("reason_code = %v, want execution_interrupted", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "resume_interrupted_job" {
+		t.Fatalf("suggested_action = %v, want resume_interrupted_job", statusContext["suggested_action"])
+	}
+	execution = waitForPublicJobExecutionStatus(t, workspace, "job-running-lease-handoff", "failed", 5*time.Second)
+	if execution.AttemptCount != 2 {
+		t.Fatalf("attempt_count = %d, want 2 after expiry handoff", execution.AttemptCount)
+	}
+	if len(execution.Attempts) != 2 {
+		t.Fatalf("attempts len = %d, want 2 after expiry handoff", len(execution.Attempts))
+	}
+	if execution.Attempts[0].ReleaseReason != "handoff_after_lease_expiry" || execution.Attempts[0].ReleasedAt == "" {
+		t.Fatalf("first attempt audit = %+v, want handoff_after_lease_expiry with released_at", execution.Attempts[0])
+	}
+	if execution.Attempts[1].OwnerID != restarted.orchestratorInstanceID {
+		t.Fatalf("second attempt owner_id = %q, want %q", execution.Attempts[1].OwnerID, restarted.orchestratorInstanceID)
+	}
+	if execution.Attempts[1].ReleaseReason != "dispatcher_lost" {
+		t.Fatalf("second attempt audit = %+v, want dispatcher_lost", execution.Attempts[1])
+	}
+	if execution.LeaseOwnerID != "" {
+		t.Fatalf("lease_owner_id = %q, want cleared after dispatcher-lost recovery", execution.LeaseOwnerID)
+	}
+	if !strings.Contains(execution.LastError, "dispatcher") {
+		t.Fatalf("execution last_error = %q, want dispatcher-lost message", execution.LastError)
+	}
+
+	recoveredRun, err := runsSvc.Get(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if recoveredRun.Status != appruns.StatusFailed {
+		t.Fatalf("run status = %s, want failed after handoff recovery", recoveredRun.Status)
+	}
+
+	events := getJSONURL(t, restartedServer.Client(), restartedServer.URL+"/api/v1/jobs/job-running-lease-handoff/events", http.StatusOK)
+	items, ok := events["items"].([]any)
+	if !ok || len(items) == 0 {
+		t.Fatalf("items = %v, want non-empty", events["items"])
+	}
+	foundExecutionHandoff := false
+	foundInterruptedEvent := false
+	for _, item := range items {
+		event, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if event["type"] == "execution_handoff" {
+			foundExecutionHandoff = true
+		}
+		if event["type"] == "execution_interrupted" {
+			foundInterruptedEvent = true
+		}
+	}
+	if !foundExecutionHandoff || !foundInterruptedEvent {
+		t.Fatalf("missing running recovery events: handoff=%v execution_interrupted=%v items=%v", foundExecutionHandoff, foundInterruptedEvent, items)
+	}
+
+	notifications := getJSONURL(t, restartedServer.Client(), restartedServer.URL+"/api/v1/notifications", http.StatusOK)
+	notificationItems, ok := notifications["items"].([]any)
+	if !ok || len(notificationItems) == 0 {
+		t.Fatalf("notification items = %v, want non-empty", notifications["items"])
+	}
+	foundExecutionInterrupted := false
+	foundExecutionHandoffNotification := false
+	for _, item := range notificationItems {
+		notification, ok := item.(map[string]any)
+		if !ok || notification["job_id"] != "job-running-lease-handoff" {
+			continue
+		}
+		if notification["type"] == "execution_interrupted" {
+			foundExecutionInterrupted = true
+		}
+		if notification["type"] == "execution_handoff" {
+			foundExecutionHandoffNotification = true
+			if notification["suggested_action"] != "inspect_execution_history" {
+				t.Fatalf("execution_handoff suggested_action = %v, want inspect_execution_history", notification["suggested_action"])
+			}
+		}
+	}
+	if !foundExecutionInterrupted || !foundExecutionHandoffNotification {
+		t.Fatalf("missing running recovery notifications: interrupted=%v handoff=%v items=%v", foundExecutionInterrupted, foundExecutionHandoffNotification, notificationItems)
+	}
+}
+
 func TestPublicJobExecutionLeaseHeartbeatRenewsExpiry(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
@@ -4544,6 +8726,82 @@ func TestPublicJobExecutionLeaseHeartbeatRenewsExpiry(t *testing.T) {
 	}
 }
 
+func TestPublicJobExecutionLeaseHeartbeatDoesNotOverwriteCancelledExecution(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	previousWindow := publicJobExecutionLeaseWindow
+	previousRenewInterval := publicJobExecutionLeaseRenewInterval
+	publicJobExecutionLeaseWindow = 2 * time.Second
+	publicJobExecutionLeaseRenewInterval = 300 * time.Millisecond
+	t.Cleanup(func() {
+		publicJobExecutionLeaseWindow = previousWindow
+		publicJobExecutionLeaseRenewInterval = previousRenewInterval
+	})
+
+	h := NewHandler(configPath)
+	claimedAt := time.Now().UTC().Add(-10 * time.Second).Format(time.RFC3339)
+	record := publicJobExecutionRecord{
+		SchemaVersion:   "0.1.0",
+		JobID:           "job-lease-heartbeat-cancelled",
+		RunID:           "run-lease-heartbeat-cancelled",
+		Action:          "start",
+		Status:          "running",
+		AttemptCount:    1,
+		LeaseOwnerID:    h.orchestratorInstanceID,
+		LeaseAcquiredAt: claimedAt,
+		LeaseExpiresAt:  time.Now().UTC().Add(1 * time.Second).Format(time.RFC3339Nano),
+		TimeoutSeconds:  300,
+		RequestedAt:     time.Now().UTC().Add(-15 * time.Second).Format(time.RFC3339),
+		StartedAt:       time.Now().UTC().Add(-10 * time.Second).Format(time.RFC3339),
+		Attempts: []publicJobExecutionAttempt{{
+			Attempt:       1,
+			OwnerID:       h.orchestratorInstanceID,
+			ClaimedAt:     claimedAt,
+			LastRenewedAt: time.Now().UTC().Add(-1 * time.Second).Format(time.RFC3339),
+		}},
+	}
+	if err := h.persistPublicJobExecutionRecord(record); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord() error = %v", err)
+	}
+
+	var mu sync.Mutex
+	stopHeartbeat := h.startPublicJobExecutionLeaseHeartbeat(context.Background(), workspace, &record, &mu)
+	t.Cleanup(stopHeartbeat)
+	time.Sleep(350 * time.Millisecond)
+
+	if err := h.cancelPublicJobExecution("job-lease-heartbeat-cancelled", "cancelled while heartbeat still alive"); err != nil {
+		t.Fatalf("cancelPublicJobExecution() error = %v", err)
+	}
+	time.Sleep(700 * time.Millisecond)
+	stopHeartbeat()
+
+	updated := readPublicJobExecutionRecord(t, workspace, "job-lease-heartbeat-cancelled")
+	if updated.Status != "cancelled" {
+		t.Fatalf("execution status = %q, want cancelled", updated.Status)
+	}
+	if updated.LeaseOwnerID != "" {
+		t.Fatalf("lease_owner_id = %q, want cleared after cancel", updated.LeaseOwnerID)
+	}
+	if len(updated.Attempts) != 1 {
+		t.Fatalf("attempts len = %d, want 1", len(updated.Attempts))
+	}
+	if updated.Attempts[0].ReleaseReason != "cancelled" || updated.Attempts[0].ReleasedAt == "" {
+		t.Fatalf("attempt audit = %+v, want cancelled release reason with released_at", updated.Attempts[0])
+	}
+	if !strings.Contains(updated.LastError, "heartbeat still alive") {
+		t.Fatalf("last_error = %q, want cancel reason retained", updated.LastError)
+	}
+	if updated.FinishedAt == "" {
+		t.Fatal("finished_at should not be empty after cancel")
+	}
+}
+
 func TestSyntheticPublicJobExecutionEventsEmitSpecializedReleaseTypes(t *testing.T) {
 	record := &publicJobExecutionRecord{
 		JobID:       "job-event-types",
@@ -4564,10 +8822,156 @@ func TestSyntheticPublicJobExecutionEventsEmitSpecializedReleaseTypes(t *testing
 	for _, event := range events {
 		foundTypes[event.Type] = true
 	}
-	for _, eventType := range []string{"execution_cancelled", "execution_dispatcher_lost", "execution_recovery_failed", "execution_failed", "execution_completed"} {
+	for _, eventType := range []string{"execution_cancelled", "execution_interrupted", "execution_recovery_failed", "execution_failed", "execution_completed"} {
 		if !foundTypes[eventType] {
 			t.Fatalf("missing event type %q in events=%+v", eventType, events)
 		}
+	}
+}
+
+func TestGetPublicJobPrefersCancelledExecutionRecordWhenRunIsStaleRunning(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		"job_id":           "job-stale-running-execution-cancelled",
+		"prd_id":           "prd-stale-running-execution-cancelled",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-stale-running-execution-cancelled",
+		"template_id": "flutter-finance-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	builderSvc, err := h.buildersControlPlane()
+	if err != nil {
+		t.Fatalf("buildersControlPlane() error = %v", err)
+	}
+	runsSvc, err := h.buildRunsControlPlane()
+	if err != nil {
+		t.Fatalf("buildRunsControlPlane() error = %v", err)
+	}
+	bundle, err := h.loadPreparedBundleByJobID("job-stale-running-execution-cancelled")
+	if err != nil {
+		t.Fatalf("loadPreparedBundleByJobID() error = %v", err)
+	}
+	preparedInput := bundle.BuilderInput
+	preparedInput.ContextSourceDir = bundle.PrepareDir
+	dispatch, err := builderSvc.Dispatch(context.Background(), appbuilders.Requirement{JobID: "job-stale-running-execution-cancelled"})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+	run, err := runsSvc.Create(context.Background(), dispatch.Node.BuilderID, dispatch.Node.BuilderID, dispatch.Lease.LeaseID, preparedInput)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if err := builderSvc.BindRun(context.Background(), dispatch.Lease.LeaseID, run.RunID); err != nil {
+		t.Fatalf("BindRun() error = %v", err)
+	}
+
+	requestedAt := time.Now().UTC().Add(-3 * time.Minute).Format(time.RFC3339)
+	startedAt := time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339)
+	finishedAt := time.Now().UTC().Add(-90 * time.Second).Format(time.RFC3339)
+	lastError := "operator cancelled orchestrator execution while stale running run was being reconciled"
+	if err := h.persistPublicJobExecutionRecord(publicJobExecutionRecord{
+		SchemaVersion:  "0.1.0",
+		JobID:          "job-stale-running-execution-cancelled",
+		RunID:          run.RunID,
+		Action:         "resume",
+		Status:         "cancelled",
+		AttemptCount:   1,
+		TimeoutSeconds: 300,
+		RequestedAt:    requestedAt,
+		StartedAt:      startedAt,
+		FinishedAt:     finishedAt,
+		LastError:      lastError,
+		Attempts: []publicJobExecutionAttempt{{
+			Attempt:       1,
+			OwnerID:       h.orchestratorInstanceID,
+			ClaimedAt:     startedAt,
+			LastRenewedAt: finishedAt,
+			ReleasedAt:    finishedAt,
+			ReleaseReason: "cancelled",
+		}},
+	}); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord() error = %v", err)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-stale-running-execution-cancelled", http.StatusOK)
+	if loaded["status"] != "cancelled" {
+		t.Fatalf("status = %v, want cancelled", loaded["status"])
+	}
+	if loaded["phase"] != "terminal" {
+		t.Fatalf("phase = %v, want terminal", loaded["phase"])
+	}
+	if loaded["started_at"] != startedAt {
+		t.Fatalf("started_at = %v, want %s", loaded["started_at"], startedAt)
+	}
+	if loaded["finished_at"] != finishedAt {
+		t.Fatalf("finished_at = %v, want %s", loaded["finished_at"], finishedAt)
+	}
+	failureContext, ok := loaded["failure_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("failure_context = %T, want map[string]any", loaded["failure_context"])
+	}
+	if failureContext["last_error_summary"] != lastError {
+		t.Fatalf("last_error_summary = %v, want %s", failureContext["last_error_summary"], lastError)
+	}
+	if failureContext["failure_signature"] != "execution_cancelled" {
+		t.Fatalf("failure_signature = %v, want execution_cancelled", failureContext["failure_signature"])
+	}
+	if failureContext["failure_category"] != "execution_cancelled" {
+		t.Fatalf("failure_category = %v, want execution_cancelled", failureContext["failure_category"])
+	}
+	if failureContext["failure_domain"] != "executor" {
+		t.Fatalf("failure_domain = %v, want executor", failureContext["failure_domain"])
+	}
+	if failureContext["retryable"] != false {
+		t.Fatalf("retryable = %v, want false", failureContext["retryable"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "execution_cancelled" {
+		t.Fatalf("reason_code = %v, want execution_cancelled", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "inspect_execution_history" {
+		t.Fatalf("suggested_action = %v, want inspect_execution_history", statusContext["suggested_action"])
+	}
+	if _, exists := loaded["resume_context"]; exists {
+		t.Fatalf("resume_context should be omitted when cancelled execution overrides stale running run, got %v", loaded["resume_context"])
+	}
+	if builderOutputPath, _ := loaded["builder_output_path"].(string); builderOutputPath != "" {
+		t.Fatalf("builder_output_path = %q, want empty for stale running run", builderOutputPath)
+	}
+
+	persistedRun, err := runsSvc.Get(context.Background(), run.RunID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if persistedRun.Status != appruns.StatusRunning {
+		t.Fatalf("run status = %s, want running to verify stale facade override", persistedRun.Status)
 	}
 }
 
@@ -4700,6 +9104,51 @@ func TestPersistPublicJobExecutionRecordRejectsReplacingNonTerminalRun(t *testin
 	}
 	if !strings.Contains(err.Error(), "cannot replace non-terminal orchestrator execution") {
 		t.Fatalf("error = %v, want non-terminal replacement message", err)
+	}
+}
+
+func TestPersistPublicJobExecutionRecordRejectsStaleCompletedOverwriteAfterCancel(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	requestedAt := time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339)
+	startedAt := time.Now().UTC().Add(-90 * time.Second).Format(time.RFC3339)
+	staleRecord := publicJobExecutionRecord{
+		SchemaVersion:  "0.1.0",
+		JobID:          "job-stale-completed-after-cancel",
+		RunID:          "run-stale-completed-after-cancel",
+		Action:         "start",
+		Status:         "running",
+		TimeoutSeconds: 300,
+		RequestedAt:    requestedAt,
+		StartedAt:      startedAt,
+	}
+	if err := h.persistPublicJobExecutionRecord(staleRecord); err != nil {
+		t.Fatalf("persistPublicJobExecutionRecord(initial) error = %v", err)
+	}
+	if err := h.cancelPublicJobExecution("job-stale-completed-after-cancel", "cancel before stale complete persists"); err != nil {
+		t.Fatalf("cancelPublicJobExecution() error = %v", err)
+	}
+
+	staleRecord.Status = "completed"
+	staleRecord.FinishedAt = time.Now().UTC().Format(time.RFC3339)
+	err := h.persistPublicJobExecutionRecord(staleRecord)
+	if err == nil {
+		t.Fatal("persistPublicJobExecutionRecord() error = nil, want cancelled -> completed transition rejection")
+	}
+	if !strings.Contains(err.Error(), "cancelled -> completed") {
+		t.Fatalf("error = %v, want cancelled -> completed transition message", err)
+	}
+
+	updated := readPublicJobExecutionRecord(t, workspace, "job-stale-completed-after-cancel")
+	if updated.Status != "cancelled" {
+		t.Fatalf("execution status = %q, want cancelled after rejected stale overwrite", updated.Status)
 	}
 }
 
@@ -4840,6 +9289,19 @@ func TestRunningPublicJobExecutionRecoversAsFailedAfterHandlerRestart(t *testing
 	if !strings.Contains(strings.TrimSpace(toString(failureContext["last_error_summary"])), "dispatcher") {
 		t.Fatalf("last_error_summary = %v, want dispatcher-lost summary", failureContext["last_error_summary"])
 	}
+	if failureContext["failure_category"] != "execution_interrupted" {
+		t.Fatalf("failure_category = %v, want execution_interrupted", failureContext["failure_category"])
+	}
+	statusContext, ok := failed["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", failed["status_context"])
+	}
+	if statusContext["reason_code"] != "execution_interrupted" {
+		t.Fatalf("reason_code = %v, want execution_interrupted", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "resume_interrupted_job" {
+		t.Fatalf("suggested_action = %v, want resume_interrupted_job", statusContext["suggested_action"])
+	}
 	execution := waitForPublicJobExecutionStatus(t, workspace, "job-orchestrator-recover-running", "failed", 5*time.Second)
 	if !strings.Contains(execution.LastError, "dispatcher") {
 		t.Fatalf("execution last_error = %q, want dispatcher-lost message", execution.LastError)
@@ -4964,8 +9426,24 @@ func TestGetPublicJobPrefersTerminalExecutionRecordWhenRunIsStaleRunning(t *test
 	if failureContext["failure_signature"] != "execution_failed" {
 		t.Fatalf("failure_signature = %v, want execution_failed", failureContext["failure_signature"])
 	}
+	if failureContext["failure_category"] != "execution_failed" {
+		t.Fatalf("failure_category = %v, want execution_failed", failureContext["failure_category"])
+	}
+	if failureContext["failure_domain"] != "executor" {
+		t.Fatalf("failure_domain = %v, want executor", failureContext["failure_domain"])
+	}
 	if failureContext["retryable"] != true {
 		t.Fatalf("retryable = %v, want true", failureContext["retryable"])
+	}
+	statusContext, ok := loaded["status_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("status_context = %T, want map[string]any", loaded["status_context"])
+	}
+	if statusContext["reason_code"] != "execution_failed" {
+		t.Fatalf("reason_code = %v, want execution_failed", statusContext["reason_code"])
+	}
+	if statusContext["suggested_action"] != "inspect_failure_and_retry_later" {
+		t.Fatalf("suggested_action = %v, want inspect_failure_and_retry_later", statusContext["suggested_action"])
 	}
 	if _, exists := loaded["resume_context"]; exists {
 		t.Fatalf("resume_context should be omitted when execution record overrides stale running run, got %v", loaded["resume_context"])
@@ -5161,8 +9639,8 @@ func TestSubmitTemplateApprovalUpdatesPrepareBundle(t *testing.T) {
 	if resp["status"] != "approved" {
 		t.Fatalf("status = %v, want approved", resp["status"])
 	}
-	if resp["subject_version"] != "selected-template@flutter-finance-lite@v0.1.0" {
-		t.Fatalf("subject_version = %v, want selected-template@flutter-finance-lite@v0.1.0", resp["subject_version"])
+	if subjectVersion, _ := resp["subject_version"].(string); !strings.HasPrefix(subjectVersion, "selected-template@flutter-finance-lite@v0.1.0@sha256:") {
+		t.Fatalf("subject_version = %v, want content-bound template approval version", resp["subject_version"])
 	}
 	approvalPath := filepath.Join(bundleDir, appruns.TemplateApprovalFileName)
 	data, err := os.ReadFile(approvalPath)
@@ -5244,8 +9722,8 @@ func TestSubmitPRDApprovalUpdatesPrepareBundle(t *testing.T) {
 	if resp["status"] != "approved" {
 		t.Fatalf("status = %v, want approved", resp["status"])
 	}
-	if resp["subject_version"] != "0.1.0" {
-		t.Fatalf("subject_version = %v, want 0.1.0", resp["subject_version"])
+	if subjectVersion, _ := resp["subject_version"].(string); !strings.HasPrefix(subjectVersion, "prd-bookkeeping-lite@0.1.0@sha256:") {
+		t.Fatalf("subject_version = %v, want PRD content-bound subject version", resp["subject_version"])
 	}
 	approvalPath := filepath.Join(bundleDir, appruns.PRDApprovalFileName)
 	data, err := os.ReadFile(approvalPath)
@@ -5581,10 +10059,15 @@ func sampleMetricsPayload() map[string]any {
 		"total_tokens":     1024,
 		"duration_seconds": 35,
 		"command_runs":     4,
+		"device_failure_categories": []map[string]any{{
+			"category":       "device_check_failed:adb_device_unavailable",
+			"failure_domain": "device",
+			"count":          1,
+		}},
 		"failure_signatures": []map[string]any{{
-			"signature":  "lint_warning",
+			"signature":  "device_check_failed:adb_device_unavailable",
 			"count":      1,
-			"last_stage": "baseline",
+			"last_stage": "device",
 		}},
 	}
 }
@@ -5842,6 +10325,67 @@ func mustReadFileBytes(t *testing.T, path string) []byte {
 		t.Fatalf("ReadFile(%s) error = %v", path, err)
 	}
 	return data
+}
+
+type publicJobAutoRepairExecutor struct {
+	checkID  string
+	label    string
+	stage    appruns.ExecutionStage
+	commands []string
+	script   string
+}
+
+type publicJobAutoRepairPatchGenerator struct {
+	responses map[string][]appadapter.BuilderRuntimePatchResponse
+	models    []string
+}
+
+func (generator *publicJobAutoRepairPatchGenerator) GeneratePatch(ctx context.Context, request appadapter.BuilderRuntimePatchRequest) (appadapter.BuilderRuntimePatchResponse, error) {
+	for _, alias := range request.ModelAliases {
+		generator.models = append(generator.models, alias)
+		responses := generator.responses[alias]
+		if len(responses) == 0 {
+			continue
+		}
+		response := responses[0]
+		generator.responses[alias] = responses[1:]
+		response.ModelAlias = alias
+		return response, nil
+	}
+	return appadapter.BuilderRuntimePatchResponse{}, fmt.Errorf("no stub response for aliases %v", request.ModelAliases)
+}
+
+func (executor publicJobAutoRepairExecutor) Prepare(ctx context.Context, run appadapter.RunRecord) (appadapter.RoundPlan, error) {
+	editCmd := exec.CommandContext(ctx, "/bin/sh", "-lc", "true")
+	editCmd.Dir = run.WorkspacePath
+	editCmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=public-job-auto-repair-edit")
+	validationCmd := exec.CommandContext(ctx, "/bin/sh", "-lc", executor.script)
+	validationCmd.Dir = run.WorkspacePath
+	validationCmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=public-job-auto-repair-validate")
+	return appadapter.RoundPlan{
+		Summary:    "public job auto repair executor",
+		RoundInput: appadapter.BuildRoundInputForTest(run),
+		EditStep: appadapter.ExecutionStep{
+			StepID:  "thin-prepare",
+			Stage:   appruns.StageThinPrepare,
+			Summary: "prepare workspace",
+			Command: editCmd,
+		},
+		ValidationSteps: []appadapter.ExecutionStep{{
+			StepID:  executor.checkID,
+			Stage:   executor.stage,
+			Summary: executor.label,
+			Command: validationCmd,
+			Check: &appadapter.CheckExecutionPreview{
+				CheckID:      executor.checkID,
+				Label:        executor.label,
+				Stage:        executor.stage,
+				Required:     true,
+				AllowFailure: false,
+				Commands:     append([]string(nil), executor.commands...),
+			},
+		}},
+	}, nil
 }
 
 type structuredRoundTestExecutor struct{}

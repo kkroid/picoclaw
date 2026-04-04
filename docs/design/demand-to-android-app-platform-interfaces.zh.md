@@ -29,6 +29,7 @@ V1 接口范围如下：
 - `POST /api/v1/jobs`
 - `GET /api/v1/jobs`
 - `GET /api/v1/jobs/{job_id}`
+- `POST /api/v1/jobs/{job_id}:compile-prepare`
 - `POST /api/v1/jobs/{job_id}:start`
 - `POST /api/v1/jobs/{job_id}:resume`
 - `POST /api/v1/jobs/{job_id}:cancel`
@@ -53,6 +54,7 @@ V1 接口范围如下：
 - `POST /internal/v1/metrics:index`
 - `POST /internal/v1/reviews:prepare`
 - `POST /internal/v1/deliveries:record`
+- `POST /internal/v1/deliveries:follow-up`
 
 Job 执行采用异步 orchestrator 语义：`POST /api/v1/jobs/{job_id}:start` 与 `POST /api/v1/jobs/{job_id}:resume` 会先写入 `workspace/appfactory/orchestrator/jobs/{job_id}.json`，再由 orchestrator 推进 execution。execution record 至少包含 `attempt_count`、`attempts[]`、`lease_owner_id`、`lease_acquired_at`、`lease_expires_at` 五类接管字段，用于 claim、续租、交接和恢复。
 
@@ -78,7 +80,9 @@ CLI 与 HTTP watcher 共用同一套 watcher runner 与 `status.json` / `watch-l
 除状态接口外，watcher 控制面还会形成两类附加可观测物：
 
 - `workspace/appfactory/orchestrator/watch-events.jsonl`：记录 `orchestrator_watch_started`、`orchestrator_watch_stopped`、`orchestrator_watch_unlocked` 三类控制动作，字段至少包含 `action`、`remote_addr`、`user_agent`、`force`、`summary`、`watch_runner_state`、`watch_runner_mode`、`watch_lock_state`、`created_at`。
-- `GET /api/v1/notifications`：把 watcher 审计事件投影成同名通知类型，供 UI 和运维侧直接观察后台 watcher 生命周期与人工干预动作。
+- `GET /api/v1/notifications`：把 watcher 审计事件投影成同名通知类型，供 UI 和运维侧直接观察后台 watcher 生命周期与人工干预动作；当前外部建议动作至少覆盖 `inspect_orchestrator_status`、`inspect_orchestrator_lock_owner`、`restart_orchestrator_watch`。
+
+jobs 运维页与 header 的 watcher 状态展示必须共用同一套 `watch_runner_state + watch_lock_state` 判定，不允许同一份 orchestrator status 在不同 UI 入口被解释成不同运行态或不同人工动作建议。
 
 ## 2. 设计原则
 
@@ -132,6 +136,7 @@ CLI 与 HTTP watcher 共用同一套 watcher runner 与 `status.json` / `watch-l
 - `POST /api/v1/prds:compile` 负责生成 `prepare/` 目录下的 `PRD.md`、`PRD.json`、审批快照、`template-fit-report.md`、`builder-input.json`，不创建 run，也不占用 Builder。
 - `GET /api/v1/prds/{prd_id}` 返回冻结后的 `PRD.json` 内容，并可通过 `?version=` 约束版本。
 - `POST /api/v1/prds/{prd_id}:submit-approval` 负责创建 PRD approval record，并镜像回对应的 `prepare/prd-approval.json`。
+- `POST /api/v1/jobs/{job_id}:compile-prepare` 负责基于当前 Job 的 `prepare/requirement.md`、`PRD.json` 与模板选择重新编译 `prepare/` 目录；这是 `status_context.suggested_action=compile_prepare_bundle` 的正式 public action，不要求 UI 重新上传 `requirement_text`。
 
 ### 4.2 模板匹配
 
@@ -198,13 +203,15 @@ CLI 与 HTTP watcher 共用同一套 watcher runner 与 `status.json` / `watch-l
 
 接口约束：
 
-- `POST /api/v1/jobs`、`GET /api/v1/jobs`、`GET /api/v1/jobs/{job_id}` 基于 `prepare/PRD.json`、`builder-input.json`、审批快照和 run 记录构建稳定 Job 视图，并对外统一暴露 `resume_context`、artifact、event 与 approval 信息。
+- `POST /api/v1/jobs`、`GET /api/v1/jobs`、`GET /api/v1/jobs/{job_id}` 基于 `prepare/PRD.json`、`builder-input.json`、审批快照和 run 记录构建稳定 Job 视图，并对外统一暴露 `status_context`、`failure_context`、`resume_context`、artifact、event 与 approval 信息；如果 approval snapshot 的 `subject_version` 已不匹配当前 `prepare` 输入，Job 视图必须退回对应 approval phase，而不能继续假装“可启动”或“可恢复”。其中 PRD 审批的 `subject_version` 不只冻结 `PRD.json`，还要冻结当前 `PRD.md` 与 `requirement.md` 的内容；模板审批的 `subject_version` 不只冻结 `template_id + pinned_ref`，还要冻结当前 `template-fit-report.md` 的内容；因此 PRD 的人工说明、原始需求补充、模板匹配结果文字、差距说明或人工补充结论变化时，都应先回到对应审批分支。相对地，fresh-start builder 分支只处理 `builder-input.json` 语义变化、`implementation-plan.md`、`manual-constraints.md` 等 prepare 支撑文件内容变化，以及当前 `template_source_dir` / 默认模板 seed 源码树内容变化。若当前 PRD 已经变化到让 `builder-input.json` 的编译来源版本失效，或模板审批已经追上最新冻结版本但 `prepared_template_subject_version` 仍绑定旧模板编译来源，Job 视图都必须进入 `awaiting_prepare_recompile` / `prepare` phase，而不是继续暴露 builder phase。相对地，如果只是 `builder-input.json` 当前已经切到新的 `template_id`，则在重新完成模板审批后应回到 fresh-start builder 分支，而不是误判成必须重编译。`status_context`、`resume_context`、`delivery_context` 等对外动作字段统一使用 `suggested_action`，`failure_context` 统一承载 `failure_signature`、`failure_domain`、`failure_category`、`last_error_summary`、`retryable` 这组失败主语义；其中 execution 因 dispatcher 丢失而中断时，public `event.type`、notification `type`、job `failure_category` 统一使用 `execution_interrupted`，避免同一中断语义在不同 facade 上再出现 `execution_dispatcher_lost` / `execution_interrupted` 的双写。对于 recovery pass 或 handler 重启后直接把 run 收敛成 `failed` / `cancelled` 的终态场景，job detail 仍必须继续投影同一套 `status_context.reason_code + summary + suggested_action`，不能只在 execution override 分支上暴露终态动作语义；同理，terminal execution 对应的 notifications 也必须继续投影稳定的 `notification.type + suggested_action`，至少覆盖 `execution_interrupted`、`execution_failed`、`execution_cancelled`、`execution_recovery_failed` 这组外部可观测终态。delivery 侧的 `delivery_context` 现已扩展为正式交付对象：主记录仍由 `delivery_record_path + status + suggested_action + release_channel + rollout_percent + reviewer_id + evidence_paths + required_changes + signed_artifact_paths + recorded_at` 构成，同时允许嵌套 `device_verification` 与 `release_follow_up` 两个子对象；前者至少包含 `record_path`、`status`、`summary`、`evidence_paths`、`verified_at`、`suggested_action`，后者至少包含 `record_path`、`status`、`summary`、`owner_id`、`evidence_paths`、`updated_at`、`suggested_action`，并与独立 artifact/report 路径保持一致。
 - `builder-input.json` 的 canonical path 固定为 `workspace/appfactory/jobs/{job_id}/prepare/builder-input.json`。
-- `POST /api/v1/jobs/{job_id}:start` 只能在 PRD 与模板审批均通过后执行；接口会创建 execution record，写入 orchestrator 路径，并在已有 `queued` 或 `running` execution 时返回 `JOB_START_CONFLICT`。
+- `POST /api/v1/jobs/{job_id}:start` 只能在 PRD 与模板审批均通过且 approval snapshot 的 `subject_version` 仍匹配当前 `prepare` 输入时执行；接口会创建 execution record，写入 orchestrator 路径，并在已有 `queued` 或 `running` execution 时返回 `JOB_START_CONFLICT`。如果旧 run 已因重编译后的新 `prepare` 输入，或因当前 `builder-input.json` 已发生语义变化，或因当前模板 seed 源码树已变化而失效，`start` 必须允许以当前输入重新开启一轮 execution。但如果当前 PRD 已变化到让 `builder-input.json` 的编译来源版本过期，或者模板编译来源版本已经落后于当前已审批模板冻结版本，`start` 必须拒绝并明确要求先重新 compile prepare bundle。
+- `POST /api/v1/jobs/{job_id}:compile-prepare` 在 `awaiting_prepare_recompile` 分支下负责把当前 Job 从“编译来源失效”推进到新的 `prepare/` 快照；重编译完成后，Job 视图必须立刻按新 `builder-input.json`、审批快照和最近一次 run 重新求值，通常会回到新的 builder / fresh-start 分支，而不是继续停留在 `awaiting_prepare_recompile`。
 - `POST /api/v1/jobs/{job_id}:cancel` 负责终止非终态 run，并在需要时把 execution record 收敛到 `cancelled`；如果请求带 `preserve_workspace=true`，平台必须把现场归档到 `jobs/{job_id}/snapshots/preserved/*` 并加入 artifact 列表。
-- `POST /api/v1/jobs/{job_id}:resume` 只允许从 `failed` Job 恢复；接口受 `resume_context` 门禁控制，并在 `requires_human_confirmation=true` 或 `resume_allowed=false` 时拒绝直接恢复。若 `requires_preserved_workspace=true`，恢复必须基于 preserved snapshot 执行；恢复前若 canonical workspace 已有内容，必须先归档到 `jobs/{job_id}/snapshots/archived/*`。已有 `queued` 或 `running` execution 时返回 `JOB_RESUME_CONFLICT`。
+- `POST /api/v1/jobs/{job_id}:resume` 只允许从 `failed` Job 恢复；接口受 `resume_context` 门禁控制，并在 `requires_human_confirmation=true` 或 `resume_allowed=false` 时拒绝直接恢复。若 `requires_preserved_workspace=true`，恢复必须基于 preserved snapshot 执行；恢复前若 canonical workspace 已有内容，必须先归档到 `jobs/{job_id}/snapshots/archived/*`。已有 `queued` 或 `running` execution 时返回 `JOB_RESUME_CONFLICT`。如果失败现场对应的当前输入链已发生 approval version drift，则接口必须先拒绝恢复，等待对当前输入重新提审；只有在重提审后当前 prepare 仍与旧 failed run 对齐时，才允许恢复到 failed-run 语义。如果当前 `prepare` 已因重编译晚于最近一次 failed run，或当前 `builder-input.json` 的语义已不同于 failed run 采用的输入，或当前 prepare 支撑文件内容已不同于 failed run 使用的上下文，或当前模板 seed 源码树已经变化，`resume` 也必须拒绝，并明确要求改走 `start`。如果当前 PRD 已变化到让 `builder-input.json` 的编译来源版本过期，或者模板编译来源版本已经落后于当前已审批模板冻结版本，`resume` 必须直接拒绝并要求先重新 compile prepare bundle。
 - `GET /api/v1/jobs/{job_id}/artifacts` 返回该 Job 的 `artifact-manifest.json`；如果还没有 run，返回空 manifest 占位对象。
 - `GET /api/v1/jobs/{job_id}/events` 返回 Job 时间线，除 run events 外，还要投影 approval、orchestrator、resume 与 workspace preserve/restore 的 synthetic signal。
+- 当前 Flutter P0 profile 还支持一个 env-gated 的最小设备验证扩展：当 `APPFACTORY_DEVICE_VERIFICATION_ENABLED=1` 时，acceptance checks 会在 `flutter build apk --debug` 之后继续追加 `check-adb-device-ready`、`check-install-debug-apk` 与 `check-launch-app-and-capture-logcat`，并通过 `PICOCLAW_REPORTS_DIR` 写出 `device-logcat.txt` 与可选 `device-screenshot.png`。这些文件与 `change-summary.md`、`build-report.md`、`smoke-test-report.md`、可选 `workspace/build/app/outputs/flutter-apk/app-debug.apk` 一起进入 `artifact-manifest.json`，形成可追溯的运行时设备证据层；device shell commands 现在会显式写出 `__picoclaw_failure_signature__:*` marker，run 侧据此把失败收敛为稳定语义键，例如 `environment_check_failed:adb_binary_unavailable`、`environment_check_failed:debug_apk_missing`、`environment_check_failed:android_app_id_missing`、`device_check_failed:adb_device_unavailable`、`device_check_failed:apk_install_failed`、`device_check_failed:app_launch_failed`、`device_check_failed:app_runtime_crash`、`device_check_failed:log_capture_failed`，并在 public facade 中继续映射到稳定的 `failure_domain`。同时 `metrics.json` 现在允许额外写出 `device_failure_categories[]`，把这些设备相关失败按 `category + failure_domain + count` 聚合沉淀，供回归统计、告警或固定设备池看板使用；`smoke-test-report.md` 也会同步带出同一组设备失败类别摘要，避免调用方重复解析原始 `failure_signatures`。在固定设备池模式下，`run-appfactory-device-regression.sh` 还会依据 `config/appfactory-device-pool.json` 或等价配置自动 claim/release 设备租约，把 `serial`、`label`、`claim_status`、`owner_id`、`lease_file` 写入 `regression-result.json.device`，并同步刷新 `workspace/appfactory/device-pool/status.json` / `status.md`，让设备占用、最近回归结果和失败告警拥有同一套 machine-readable 运维视图。
 
 ### 4.4 审批接口
 
@@ -230,7 +237,7 @@ CLI 与 HTTP watcher 共用同一套 watcher runner 与 `status.json` / `watch-l
 
 接口约束：
 
-- `POST /api/v1/approvals` 创建 `pending` approval record；`prd` 与 `template` 类型需要自动补齐 `subject_version` 与默认证据。
+- `POST /api/v1/approvals` 创建 `pending` approval record；`prd` 与 `template` 类型需要自动补齐 `subject_version` 与默认证据。其中 PRD 的 `subject_version` 不能只是裸 `version`，而应同时冻结当前 `PRD.json`、`PRD.md` 与 `requirement.md` 的实际内容，用于识别“结构化 PRD 未变，但人工说明或原始需求证据已经漂移”的场景；模板审批的 `subject_version` 也不能只写 `template_id + pinned_ref`，而应能冻结当前 `template-fit-report.md` 的内容，用于识别“模板匹配结果已经变化但模板源码版本未变”的场景。
 - `GET /api/v1/approvals/{approval_id}` 返回冻结后的审批记录。
 - `POST /api/v1/approvals/{approval_id}:decision` 只允许对 `pending` 记录写入 `approved`、`changes_requested` 或 `rejected` 结论，并同步回写全局审批索引与 `prepare` 快照。
 
@@ -252,11 +259,25 @@ CLI 与 HTTP watcher 共用同一套 watcher runner 与 `status.json` / `watch-l
 
 - `GET /api/v1/notifications` 读取并返回 `workspace/appfactory/notifications/index.json` 中的通知快照；通知来源包括审批、失败 Job、orchestrator、watcher、execution 与 delivery 投影。
 - 失败 Job 通知必须附带 `resume_context` 相关字段，包括 `failure_category`、`recommended_resume_mode`、`requires_human_confirmation`、`requires_preserved_workspace`。
+- delivery 通知必须保留 `delivery_status`、`delivery_record_path`、可选 `release_channel` / `rollout_percent` 与稳定 `suggested_action`；当存在设备验证或发布后跟踪时，还应继续附带 `device_verification_status`、`release_follow_up_status`，以保证 jobs 运维页可以直接区分“灰度待验证”“验证失败”“发布后观察中”“发布后发现问题”等不同人工动作入口，而不是只暴露裸通知类型字符串。
+
+### 4.6 Review / Delivery 内部接口
+
+| 接口 | 调用方 | 说明 | 请求主体 | 响应主体 |
+|---|---|---|---|---|
+| `POST /internal/v1/reviews:prepare` | `gateway/ui`、内部运维页 | 为指定 `run_id` 生成 review bundle / handoff checklist | `run_id` | `review_bundle_path`、`handoff_checklist_path`、`artifact_manifest_path` |
+| `POST /internal/v1/deliveries:record` | `gateway/ui`、内部运维页 | 写入主交付记录，并可同时附带设备验证结果 | `run_id`、`reviewer_id`、`status`、可选 `release_channel` / `rollout_percent` / `evidence_paths[]` / `required_changes[]` / `signed_artifact_paths[]` / `device_verification_*` | `delivery_record_path`、`status`、`next_action` |
+| `POST /internal/v1/deliveries:follow-up` | `gateway/ui`、内部运维页 | 对已存在 delivery record 的 run 写入 release follow-up | `run_id`、`owner_id`、`status`、可选 `summary` / `evidence_paths[]` | `follow_up_record_path`、`status` |
+
+接口约束：
+
+- `POST /internal/v1/deliveries:record` 负责维护 `reports/delivery-record.json`，并在需要时同步生成 `reports/device-verification.json`；device verification 当前允许 `pending`、`passed`、`failed` 三种状态，并继续通过 public `delivery_context.device_verification`、job events、notifications 投影给 UI。
+- `POST /internal/v1/deliveries:follow-up` 只能在该 `run_id` 已存在 delivery record 时调用；接口会写入 `reports/release-follow-up.json`，并把 `monitoring`、`stable`、`issue_detected` 等 follow-up 状态继续投影到 public `delivery_context.release_follow_up`、job events 与 notifications。
 - `POST /api/v1/notifications/{notification_id}:ack` 负责把通知标记为已确认，并回写 `acknowledged`、`acknowledged_at`。
 - `POST /api/v1/notifications:rebuild` 负责重建通知快照，并保留既有 ack 状态。
 - 成功 run 需要生成 `reports/review-bundle.metadata.json`、`reports/review-bundle.md` 与 `reports/handoff-checklist.md`，并通过 artifact manifest 暴露。
 - `POST /internal/v1/reviews:prepare` 按 `run_id` 重放生成 review / handoff 产物，并回写 artifact manifest 与 metrics。
-- `POST /internal/v1/deliveries:record` 负责写入 `reports/delivery-record.json`，重新索引 artifact manifest，并把交付状态投影到 public job detail、events 与 notifications。
+- `POST /internal/v1/deliveries:record` 负责写入 `reports/delivery-record.json`，重新索引 artifact manifest，并把交付状态投影到 public job detail、events 与 notifications；`GET /api/v1/jobs/{job_id}` 返回的 `delivery_context` 应与对应 delivery event / notification 的 `delivery_status` 与 `suggested_action` 保持一致。
 
 事件模型的正式语义定义见主设计文档 [demand-to-android-app-platform.zh.md](demand-to-android-app-platform.zh.md)。
 

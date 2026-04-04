@@ -31,6 +31,12 @@ func TestCompileBookkeepingRequirement(t *testing.T) {
 	if bundle.BuilderInput.TemplateID != "flutter-finance-lite" {
 		t.Fatalf("BuilderInput.TemplateID = %q, want flutter-finance-lite", bundle.BuilderInput.TemplateID)
 	}
+	if !strings.HasPrefix(bundle.BuilderInput.PreparedPRDSubjectVersion, "prd-bookkeeping-lite@0.1.0@sha256:") {
+		t.Fatalf("PreparedPRDSubjectVersion = %q, want PRD compile-source version", bundle.BuilderInput.PreparedPRDSubjectVersion)
+	}
+	if bundle.BuilderInput.PreparedTemplateSubjectVersion != "selected-template@flutter-finance-lite@v0.1.0" {
+		t.Fatalf("PreparedTemplateSubjectVersion = %q, want selected-template@flutter-finance-lite@v0.1.0", bundle.BuilderInput.PreparedTemplateSubjectVersion)
+	}
 	if !strings.Contains(string(bundle.Files[fitReportFileName]), "命中模板注册表条目：flutter-finance-lite") {
 		t.Fatalf("template fit report should include registry selection reason: %s", string(bundle.Files[fitReportFileName]))
 	}
@@ -83,6 +89,12 @@ func TestCompileBookkeepingRequirement(t *testing.T) {
 	if input["job_id"] != "job-bookkeeping-lite" {
 		t.Fatalf("job_id = %v, want job-bookkeeping-lite", input["job_id"])
 	}
+	if subjectVersion, _ := input["prepared_prd_subject_version"].(string); !strings.HasPrefix(subjectVersion, "prd-bookkeeping-lite@0.1.0@sha256:") {
+		t.Fatalf("prepared_prd_subject_version = %v, want PRD compile-source version", input["prepared_prd_subject_version"])
+	}
+	if input["prepared_template_subject_version"] != "selected-template@flutter-finance-lite@v0.1.0" {
+		t.Fatalf("prepared_template_subject_version = %v, want selected-template@flutter-finance-lite@v0.1.0", input["prepared_template_subject_version"])
+	}
 	contextFiles, ok := input["context_files"].(map[string]any)
 	if !ok {
 		t.Fatalf("context_files type = %T, want map[string]any", input["context_files"])
@@ -104,6 +116,9 @@ func TestCompileBookkeepingRequirement(t *testing.T) {
 	if prdApproval.Status != appruns.ApprovalStatusApproved || prdApproval.ApprovalType != appruns.ApprovalTypePRD {
 		t.Fatalf("prd approval = %+v, want approved prd record", prdApproval)
 	}
+	if !strings.HasPrefix(prdApproval.SubjectVersion, "prd-bookkeeping-lite@0.1.0@sha256:") || strings.Count(prdApproval.SubjectVersion, "@sha256:") != 2 {
+		t.Fatalf("prd approval subject_version = %q, want PRD approval version bound to PRD.md, PRD.json and requirement.md", prdApproval.SubjectVersion)
+	}
 	var templateApproval appruns.ApprovalRecord
 	if err := json.Unmarshal(bundle.Files[templateApprovalFileName], &templateApproval); err != nil {
 		t.Fatalf("Unmarshal(template-approval.json) error = %v", err)
@@ -111,8 +126,8 @@ func TestCompileBookkeepingRequirement(t *testing.T) {
 	if templateApproval.Status != appruns.ApprovalStatusApproved || templateApproval.ApprovalType != appruns.ApprovalTypeTemplate {
 		t.Fatalf("template approval = %+v, want approved template record", templateApproval)
 	}
-	if templateApproval.SubjectVersion != "selected-template@flutter-finance-lite@v0.1.0" {
-		t.Fatalf("template approval subject_version = %q, want selected-template@flutter-finance-lite@v0.1.0", templateApproval.SubjectVersion)
+	if !strings.HasPrefix(templateApproval.SubjectVersion, "selected-template@flutter-finance-lite@v0.1.0@sha256:") {
+		t.Fatalf("template approval subject_version = %q, want content-bound template approval version", templateApproval.SubjectVersion)
 	}
 }
 
@@ -129,6 +144,45 @@ func TestWriteBundle(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(outputDir, name)); err != nil {
 			t.Fatalf("expected %s to exist: %v", name, err)
 		}
+	}
+}
+
+func TestRecompilePreservesPreparedPRDVersion(t *testing.T) {
+	original, err := Compile(Request{
+		RequirementText: "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		JobID:           "job-bookkeeping-lite",
+		PRDID:           "prd-bookkeeping-lite",
+		TemplateID:      "flutter-finance-lite",
+	})
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	prepared := original.PRD
+	prepared.Version = "0.2.0"
+	prepared.UpdatedAt = "2026-03-31T00:00:00Z"
+
+	recompiled, err := Recompile(RecompileRequest{
+		RequirementText: string(original.Files[requirementFileName]),
+		PRD:             prepared,
+		JobID:           original.BuilderInput.JobID,
+		TemplateID:      original.BuilderInput.TemplateID,
+		ExecutorImage:   original.BuilderInput.ExecutorImage,
+	})
+	if err != nil {
+		t.Fatalf("Recompile() error = %v", err)
+	}
+	if recompiled.PRD.Version != "0.2.0" {
+		t.Fatalf("PRD.Version = %q, want 0.2.0", recompiled.PRD.Version)
+	}
+	if !strings.HasPrefix(recompiled.BuilderInput.PreparedPRDSubjectVersion, "prd-bookkeeping-lite@0.2.0@sha256:") {
+		t.Fatalf("PreparedPRDSubjectVersion = %q, want prd-bookkeeping-lite@0.2.0@sha256:*", recompiled.BuilderInput.PreparedPRDSubjectVersion)
+	}
+	var decoded PRD
+	if err := json.Unmarshal(recompiled.Files[prdJSONFileName], &decoded); err != nil {
+		t.Fatalf("Unmarshal(recompiled PRD.json) error = %v", err)
+	}
+	if decoded.Version != "0.2.0" {
+		t.Fatalf("decoded PRD version = %q, want 0.2.0", decoded.Version)
 	}
 }
 
@@ -194,7 +248,7 @@ func TestCompileBookkeepingRequirementIncludesFlutterStructuralChecksByDefault(t
 	if len(bundle.BuilderInput.AcceptanceChecks) != 6 {
 		t.Fatalf("AcceptanceChecks len = %d, want 6", len(bundle.BuilderInput.AcceptanceChecks))
 	}
-	for index, checkID := range []string{"check-context-ready", "check-bookkeeping-scope", "check-plan-ready", "check-counter-demo-removed", "check-entry-form-wiring", "check-local-persistence-wiring"} {
+	for index, checkID := range []string{"check-context-ready", "check-bookkeeping-scope", "check-plan-ready", "check-structural-template-files-ready", "check-legacy-thin-fallback-probe", "check-legacy-thin-fallback-metadata"} {
 		if bundle.BuilderInput.AcceptanceChecks[index].CheckID != checkID {
 			t.Fatalf("acceptance_check[%d] = %q, want %q", index, bundle.BuilderInput.AcceptanceChecks[index].CheckID, checkID)
 		}
@@ -227,6 +281,36 @@ func TestCompileGenericRequirementUsesRegistrySelection(t *testing.T) {
 	}
 	if !strings.Contains(fitReport, "single-screen") || !strings.Contains(fitReport, "local-state") {
 		t.Fatalf("template fit report missing capability coverage: %s", fitReport)
+	}
+}
+
+func TestCompileJobsUIRequestGeneratesUniqueDefaultIDs(t *testing.T) {
+	wantTimestamp := "20260403074000123"
+	bundle, err := Compile(Request{
+		RequirementText:   "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+		RequirementSource: "jobs-ui",
+		Now: func() time.Time {
+			return time.Unix(0, 1775202000123456789).UTC()
+		},
+	})
+	if err != nil {
+		t.Fatalf("Compile() error = %v", err)
+	}
+	if bundle.BuilderInput.JobID != "JOB_"+wantTimestamp {
+		t.Fatalf("JobID = %q, want generated jobs-ui id", bundle.BuilderInput.JobID)
+	}
+	if bundle.PRD.ID != "PRD_"+wantTimestamp {
+		t.Fatalf("PRD.ID = %q, want generated jobs-ui prd id", bundle.PRD.ID)
+	}
+	if !strings.HasPrefix(bundle.BuilderInput.PreparedPRDSubjectVersion, "PRD_"+wantTimestamp+"@0.1.0@sha256:") {
+		t.Fatalf("PreparedPRDSubjectVersion = %q, want generated PRD id prefix", bundle.BuilderInput.PreparedPRDSubjectVersion)
+	}
+	var input map[string]any
+	if err := json.Unmarshal(bundle.Files[builderInputFileName], &input); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	if input["job_id"] != "JOB_"+wantTimestamp {
+		t.Fatalf("builder-input job_id = %v, want generated jobs-ui id", input["job_id"])
 	}
 }
 

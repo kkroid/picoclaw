@@ -84,18 +84,19 @@ const CurrentVersion = 1
 
 // Config is the current config structure with version support
 type Config struct {
-	Version   int             `json:"version"` // Config schema version for migration
-	Agents    AgentsConfig    `json:"agents"`
-	Bindings  []AgentBinding  `json:"bindings,omitempty"`
-	Session   SessionConfig   `json:"session,omitempty"`
-	Channels  ChannelsConfig  `json:"channels"`
-	ModelList []*ModelConfig  `json:"model_list"` // New model-centric provider configuration
-	Gateway   GatewayConfig   `json:"gateway"`
-	Hooks     HooksConfig     `json:"hooks,omitempty"`
-	Tools     ToolsConfig     `json:"tools"`
-	Heartbeat HeartbeatConfig `json:"heartbeat"`
-	Devices   DevicesConfig   `json:"devices"`
-	Voice     VoiceConfig     `json:"voice"`
+	Version    int              `json:"version"` // Config schema version for migration
+	Agents     AgentsConfig     `json:"agents"`
+	Bindings   []AgentBinding   `json:"bindings,omitempty"`
+	Session    SessionConfig    `json:"session,omitempty"`
+	Channels   ChannelsConfig   `json:"channels"`
+	ModelList  []*ModelConfig   `json:"model_list"` // New model-centric provider configuration
+	AppFactory AppFactoryConfig `json:"appfactory,omitempty"`
+	Gateway    GatewayConfig    `json:"gateway"`
+	Hooks      HooksConfig      `json:"hooks,omitempty"`
+	Tools      ToolsConfig      `json:"tools"`
+	Heartbeat  HeartbeatConfig  `json:"heartbeat"`
+	Devices    DevicesConfig    `json:"devices"`
+	Voice      VoiceConfig      `json:"voice"`
 	// BuildInfo contains build-time version information
 	BuildInfo BuildInfo `json:"build_info,omitempty"`
 
@@ -272,6 +273,31 @@ type AgentBinding struct {
 type SessionConfig struct {
 	DMScope       string              `json:"dm_scope,omitempty"`
 	IdentityLinks map[string][]string `json:"identity_links,omitempty"`
+}
+
+type AppFactoryConfig struct {
+	BuilderRuntime BuilderRuntimeConfig `json:"builder_runtime,omitempty"`
+}
+
+type BuilderRuntimeConfig struct {
+	Enabled          bool                                 `json:"enabled"`
+	DefaultModel     *AgentModelConfig                    `json:"default_model,omitempty"`
+	UpgradeModel     *AgentModelConfig                    `json:"upgrade_model,omitempty"`
+	TaskRoutes       []BuilderRuntimeTaskRouteConfig      `json:"task_routes,omitempty"`
+	UpgradeThreshold BuilderRuntimeUpgradeThresholdConfig `json:"upgrade_threshold,omitempty"`
+}
+
+type BuilderRuntimeTaskRouteConfig struct {
+	TaskType string            `json:"task_type"`
+	Model    *AgentModelConfig `json:"model,omitempty"`
+}
+
+type BuilderRuntimeUpgradeThresholdConfig struct {
+	MaxAttemptsBeforeUpgrade int  `json:"max_attempts_before_upgrade,omitempty"`
+	MaxFilesBeforeUpgrade    int  `json:"max_files_before_upgrade,omitempty"`
+	UpgradeOnValidationFail  bool `json:"upgrade_on_validation_fail,omitempty"`
+	UpgradeOnPatchParseFail  bool `json:"upgrade_on_patch_parse_fail,omitempty"`
+	UpgradeOnScopeViolation  bool `json:"upgrade_on_scope_violation,omitempty"`
 }
 
 // RoutingConfig controls the intelligent model routing feature.

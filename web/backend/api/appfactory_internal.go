@@ -2,6 +2,7 @@ package api
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -181,17 +182,20 @@ type startOrchestratorWatchRequest struct {
 type publicJobRecord struct {
 	SchemaVersion     string                    `json:"schema_version"`
 	JobID             string                    `json:"job_id"`
+	Title             string                    `json:"title"`
 	PRDID             string                    `json:"prd_id"`
 	PRDVersion        string                    `json:"prd_version"`
 	TemplateID        string                    `json:"template_id"`
 	Status            string                    `json:"status"`
 	Phase             string                    `json:"phase"`
+	StatusContext     *publicJobStatusContext   `json:"status_context,omitempty"`
 	WorkspacePath     string                    `json:"workspace_path"`
 	ArtifactDir       string                    `json:"artifact_dir"`
 	BuilderInputPath  string                    `json:"builder_input_path,omitempty"`
 	BuilderOutputPath string                    `json:"builder_output_path,omitempty"`
 	Budgets           publicJobBudgets          `json:"budgets"`
 	Runtime           *publicJobRuntime         `json:"runtime,omitempty"`
+	CurrentRound      *publicJobCurrentRound    `json:"current_round,omitempty"`
 	Logs              *publicJobLogs            `json:"logs,omitempty"`
 	Artifacts         []string                  `json:"artifacts,omitempty"`
 	HumanApprovals    []string                  `json:"human_approvals"`
@@ -202,6 +206,21 @@ type publicJobRecord struct {
 	UpdatedAt         string                    `json:"updated_at"`
 	StartedAt         string                    `json:"started_at,omitempty"`
 	FinishedAt        string                    `json:"finished_at,omitempty"`
+}
+
+type publicJobCurrentRound struct {
+	RoundID       string   `json:"round_id,omitempty"`
+	Attempt       int      `json:"attempt,omitempty"`
+	CheckpointKey string   `json:"checkpoint_key,omitempty"`
+	CurrentPhase  string   `json:"current_phase,omitempty"`
+	PhaseTrace    []string `json:"phase_trace,omitempty"`
+	TargetPaths   []string `json:"target_paths,omitempty"`
+}
+
+type publicJobStatusContext struct {
+	ReasonCode      string `json:"reason_code,omitempty"`
+	Summary         string `json:"summary,omitempty"`
+	SuggestedAction string `json:"suggested_action,omitempty"`
 }
 
 type publicJobBudgets struct {
@@ -224,6 +243,8 @@ type publicJobLogs struct {
 
 type publicJobFailureContext struct {
 	FailureSignature string `json:"failure_signature,omitempty"`
+	FailureDomain    string `json:"failure_domain,omitempty"`
+	FailureCategory  string `json:"failure_category,omitempty"`
 	LastErrorSummary string `json:"last_error_summary,omitempty"`
 	Retryable        bool   `json:"retryable"`
 }
@@ -236,41 +257,93 @@ type publicJobResumeContext struct {
 	RequiresHumanConfirmation  bool   `json:"requires_human_confirmation"`
 	RequiresPreservedWorkspace bool   `json:"requires_preserved_workspace"`
 	PreservedWorkspacePath     string `json:"preserved_workspace_path,omitempty"`
-	NextAction                 string `json:"next_action,omitempty"`
+	SuggestedAction            string `json:"suggested_action,omitempty"`
 }
 
 type publicJobDeliveryContext struct {
-	DeliveryRecordPath  string   `json:"delivery_record_path"`
-	Status              string   `json:"status"`
-	Summary             string   `json:"summary,omitempty"`
-	NextAction          string   `json:"next_action,omitempty"`
-	ReleaseChannel      string   `json:"release_channel,omitempty"`
-	RolloutPercent      int      `json:"rollout_percent,omitempty"`
-	ReviewerID          string   `json:"reviewer_id,omitempty"`
-	EvidencePaths       []string `json:"evidence_paths,omitempty"`
-	RequiredChanges     []string `json:"required_changes,omitempty"`
-	SignedArtifactPaths []string `json:"signed_artifact_paths,omitempty"`
-	RecordedAt          string   `json:"recorded_at"`
+	DeliveryRecordPath  string                           `json:"delivery_record_path"`
+	Status              string                           `json:"status"`
+	Summary             string                           `json:"summary,omitempty"`
+	SuggestedAction     string                           `json:"suggested_action,omitempty"`
+	ReleaseChannel      string                           `json:"release_channel,omitempty"`
+	RolloutPercent      int                              `json:"rollout_percent,omitempty"`
+	ReviewerID          string                           `json:"reviewer_id,omitempty"`
+	EvidencePaths       []string                         `json:"evidence_paths,omitempty"`
+	RequiredChanges     []string                         `json:"required_changes,omitempty"`
+	SignedArtifactPaths []string                         `json:"signed_artifact_paths,omitempty"`
+	DeviceVerification  *publicDeviceVerificationContext `json:"device_verification,omitempty"`
+	ReleaseFollowUp     *publicReleaseFollowUpContext    `json:"release_follow_up,omitempty"`
+	RecordedAt          string                           `json:"recorded_at"`
+}
+
+type publicDeviceVerificationContext struct {
+	RecordPath      string   `json:"record_path,omitempty"`
+	Status          string   `json:"status,omitempty"`
+	Summary         string   `json:"summary,omitempty"`
+	EvidencePaths   []string `json:"evidence_paths,omitempty"`
+	VerifiedAt      string   `json:"verified_at,omitempty"`
+	SuggestedAction string   `json:"suggested_action,omitempty"`
+}
+
+type publicReleaseFollowUpContext struct {
+	RecordPath      string   `json:"record_path,omitempty"`
+	Status          string   `json:"status,omitempty"`
+	Summary         string   `json:"summary,omitempty"`
+	OwnerID         string   `json:"owner_id,omitempty"`
+	EvidencePaths   []string `json:"evidence_paths,omitempty"`
+	UpdatedAt       string   `json:"updated_at,omitempty"`
+	SuggestedAction string   `json:"suggested_action,omitempty"`
 }
 
 type publicJobEvent struct {
-	At                         string `json:"at"`
-	Type                       string `json:"type"`
-	JobID                      string `json:"job_id"`
-	RunID                      string `json:"run_id,omitempty"`
-	Summary                    string `json:"summary,omitempty"`
-	SnapshotPath               string `json:"snapshot_path,omitempty"`
-	Stage                      string `json:"stage,omitempty"`
-	Status                     string `json:"status,omitempty"`
-	FailureDomain              string `json:"failure_domain,omitempty"`
-	FailureCategory            string `json:"failure_category,omitempty"`
-	RecommendedResumeMode      string `json:"recommended_resume_mode,omitempty"`
-	RequiresHumanConfirmation  bool   `json:"requires_human_confirmation,omitempty"`
-	RequiresPreservedWorkspace bool   `json:"requires_preserved_workspace,omitempty"`
-	DeliveryStatus             string `json:"delivery_status,omitempty"`
-	DeliveryRecordPath         string `json:"delivery_record_path,omitempty"`
-	ReleaseChannel             string `json:"release_channel,omitempty"`
-	RolloutPercent             int    `json:"rollout_percent,omitempty"`
+	At                         string                  `json:"at"`
+	Type                       string                  `json:"type"`
+	JobID                      string                  `json:"job_id"`
+	RunID                      string                  `json:"run_id,omitempty"`
+	Summary                    string                  `json:"summary,omitempty"`
+	RoundID                    string                  `json:"round_id,omitempty"`
+	Attempt                    int                     `json:"attempt,omitempty"`
+	CheckpointKey              string                  `json:"checkpoint_key,omitempty"`
+	CurrentPhase               string                  `json:"current_phase,omitempty"`
+	PhaseTrace                 []string                `json:"phase_trace,omitempty"`
+	SnapshotPath               string                  `json:"snapshot_path,omitempty"`
+	RoundSummaries             []publicJobRoundSummary `json:"round_summaries,omitempty"`
+	TargetPaths                []string                `json:"target_paths,omitempty"`
+	AffectedPaths              []string                `json:"affected_paths,omitempty"`
+	FileFacts                  []publicJobFileFact     `json:"file_facts,omitempty"`
+	Stage                      string                  `json:"stage,omitempty"`
+	Status                     string                  `json:"status,omitempty"`
+	FailureDomain              string                  `json:"failure_domain,omitempty"`
+	FailureCategory            string                  `json:"failure_category,omitempty"`
+	RecommendedResumeMode      string                  `json:"recommended_resume_mode,omitempty"`
+	RequiresHumanConfirmation  bool                    `json:"requires_human_confirmation,omitempty"`
+	RequiresPreservedWorkspace bool                    `json:"requires_preserved_workspace,omitempty"`
+	DeliveryStatus             string                  `json:"delivery_status,omitempty"`
+	DeliveryRecordPath         string                  `json:"delivery_record_path,omitempty"`
+	ReleaseChannel             string                  `json:"release_channel,omitempty"`
+	RolloutPercent             int                     `json:"rollout_percent,omitempty"`
+	DeviceVerificationStatus   string                  `json:"device_verification_status,omitempty"`
+	ReleaseFollowUpStatus      string                  `json:"release_follow_up_status,omitempty"`
+}
+
+type publicJobRoundSummary struct {
+	RoundID           string              `json:"round_id,omitempty"`
+	Attempt           int                 `json:"attempt,omitempty"`
+	Status            string              `json:"status,omitempty"`
+	Summary           string              `json:"summary,omitempty"`
+	CurrentPhase      string              `json:"current_phase,omitempty"`
+	PhaseTrace        []string            `json:"phase_trace,omitempty"`
+	TargetPaths       []string            `json:"target_paths,omitempty"`
+	ModifiedPaths     []string            `json:"modified_paths,omitempty"`
+	FileFacts         []publicJobFileFact `json:"file_facts,omitempty"`
+	FailedChecks      []string            `json:"failed_checks,omitempty"`
+	FailureSignatures []string            `json:"failure_signatures,omitempty"`
+}
+
+type publicJobFileFact struct {
+	Path       string `json:"path"`
+	State      string `json:"state,omitempty"`
+	ChangeType string `json:"change_type,omitempty"`
 }
 
 type publicNotification struct {
@@ -292,6 +365,8 @@ type publicNotification struct {
 	DeliveryRecordPath         string   `json:"delivery_record_path,omitempty"`
 	ReleaseChannel             string   `json:"release_channel,omitempty"`
 	RolloutPercent             int      `json:"rollout_percent,omitempty"`
+	DeviceVerificationStatus   string   `json:"device_verification_status,omitempty"`
+	ReleaseFollowUpStatus      string   `json:"release_follow_up_status,omitempty"`
 	Acknowledged               bool     `json:"acknowledged,omitempty"`
 	AcknowledgedAt             string   `json:"acknowledged_at,omitempty"`
 }
@@ -306,6 +381,13 @@ type preparedBundleRecord struct {
 type heartbeatRunRequest struct {
 	Stage             appruns.ExecutionStage `json:"stage"`
 	Iteration         int                    `json:"iteration"`
+	EventType         string                 `json:"event_type,omitempty"`
+	RoundID           string                 `json:"round_id,omitempty"`
+	Attempt           int                    `json:"attempt,omitempty"`
+	CheckpointKey     string                 `json:"checkpoint_key,omitempty"`
+	RoundState        *appruns.RoundState    `json:"round_state,omitempty"`
+	TargetPaths       []string               `json:"target_paths,omitempty"`
+	AffectedPaths     []string               `json:"affected_paths,omitempty"`
 	FailureSignatures []string               `json:"failure_signatures,omitempty"`
 	TotalTokens       int                    `json:"total_tokens,omitempty"`
 	Summary           string                 `json:"summary,omitempty"`
@@ -320,16 +402,27 @@ type prepareReviewRequest struct {
 }
 
 type recordDeliveryRequest struct {
-	RunID               string   `json:"run_id"`
-	ReviewerID          string   `json:"reviewer_id"`
-	Status              string   `json:"status"`
-	Summary             string   `json:"summary,omitempty"`
-	NextAction          string   `json:"next_action,omitempty"`
-	ReleaseChannel      string   `json:"release_channel,omitempty"`
-	RolloutPercent      int      `json:"rollout_percent,omitempty"`
-	EvidencePaths       []string `json:"evidence_paths,omitempty"`
-	RequiredChanges     []string `json:"required_changes,omitempty"`
-	SignedArtifactPaths []string `json:"signed_artifact_paths,omitempty"`
+	RunID                           string   `json:"run_id"`
+	ReviewerID                      string   `json:"reviewer_id"`
+	Status                          string   `json:"status"`
+	Summary                         string   `json:"summary,omitempty"`
+	NextAction                      string   `json:"next_action,omitempty"`
+	ReleaseChannel                  string   `json:"release_channel,omitempty"`
+	RolloutPercent                  int      `json:"rollout_percent,omitempty"`
+	EvidencePaths                   []string `json:"evidence_paths,omitempty"`
+	RequiredChanges                 []string `json:"required_changes,omitempty"`
+	SignedArtifactPaths             []string `json:"signed_artifact_paths,omitempty"`
+	DeviceVerificationStatus        string   `json:"device_verification_status,omitempty"`
+	DeviceVerificationSummary       string   `json:"device_verification_summary,omitempty"`
+	DeviceVerificationEvidencePaths []string `json:"device_verification_evidence_paths,omitempty"`
+}
+
+type recordDeliveryFollowUpRequest struct {
+	RunID         string   `json:"run_id"`
+	OwnerID       string   `json:"owner_id"`
+	Status        string   `json:"status"`
+	Summary       string   `json:"summary,omitempty"`
+	EvidencePaths []string `json:"evidence_paths,omitempty"`
 }
 
 type failBuildRunRequest struct {
@@ -403,6 +496,7 @@ func (h *Handler) registerAppFactoryInternalRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /internal/v1/build-runs/{run_id}/cancel", h.handleBuildRunCancel)
 	mux.HandleFunc("POST /internal/v1/reviews:prepare", h.handlePrepareReview)
 	mux.HandleFunc("POST /internal/v1/deliveries:record", h.handleRecordDelivery)
+	mux.HandleFunc("POST /internal/v1/deliveries:follow-up", h.handleRecordDeliveryFollowUp)
 	mux.HandleFunc("POST /internal/v1/artifacts:index", h.handleIndexArtifacts)
 	mux.HandleFunc("POST /internal/v1/metrics:index", h.handleIndexMetrics)
 	mux.HandleFunc("GET /internal/v1/orchestrator/status", h.handleGetOrchestratorStatus)
@@ -481,12 +575,22 @@ func (h *Handler) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 		writeJobError(w, err)
 		return
 	}
+	normalizedHumanNotes, err := normalizePublicJobHumanNotes(req.HumanNotes)
+	if err != nil {
+		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", err.Error())
+		return
+	}
 	if bundle.BuilderInput.TemplateID != "" && strings.TrimSpace(req.TemplateID) != bundle.BuilderInput.TemplateID {
 		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", fmt.Sprintf("prepared template mismatch: want %s got %s", bundle.BuilderInput.TemplateID, strings.TrimSpace(req.TemplateID)))
 		return
 	}
 	if _, err := appprepare.GetTemplateRegistryEntry(strings.TrimSpace(req.TemplateID)); err != nil {
 		writeInternalError(w, http.StatusNotFound, "TEMPLATE_NOT_FOUND", err.Error())
+		return
+	}
+	bundle, err = h.applyPreparedBundleOverrides(bundle, strings.TrimSpace(req.GoalSummary), normalizedHumanNotes)
+	if err != nil {
+		writeInternalError(w, http.StatusInternalServerError, "PREPARED_INPUT_UPDATE_FAILED", err.Error())
 		return
 	}
 	record, err := h.createPublicJob(bundle)
@@ -549,6 +653,16 @@ func (h *Handler) handleGetJobEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleStartJob(w http.ResponseWriter, r *http.Request) {
+	if jobID, ok := parseJobCompilePreparePath(r.URL.Path); ok {
+		record, err := h.compilePreparedBundleForJob(r.Context(), jobID)
+		if err != nil {
+			writeJobCompilePrepareError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, record)
+		return
+	}
+
 	if jobID, ok := parseJobResumePath(r.URL.Path); ok {
 		var req resumeJobRequest
 		if r.ContentLength > 0 {
@@ -633,7 +747,7 @@ func (h *Handler) handleRebuildNotifications(w http.ResponseWriter, r *http.Requ
 		writeNotificationError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items, "rebuild": true})
+	writeJSON(w, http.StatusOK, map[string]any{"items": items, "rebuild": true, "generated_at": time.Now().UTC().Format(time.RFC3339)})
 }
 
 func (h *Handler) handleGetOrchestratorStatus(w http.ResponseWriter, r *http.Request) {
@@ -664,6 +778,7 @@ func (h *Handler) handleUnlockOrchestratorWatch(w http.ResponseWriter, r *http.R
 	}
 	status, err := h.UnlockPublicJobOrchestratorWatchLock(req.Force)
 	if err != nil {
+		_ = h.auditPublicJobOrchestratorWatchConflict(r, "orchestrator_watch_unlock_rejected", req.Force, err)
 		writeInternalError(w, http.StatusConflict, "APPFACTORY_ORCHESTRATOR_WATCH_LOCK_CONFLICT", err.Error())
 		return
 	}
@@ -685,6 +800,7 @@ func (h *Handler) handleStartOrchestratorWatch(w http.ResponseWriter, r *http.Re
 	}
 	status, err := h.StartPublicJobOrchestratorWatch(interval)
 	if err != nil {
+		_ = h.auditPublicJobOrchestratorWatchConflict(r, "orchestrator_watch_start_rejected", false, err)
 		writeInternalError(w, http.StatusConflict, "APPFACTORY_ORCHESTRATOR_WATCH_CONFLICT", err.Error())
 		return
 	}
@@ -728,6 +844,18 @@ func (h *Handler) auditPublicJobOrchestratorWatchAction(r *http.Request, action 
 	}
 	_, _ = h.loadNotifications()
 	return nil
+}
+
+func (h *Handler) auditPublicJobOrchestratorWatchConflict(r *http.Request, action string, force bool, auditErr error) error {
+	status, err := h.LoadPublicJobOrchestratorStatus()
+	if err != nil {
+		status = h.currentPublicJobOrchestratorStatusSnapshot()
+	}
+	summary := "orchestrator watch request rejected"
+	if auditErr != nil && strings.TrimSpace(auditErr.Error()) != "" {
+		summary = strings.TrimSpace(auditErr.Error())
+	}
+	return h.auditPublicJobOrchestratorWatchAction(r, action, force, summary, status)
 }
 
 func orchestratorWatchActionSummary(action string, status PublicJobOrchestratorStatus, force bool) string {
@@ -953,6 +1081,20 @@ func parseApprovalDecisionPath(path string) (string, bool) {
 func parseJobStartPath(path string) (string, bool) {
 	const prefix = "/api/v1/jobs/"
 	const suffix = ":start"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return "", false
+	}
+	jobID := strings.TrimSuffix(strings.TrimPrefix(path, prefix), suffix)
+	jobID = strings.TrimSpace(jobID)
+	if jobID == "" || strings.Contains(jobID, "/") {
+		return "", false
+	}
+	return jobID, true
+}
+
+func parseJobCompilePreparePath(path string) (string, bool) {
+	const prefix = "/api/v1/jobs/"
+	const suffix = ":compile-prepare"
 	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
 		return "", false
 	}
@@ -1232,6 +1374,14 @@ func (h *Handler) handleCreateBuildRun(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, http.StatusInternalServerError, "RUNS_INIT_FAILED", err.Error())
 		return
 	}
+	if strings.TrimSpace(req.BuilderInput.ContextSourceDir) == "" && strings.TrimSpace(req.BuilderInput.JobID) != "" {
+		workspace, err := h.appFactoryWorkspacePath()
+		if err != nil {
+			writeInternalError(w, http.StatusInternalServerError, "APPFACTORY_INIT_FAILED", fmt.Sprintf("init workspace: %v", err))
+			return
+		}
+		req.BuilderInput.ContextSourceDir = filepath.Join(workspace, "appfactory", "jobs", strings.TrimSpace(req.BuilderInput.JobID), "prepare")
+	}
 	run, err := runsSvc.Create(r.Context(), req.WorkerID, req.WorkerID, req.LeaseID, req.BuilderInput)
 	if err != nil {
 		writeRunDomainError(w, err)
@@ -1283,6 +1433,13 @@ func (h *Handler) handleBuildRunHeartbeat(w http.ResponseWriter, r *http.Request
 	run, err := runsSvc.Heartbeat(r.Context(), r.PathValue("run_id"), appruns.Heartbeat{
 		Stage:             req.Stage,
 		Iteration:         req.Iteration,
+		EventType:         req.EventType,
+		RoundID:           req.RoundID,
+		Attempt:           req.Attempt,
+		CheckpointKey:     req.CheckpointKey,
+		RoundState:        req.RoundState,
+		TargetPaths:       req.TargetPaths,
+		AffectedPaths:     req.AffectedPaths,
 		FailureSignatures: req.FailureSignatures,
 		TotalTokens:       req.TotalTokens,
 		Summary:           req.Summary,
@@ -1375,6 +1532,9 @@ func (h *Handler) handleRecordDelivery(w http.ResponseWriter, r *http.Request) {
 	req.EvidencePaths = normalizeStringList(req.EvidencePaths)
 	req.RequiredChanges = normalizeStringList(req.RequiredChanges)
 	req.SignedArtifactPaths = normalizeStringList(req.SignedArtifactPaths)
+	req.DeviceVerificationStatus = normalizeDeviceVerificationStatus(req.DeviceVerificationStatus)
+	req.DeviceVerificationSummary = strings.TrimSpace(req.DeviceVerificationSummary)
+	req.DeviceVerificationEvidencePaths = normalizeStringList(req.DeviceVerificationEvidencePaths)
 	if req.RunID == "" {
 		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", "run_id is required")
 		return
@@ -1389,6 +1549,10 @@ func (h *Handler) handleRecordDelivery(w http.ResponseWriter, r *http.Request) {
 	}
 	if !isSupportedDeliveryReleaseChannel(req.ReleaseChannel) {
 		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", "release_channel is not supported")
+		return
+	}
+	if !isSupportedDeviceVerificationStatus(req.DeviceVerificationStatus) {
+		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", "device_verification_status is not supported")
 		return
 	}
 	if req.RolloutPercent < 0 || req.RolloutPercent > 100 {
@@ -1437,14 +1601,34 @@ func (h *Handler) handleRecordDelivery(w http.ResponseWriter, r *http.Request) {
 		SignedArtifactPaths: req.SignedArtifactPaths,
 		RecordedAt:          time.Now().UTC().Format(time.RFC3339),
 	}
+	if req.DeviceVerificationStatus != "" {
+		delivery.DeviceVerification = &deliveryDeviceVerificationRecord{
+			Status:        req.DeviceVerificationStatus,
+			Summary:       req.DeviceVerificationSummary,
+			EvidencePaths: req.DeviceVerificationEvidencePaths,
+			VerifiedAt:    time.Now().UTC().Format(time.RFC3339),
+		}
+	}
 	if err := writeDeliveryRecord(workspace, delivery); err != nil {
 		writeInternalError(w, http.StatusInternalServerError, "DELIVERY_RECORD_WRITE_FAILED", err.Error())
 		return
+	}
+	if delivery.DeviceVerification != nil {
+		if err := writeDeliveryDeviceVerificationRecord(workspace, run.JobID, *delivery.DeviceVerification); err != nil {
+			writeInternalError(w, http.StatusInternalServerError, "DELIVERY_DEVICE_VERIFICATION_WRITE_FAILED", err.Error())
+			return
+		}
 	}
 	manifestPath := filepath.Join(workspace, "appfactory", filepath.FromSlash(prepared.ArtifactManifestPath))
 	if err := upsertArtifactManifestItem(manifestPath, run.JobID, deliveryRecordArtifactItem()); err != nil {
 		writeInternalError(w, http.StatusInternalServerError, "DELIVERY_MANIFEST_UPDATE_FAILED", err.Error())
 		return
+	}
+	if delivery.DeviceVerification != nil {
+		if err := upsertArtifactManifestItem(manifestPath, run.JobID, deliveryDeviceVerificationArtifactItem()); err != nil {
+			writeInternalError(w, http.StatusInternalServerError, "DELIVERY_MANIFEST_UPDATE_FAILED", err.Error())
+			return
+		}
 	}
 	publicRecord, err := h.buildPublicJobRecord(run.JobID)
 	if err != nil {
@@ -1462,6 +1646,92 @@ func (h *Handler) handleRecordDelivery(w http.ResponseWriter, r *http.Request) {
 		"status":               delivery.Status,
 		"next_action":          delivery.NextAction,
 		"delivery_record_path": deliveryRecordReportPath(),
+	})
+}
+
+func (h *Handler) handleRecordDeliveryFollowUp(w http.ResponseWriter, r *http.Request) {
+	var req recordDeliveryFollowUpRequest
+	if err := decodeJSONBody(r, &req); err != nil {
+		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_JSON", err.Error())
+		return
+	}
+	req.RunID = strings.TrimSpace(req.RunID)
+	req.OwnerID = strings.TrimSpace(req.OwnerID)
+	req.Status = normalizeReleaseFollowUpStatus(req.Status)
+	req.Summary = strings.TrimSpace(req.Summary)
+	req.EvidencePaths = normalizeStringList(req.EvidencePaths)
+	if req.RunID == "" {
+		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", "run_id is required")
+		return
+	}
+	if req.OwnerID == "" {
+		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", "owner_id is required")
+		return
+	}
+	if !isSupportedReleaseFollowUpStatus(req.Status) {
+		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", "follow_up status is not supported")
+		return
+	}
+
+	runsSvc, err := h.buildRunsControlPlane()
+	if err != nil {
+		writeInternalError(w, http.StatusInternalServerError, "RUNS_INIT_FAILED", err.Error())
+		return
+	}
+	run, err := runsSvc.Get(r.Context(), req.RunID)
+	if err != nil {
+		writeRunDomainError(w, err)
+		return
+	}
+	workspace, err := h.appFactoryWorkspacePath()
+	if err != nil {
+		writeInternalError(w, http.StatusInternalServerError, "WORKSPACE_INIT_FAILED", err.Error())
+		return
+	}
+	delivery, err := loadDeliveryRecord(workspace, run.JobID)
+	if err != nil {
+		writeInternalError(w, http.StatusInternalServerError, "DELIVERY_RECORD_READ_FAILED", err.Error())
+		return
+	}
+	if delivery == nil {
+		writeInternalError(w, http.StatusConflict, "DELIVERY_RECORD_REQUIRED", "delivery record must exist before follow-up")
+		return
+	}
+	delivery.ReleaseFollowUp = &deliveryReleaseFollowUpRecord{
+		Status:        req.Status,
+		Summary:       req.Summary,
+		OwnerID:       req.OwnerID,
+		EvidencePaths: req.EvidencePaths,
+		UpdatedAt:     time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := writeDeliveryRecord(workspace, *delivery); err != nil {
+		writeInternalError(w, http.StatusInternalServerError, "DELIVERY_RECORD_WRITE_FAILED", err.Error())
+		return
+	}
+	if err := writeDeliveryReleaseFollowUpRecord(workspace, run.JobID, *delivery.ReleaseFollowUp); err != nil {
+		writeInternalError(w, http.StatusInternalServerError, "DELIVERY_FOLLOW_UP_WRITE_FAILED", err.Error())
+		return
+	}
+	manifestPath := filepath.Join(workspace, "appfactory", filepath.FromSlash(artifactManifestPathForRun(run)))
+	if err := upsertArtifactManifestItem(manifestPath, run.JobID, deliveryReleaseFollowUpArtifactItem()); err != nil {
+		writeInternalError(w, http.StatusInternalServerError, "DELIVERY_MANIFEST_UPDATE_FAILED", err.Error())
+		return
+	}
+	publicRecord, err := h.buildPublicJobRecord(run.JobID)
+	if err != nil {
+		writeInternalError(w, http.StatusInternalServerError, "JOB_REBUILD_FAILED", err.Error())
+		return
+	}
+	if err := h.persistPublicJobRecord(publicRecord); err != nil {
+		writeInternalError(w, http.StatusInternalServerError, "JOB_WRITE_FAILED", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ack":                   true,
+		"job_id":                run.JobID,
+		"run_id":                run.RunID,
+		"status":                delivery.ReleaseFollowUp.Status,
+		"follow_up_record_path": deliveryReleaseFollowUpReportPath(),
 	})
 }
 
@@ -1674,6 +1944,49 @@ func (h *Handler) createPublicJob(bundle preparedBundleRecord) (publicJobRecord,
 	return record, nil
 }
 
+func normalizePublicJobHumanNotes(raw json.RawMessage) (json.RawMessage, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return nil, nil
+	}
+	var payload any
+	if err := json.Unmarshal(trimmed, &payload); err != nil {
+		return nil, fmt.Errorf("human_notes must be valid JSON: %w", err)
+	}
+	normalized, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal human_notes: %w", err)
+	}
+	return json.RawMessage(normalized), nil
+}
+
+func (h *Handler) applyPreparedBundleOverrides(bundle preparedBundleRecord, goalSummary string, humanNotes json.RawMessage) (preparedBundleRecord, error) {
+	updatedInput := bundle.BuilderInput
+	changed := false
+	if goalSummary != "" && goalSummary != updatedInput.GoalSummary {
+		updatedInput.GoalSummary = goalSummary
+		changed = true
+	}
+	if len(humanNotes) > 0 && !bytes.Equal(bytes.TrimSpace(updatedInput.HumanNotes), humanNotes) {
+		updatedInput.HumanNotes = append(json.RawMessage(nil), humanNotes...)
+		changed = true
+	}
+	if !changed {
+		return bundle, nil
+	}
+	data, err := json.MarshalIndent(updatedInput, "", "  ")
+	if err != nil {
+		return preparedBundleRecord{}, fmt.Errorf("marshal prepared builder input: %w", err)
+	}
+	data = append(data, '\n')
+	builderInputPath := filepath.Join(bundle.PrepareDir, "builder-input.json")
+	if err := fileutil.WriteFileAtomic(builderInputPath, data, 0o644); err != nil {
+		return preparedBundleRecord{}, fmt.Errorf("write prepared builder input: %w", err)
+	}
+	bundle.BuilderInput = updatedInput
+	return bundle, nil
+}
+
 func (h *Handler) loadPersistedPublicJobRecord(workspace, jobID string) (*publicJobRecord, error) {
 	jobPath := filepath.Join(workspace, "appfactory", "jobs", jobID, "job.json")
 	data, err := os.ReadFile(jobPath)
@@ -1724,6 +2037,7 @@ func (h *Handler) buildPublicJobRecord(jobID string) (publicJobRecord, error) {
 	if err != nil {
 		return publicJobRecord{}, err
 	}
+	latestRunStale := latestRun != nil && preparedBundleChangedAfterRun(bundle, *latestRun)
 	executionRecord, err := h.loadPublicJobExecutionRecord(workspace, bundle.JobID)
 	if err != nil {
 		return publicJobRecord{}, err
@@ -1732,7 +2046,30 @@ func (h *Handler) buildPublicJobRecord(jobID string) (publicJobRecord, error) {
 	templateApprovalPath := filepath.Join(bundle.PrepareDir, appruns.TemplateApprovalFileName)
 	prdApprovalStatus, _ := readApprovalStatus(prdApprovalPath)
 	templateApprovalStatus, _ := readApprovalStatus(templateApprovalPath)
-	status, phase := derivePublicJobStatus(prdApprovalStatus, templateApprovalStatus, latestRun)
+	rawPRDApprovalStatus := prdApprovalStatus
+	rawTemplateApprovalStatus := templateApprovalStatus
+	prdApprovalStatus, templateApprovalStatus, err = h.deriveEffectivePreparedApprovalStatuses(bundle, prdApprovalStatus, templateApprovalStatus)
+	if err != nil {
+		return publicJobRecord{}, err
+	}
+	prepareRecompileRequired := false
+	var prepareRecompileErr error
+	if prdApprovalStatus == appruns.ApprovalStatusApproved && templateApprovalStatus == appruns.ApprovalStatusApproved {
+		if err := validatePreparedBuilderInputSourceVersions(bundle); err != nil {
+			prepareRecompileRequired = true
+			prepareRecompileErr = err
+		}
+	}
+	effectiveLatestRun := latestRun
+	if latestRunStale || prepareRecompileRequired {
+		effectiveLatestRun = nil
+	}
+	status, phase := derivePublicJobStatus(prdApprovalStatus, templateApprovalStatus, effectiveLatestRun)
+	if prepareRecompileRequired {
+		status = "awaiting_prepare_recompile"
+		phase = "prepare"
+	}
+	statusContext := h.derivePublicJobStatusContext(bundle, rawPRDApprovalStatus, rawTemplateApprovalStatus, prdApprovalStatus, templateApprovalStatus, latestRun, latestRunStale, prepareRecompileErr)
 	commandProfile := appruns.CommandProfile{}
 	if len(bundle.BuilderInput.CommandProfile) > 0 {
 		_ = json.Unmarshal(bundle.BuilderInput.CommandProfile, &commandProfile)
@@ -1752,11 +2089,12 @@ func (h *Handler) buildPublicJobRecord(jobID string) (publicJobRecord, error) {
 	var failureContext *publicJobFailureContext
 	var resumeContext *publicJobResumeContext
 	var deliveryContext *publicJobDeliveryContext
+	var currentRound *publicJobCurrentRound
 	budgets := publicJobBudgets{
 		IterationBudget: bundle.BuilderInput.IterationBudget,
 		TokenBudget:     bundle.BuilderInput.TokenBudget,
 	}
-	if latestRun != nil {
+	if latestRun != nil && !latestRunStale && !prepareRecompileRequired {
 		updatedAt = latestRun.UpdatedAt.UTC().Format(time.RFC3339)
 		startedAt = latestRun.StartedAt.UTC().Format(time.RFC3339)
 		if !latestRun.FinishedAt.IsZero() {
@@ -1785,14 +2123,26 @@ func (h *Handler) buildPublicJobRecord(jobID string) (publicJobRecord, error) {
 		if err != nil {
 			return publicJobRecord{}, err
 		}
+		failureContext = enrichPublicJobFailureContext(failureContext, resumeContext)
+		currentRound = publicJobCurrentRoundFromRun(*latestRun)
 	}
-	if overrideStatus, overridePhase, ok := derivePublicJobExecutionStatusOverride(latestRun, executionRecord); ok {
+	if latestRun != nil && !latestRunStale && !prepareRecompileRequired && latestRun.Status == appruns.StatusFailed && (prdApprovalStatus != appruns.ApprovalStatusApproved || templateApprovalStatus != appruns.ApprovalStatusApproved) {
+		status, phase = derivePublicJobStatus(prdApprovalStatus, templateApprovalStatus, nil)
+	}
+	if statusContext == nil {
+		statusContext = statusContextForTerminalJobState(status, failureContext, resumeContext)
+	}
+	if phase == "approval" || phase == "prepare" {
+		resumeContext = nil
+	}
+	if overrideStatus, overridePhase, ok := derivePublicJobExecutionStatusOverride(effectiveLatestRun, executionRecord); ok {
 		status = overrideStatus
 		phase = overridePhase
 		updatedAt = latestPublicJobTimestamp(updatedAt, executionRecord.RequestedAt, executionRecord.StartedAt, executionRecord.FinishedAt)
 		startedAt = strings.TrimSpace(executionRecord.StartedAt)
 		finishedAt = strings.TrimSpace(executionRecord.FinishedAt)
-		failureContext = publicJobFailureContextFromExecutionRecord(executionRecord)
+		failureContext = enrichPublicJobFailureContext(publicJobFailureContextFromExecutionRecord(executionRecord), nil)
+		statusContext = statusContextForExecutionTerminal(executionRecord, failureContext)
 		resumeContext = nil
 	}
 	delivery, err := loadDeliveryRecord(workspace, bundle.JobID)
@@ -1801,7 +2151,14 @@ func (h *Handler) buildPublicJobRecord(jobID string) (publicJobRecord, error) {
 	}
 	if delivery != nil {
 		deliveryContext = publicJobDeliveryContextFromRecord(bundle.JobID, *delivery)
-		artifacts = mergePublicArtifactPaths(artifacts, []string{deliveryRecordPublicPath(bundle.JobID)})
+		deliveryArtifacts := []string{deliveryRecordPublicPath(bundle.JobID)}
+		if delivery.DeviceVerification != nil {
+			deliveryArtifacts = append(deliveryArtifacts, deliveryDeviceVerificationPublicPath(bundle.JobID))
+		}
+		if delivery.ReleaseFollowUp != nil {
+			deliveryArtifacts = append(deliveryArtifacts, deliveryReleaseFollowUpPublicPath(bundle.JobID))
+		}
+		artifacts = mergePublicArtifactPaths(artifacts, deliveryArtifacts)
 		if delivery.RecordedAt > updatedAt {
 			updatedAt = delivery.RecordedAt
 		}
@@ -1815,6 +2172,7 @@ func (h *Handler) buildPublicJobRecord(jobID string) (publicJobRecord, error) {
 	record := publicJobRecord{
 		SchemaVersion:     "0.1.0",
 		JobID:             bundle.JobID,
+		Title:             strings.TrimSpace(bundle.PRD.Title),
 		PRDID:             bundle.PRD.ID,
 		PRDVersion:        bundle.PRD.Version,
 		TemplateID:        bundle.BuilderInput.TemplateID,
@@ -1830,9 +2188,11 @@ func (h *Handler) buildPublicJobRecord(jobID string) (publicJobRecord, error) {
 			WorkerPool:    "local-file-store",
 			NetworkPolicy: commandProfile.NetworkPolicy,
 		},
+		CurrentRound:    currentRound,
 		Logs:            logs,
 		Artifacts:       artifacts,
 		HumanApprovals:  []string{filepath.ToSlash(filepath.Join("jobs", bundle.JobID, "prepare", appruns.PRDApprovalFileName)), filepath.ToSlash(filepath.Join("jobs", bundle.JobID, "prepare", appruns.TemplateApprovalFileName))},
+		StatusContext:   statusContext,
 		FailureContext:  failureContext,
 		ResumeContext:   resumeContext,
 		DeliveryContext: deliveryContext,
@@ -1844,13 +2204,39 @@ func (h *Handler) buildPublicJobRecord(jobID string) (publicJobRecord, error) {
 	if latestRun == nil && persistedRecord != nil && persistedRecord.Status == "cancelled" {
 		record.Status = persistedRecord.Status
 		record.Phase = persistedRecord.Phase
+		record.StatusContext = persistedRecord.StatusContext
 		record.UpdatedAt = persistedRecord.UpdatedAt
 		record.FinishedAt = persistedRecord.FinishedAt
 		record.FailureContext = persistedRecord.FailureContext
 		record.ResumeContext = persistedRecord.ResumeContext
+		record.CurrentRound = persistedRecord.CurrentRound
 		record.DeliveryContext = persistedRecord.DeliveryContext
 	}
 	return record, nil
+}
+
+func publicJobCurrentRoundFromRun(run appruns.RunRecord) *publicJobCurrentRound {
+	if run.Status != appruns.StatusRunning {
+		return nil
+	}
+	roundID := strings.TrimSpace(run.CurrentRoundID)
+	currentPhase := ""
+	if run.RoundState != nil {
+		currentPhase = strings.TrimSpace(string(run.RoundState.CurrentPhase))
+	}
+	phaseTrace := collectRoundPhaseTrace(run.RoundState)
+	targetPaths := trimAndDedupeStrings(run.CurrentRoundTargetPaths)
+	if roundID == "" && currentPhase == "" && run.CurrentRoundAttempt <= 0 && len(phaseTrace) == 0 && len(targetPaths) == 0 {
+		return nil
+	}
+	return &publicJobCurrentRound{
+		RoundID:       roundID,
+		Attempt:       run.CurrentRoundAttempt,
+		CheckpointKey: strings.TrimSpace(run.CurrentCheckpointKey),
+		CurrentPhase:  currentPhase,
+		PhaseTrace:    phaseTrace,
+		TargetPaths:   targetPaths,
+	}
 }
 
 func (h *Handler) loadPublicJobs(statusFilter string) ([]publicJobRecord, error) {
@@ -1922,8 +2308,8 @@ func (h *Handler) derivePublicJobResumeContext(workspace, jobID string, latestRu
 	if strings.TrimSpace(resumeContext.RecommendedResumeMode) == "" {
 		resumeContext.RecommendedResumeMode = derivePublicJobRecommendedResumeMode(latestRun, jobID, resumeContext)
 	}
-	if strings.TrimSpace(resumeContext.NextAction) == "" {
-		resumeContext.NextAction = publicJobResumeNextAction(resumeContext)
+	if strings.TrimSpace(resumeContext.SuggestedAction) == "" {
+		resumeContext.SuggestedAction = publicJobResumeSuggestedAction(resumeContext)
 	}
 	return resumeContext, nil
 }
@@ -2038,18 +2424,23 @@ func decodePublicJobResumeContext(output *appruns.BuildOutput) (*publicJobResume
 		RequiresHumanConfirmation  *bool  `json:"requires_human_confirmation,omitempty"`
 		RequiresPreservedWorkspace *bool  `json:"requires_preserved_workspace,omitempty"`
 		PreservedWorkspacePath     string `json:"preserved_workspace_path,omitempty"`
+		SuggestedAction            string `json:"suggested_action,omitempty"`
 		NextAction                 string `json:"next_action,omitempty"`
 	}
 	var raw rawResumeContext
 	if err := json.Unmarshal(output.ResumeContext, &raw); err != nil {
 		return nil, false, fmt.Errorf("decode resume context: %w", err)
 	}
+	suggestedAction := strings.TrimSpace(raw.SuggestedAction)
+	if suggestedAction == "" {
+		suggestedAction = strings.TrimSpace(raw.NextAction)
+	}
 	resumeContext := &publicJobResumeContext{
 		FailureDomain:          strings.TrimSpace(raw.FailureDomain),
 		FailureCategory:        strings.TrimSpace(raw.FailureCategory),
 		RecommendedResumeMode:  strings.TrimSpace(raw.RecommendedResumeMode),
 		PreservedWorkspacePath: raw.PreservedWorkspacePath,
-		NextAction:             raw.NextAction,
+		SuggestedAction:        suggestedAction,
 	}
 	if raw.RequiresHumanConfirmation != nil {
 		resumeContext.RequiresHumanConfirmation = *raw.RequiresHumanConfirmation
@@ -2083,12 +2474,18 @@ func derivePublicJobFailureDomain(category string) string {
 	switch normalized := strings.TrimSpace(category); {
 	case normalized == "":
 		return ""
+	case normalized == "orchestrator_dispatcher_lost":
+		return "environment"
+	case normalized == "execution_recovery_failed":
+		return "environment"
 	case strings.HasPrefix(normalized, "skill_"):
 		return "skill"
 	case strings.HasPrefix(normalized, "legacy-builder_"):
 		return "skill"
 	case strings.HasPrefix(normalized, "profile_check_failed:"):
 		return "profile"
+	case strings.HasPrefix(normalized, "device_check_failed:"):
+		return "device"
 	case strings.HasPrefix(normalized, "environment_check_failed:"):
 		return "environment"
 	case normalized == "workspace_patch_apply_failed":
@@ -2105,11 +2502,36 @@ func derivePublicJobFailureDomain(category string) string {
 		return "profile"
 	case strings.HasPrefix(normalized, "check_failed:check-local-persistence-wiring"):
 		return "profile"
+	case strings.HasPrefix(normalized, "check_failed:check-structural-"):
+		return "profile"
+	case strings.HasPrefix(normalized, "check_failed:check-profile-"):
+		return "profile"
 	case strings.HasPrefix(normalized, "check_failed:check-flutter-"):
 		return "environment"
 	default:
 		return "executor"
 	}
+}
+
+func enrichPublicJobFailureContext(failureContext *publicJobFailureContext, resumeContext *publicJobResumeContext) *publicJobFailureContext {
+	if failureContext == nil {
+		return nil
+	}
+	if resumeContext != nil {
+		if strings.TrimSpace(failureContext.FailureCategory) == "" {
+			failureContext.FailureCategory = strings.TrimSpace(resumeContext.FailureCategory)
+		}
+		if strings.TrimSpace(failureContext.FailureDomain) == "" {
+			failureContext.FailureDomain = strings.TrimSpace(resumeContext.FailureDomain)
+		}
+	}
+	if strings.TrimSpace(failureContext.FailureCategory) == "" {
+		failureContext.FailureCategory = strings.TrimSpace(failureContext.FailureSignature)
+	}
+	if strings.TrimSpace(failureContext.FailureDomain) == "" {
+		failureContext.FailureDomain = derivePublicJobFailureDomain(failureContext.FailureCategory)
+	}
+	return failureContext
 }
 
 func publicJobResumePathUsesPreservedWorkspace(jobID, relPath string) bool {
@@ -2131,9 +2553,15 @@ func derivePublicJobRecommendedResumeMode(run appruns.RunRecord, jobID string, r
 	return "retry_failed_run"
 }
 
-func publicJobResumeNextAction(resumeContext *publicJobResumeContext) string {
+func publicJobResumeSuggestedAction(resumeContext *publicJobResumeContext) string {
 	if resumeContext == nil {
 		return "inspect_failure_and_retry_later"
+	}
+	if suggestedAction := strings.TrimSpace(resumeContext.SuggestedAction); suggestedAction != "" {
+		return suggestedAction
+	}
+	if suggestedAction := publicDeviceFailureSuggestedAction(resumeContext.FailureDomain, resumeContext.FailureCategory); suggestedAction != "" {
+		return suggestedAction
 	}
 	if resumeContext.RequiresHumanConfirmation {
 		return "inspect_failure_and_confirm_resume"
@@ -2141,13 +2569,64 @@ func publicJobResumeNextAction(resumeContext *publicJobResumeContext) string {
 	if mode := strings.TrimSpace(resumeContext.RecommendedResumeMode); mode != "" {
 		return mode
 	}
-	if nextAction := strings.TrimSpace(resumeContext.NextAction); nextAction != "" {
-		return nextAction
-	}
 	if resumeContext.ResumeAllowed {
 		return "resume_failed_job"
 	}
 	return "inspect_failure_and_retry_later"
+}
+
+func publicDeviceFailureSuggestedAction(domain, category string) string {
+	normalizedDomain := strings.TrimSpace(domain)
+	normalizedCategory := strings.TrimSpace(category)
+	if normalizedDomain == "device" || strings.HasPrefix(normalizedCategory, "device_check_failed:") {
+		return "inspect_device_evidence"
+	}
+	switch normalizedCategory {
+	case "environment_check_failed:adb_binary_unavailable",
+		"environment_check_failed:debug_apk_missing",
+		"environment_check_failed:android_app_id_missing":
+		return "inspect_device_evidence"
+	default:
+		return ""
+	}
+}
+
+func publicJobFailureDomainAndCategory(record publicJobRecord) (string, string) {
+	if record.ResumeContext != nil {
+		if category := strings.TrimSpace(record.ResumeContext.FailureCategory); category != "" {
+			domain := strings.TrimSpace(record.ResumeContext.FailureDomain)
+			if domain == "" {
+				domain = derivePublicJobFailureDomain(category)
+			}
+			return domain, category
+		}
+	}
+	if record.FailureContext != nil {
+		if category := strings.TrimSpace(record.FailureContext.FailureCategory); category != "" {
+			domain := strings.TrimSpace(record.FailureContext.FailureDomain)
+			if domain == "" {
+				domain = derivePublicJobFailureDomain(category)
+			}
+			return domain, category
+		}
+	}
+	return "", ""
+}
+
+func applyPublicJobFailureMetadataToNotification(item *publicNotification, record publicJobRecord) {
+	if item == nil {
+		return
+	}
+	if strings.TrimSpace(item.FailureCategory) != "" && strings.TrimSpace(item.FailureDomain) != "" {
+		return
+	}
+	domain, category := publicJobFailureDomainAndCategory(record)
+	if strings.TrimSpace(item.FailureCategory) == "" {
+		item.FailureCategory = category
+	}
+	if strings.TrimSpace(item.FailureDomain) == "" {
+		item.FailureDomain = domain
+	}
 }
 
 func applyPublicJobResumeMetadataToEvent(event *publicJobEvent, resumeContext *publicJobResumeContext) {
@@ -2180,6 +2659,12 @@ func applyPublicJobDeliveryMetadataToEvent(event *publicJobEvent, delivery *publ
 	event.DeliveryRecordPath = strings.TrimSpace(delivery.DeliveryRecordPath)
 	event.ReleaseChannel = strings.TrimSpace(delivery.ReleaseChannel)
 	event.RolloutPercent = delivery.RolloutPercent
+	if delivery.DeviceVerification != nil {
+		event.DeviceVerificationStatus = strings.TrimSpace(delivery.DeviceVerification.Status)
+	}
+	if delivery.ReleaseFollowUp != nil {
+		event.ReleaseFollowUpStatus = strings.TrimSpace(delivery.ReleaseFollowUp.Status)
+	}
 }
 
 func applyPublicJobDeliveryMetadataToNotification(item *publicNotification, delivery *publicJobDeliveryContext) {
@@ -2190,6 +2675,12 @@ func applyPublicJobDeliveryMetadataToNotification(item *publicNotification, deli
 	item.DeliveryRecordPath = strings.TrimSpace(delivery.DeliveryRecordPath)
 	item.ReleaseChannel = strings.TrimSpace(delivery.ReleaseChannel)
 	item.RolloutPercent = delivery.RolloutPercent
+	if delivery.DeviceVerification != nil {
+		item.DeviceVerificationStatus = strings.TrimSpace(delivery.DeviceVerification.Status)
+	}
+	if delivery.ReleaseFollowUp != nil {
+		item.ReleaseFollowUpStatus = strings.TrimSpace(delivery.ReleaseFollowUp.Status)
+	}
 }
 
 func (h *Handler) loadLatestRunForJob(workspace, jobID string) (*appruns.RunRecord, error) {
@@ -2246,6 +2737,90 @@ func derivePublicJobStatus(prdApprovalStatus, templateApprovalStatus string, lat
 	return "queued", "builder"
 }
 
+func statusContextForExecutionTerminal(executionRecord *publicJobExecutionRecord, failureContext *publicJobFailureContext) *publicJobStatusContext {
+	if executionRecord == nil {
+		return nil
+	}
+	status := strings.TrimSpace(executionRecord.Status)
+	if status != "failed" && status != "cancelled" {
+		return nil
+	}
+	reasonCode := "execution_failed"
+	if failureContext != nil && strings.TrimSpace(failureContext.FailureCategory) != "" {
+		reasonCode = strings.TrimSpace(failureContext.FailureCategory)
+	} else if signature := strings.TrimSpace(publicJobExecutionFailureSignature(executionRecord)); signature != "" {
+		reasonCode = signature
+	}
+	context := &publicJobStatusContext{ReasonCode: reasonCode}
+	switch reasonCode {
+	case "execution_interrupted":
+		context.Summary = "当前 execution 因 orchestrator 中断而终止，需在恢复条件满足后继续 resume。"
+		context.SuggestedAction = "resume_interrupted_job"
+	case "execution_recovery_failed":
+		context.Summary = "当前 execution 在 orchestrator 恢复阶段失败，需要先检查失败摘要再决定后续动作。"
+		context.SuggestedAction = "inspect_failure_and_retry_later"
+	case "execution_cancelled":
+		context.Summary = "当前 execution 已取消，不会继续自动恢复。"
+		context.SuggestedAction = "inspect_execution_history"
+	default:
+		context.Summary = "当前 execution 已失败，需要先检查失败摘要再决定后续动作。"
+		context.SuggestedAction = "inspect_failure_and_retry_later"
+	}
+	return context
+}
+
+func statusContextForTerminalJobState(status string, failureContext *publicJobFailureContext, resumeContext *publicJobResumeContext) *publicJobStatusContext {
+	normalizedStatus := strings.TrimSpace(status)
+	if normalizedStatus != "failed" && normalizedStatus != "cancelled" {
+		return nil
+	}
+	reasonCode := ""
+	if failureContext != nil {
+		if category := strings.TrimSpace(failureContext.FailureCategory); category != "" {
+			reasonCode = category
+		} else if signature := strings.TrimSpace(failureContext.FailureSignature); signature != "" {
+			reasonCode = signature
+		}
+	}
+	if reasonCode == "" {
+		if normalizedStatus == "cancelled" {
+			return &publicJobStatusContext{
+				ReasonCode: "job_cancelled",
+				Summary:    "当前 job 已取消，不会继续自动恢复。",
+			}
+		}
+		return nil
+	}
+	context := &publicJobStatusContext{ReasonCode: reasonCode}
+	switch reasonCode {
+	case "execution_interrupted":
+		context.Summary = "当前 execution 因 orchestrator 中断而终止，需在恢复条件满足后继续 resume。"
+		if resumeContext != nil {
+			context.SuggestedAction = publicJobResumeSuggestedAction(resumeContext)
+		} else {
+			context.SuggestedAction = "resume_interrupted_job"
+		}
+	case "execution_recovery_failed":
+		context.Summary = "当前 execution 在 orchestrator 恢复阶段失败，需要先检查失败摘要再决定后续动作。"
+		context.SuggestedAction = "inspect_failure_and_retry_later"
+	case "execution_cancelled":
+		context.Summary = "当前 execution 已取消，不会继续自动恢复。"
+		context.SuggestedAction = "inspect_execution_history"
+	default:
+		if normalizedStatus == "cancelled" {
+			context.Summary = "当前 job 已取消，不会继续自动恢复。"
+			return context
+		}
+		context.Summary = "当前 job 已失败，需要先检查失败摘要再决定后续动作。"
+		if resumeContext != nil {
+			context.SuggestedAction = publicJobResumeSuggestedAction(resumeContext)
+		} else {
+			context.SuggestedAction = "inspect_failure_and_retry_later"
+		}
+	}
+	return context
+}
+
 func derivePublicJobExecutionStatusOverride(latestRun *appruns.RunRecord, executionRecord *publicJobExecutionRecord) (string, string, bool) {
 	if latestRun == nil || executionRecord == nil {
 		return "", "", false
@@ -2289,6 +2864,8 @@ func publicJobFailureContextFromExecutionRecord(executionRecord *publicJobExecut
 	}
 	if signature := publicJobExecutionFailureSignature(executionRecord); signature != "" {
 		context.FailureSignature = signature
+		context.FailureCategory = signature
+		context.FailureDomain = derivePublicJobFailureDomain(signature)
 	}
 	return context
 }
@@ -2327,7 +2904,7 @@ func publicJobExecutionFailureSignature(executionRecord *publicJobExecutionRecor
 	lastAttempt := executionRecord.Attempts[len(executionRecord.Attempts)-1]
 	switch strings.TrimSpace(lastAttempt.ReleaseReason) {
 	case "dispatcher_lost":
-		return "orchestrator_dispatcher_lost"
+		return "execution_interrupted"
 	case "recovery_failed":
 		return "execution_recovery_failed"
 	case "failed":
@@ -2371,6 +2948,153 @@ func parsePublicJobTimestamp(value string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+func (h *Handler) derivePublicJobStatusContext(bundle preparedBundleRecord, rawPRDApprovalStatus, rawTemplateApprovalStatus, effectivePRDApprovalStatus, effectiveTemplateApprovalStatus string, latestRun *appruns.RunRecord, latestRunStale bool, prepareRecompileErr error) *publicJobStatusContext {
+	if prepareRecompileErr != nil {
+		return statusContextForPrepareRecompile(prepareRecompileErr)
+	}
+	if effectivePRDApprovalStatus != appruns.ApprovalStatusApproved {
+		return h.statusContextForPRDApproval(bundle, rawPRDApprovalStatus)
+	}
+	if effectiveTemplateApprovalStatus != appruns.ApprovalStatusApproved {
+		return h.statusContextForTemplateApproval(bundle, rawTemplateApprovalStatus)
+	}
+	if latestRunStale && latestRun != nil {
+		return statusContextForPreparedInputStale(latestRun)
+	}
+	return nil
+}
+
+func (h *Handler) statusContextForPRDApproval(bundle preparedBundleRecord, rawStatus string) *publicJobStatusContext {
+	if err := h.validatePreparedApprovalSnapshots(bundle); err != nil && strings.Contains(err.Error(), "prd approval subject_version mismatch") {
+		return &publicJobStatusContext{
+			ReasonCode:      "prd_approval_drift",
+			Summary:         "当前 PRD 已变化，prepare 中冻结的 PRD 审批快照不再匹配，必须先对当前 PRD 重新提审。",
+			SuggestedAction: "submit_prd_approval",
+		}
+	}
+	if rawStatus == appruns.ApprovalStatusRejected {
+		return &publicJobStatusContext{
+			ReasonCode:      "prd_approval_rejected",
+			Summary:         "当前 PRD 审批未通过，执行链路不能继续推进。",
+			SuggestedAction: "revise_prd",
+		}
+	}
+	return &publicJobStatusContext{
+		ReasonCode:      "prd_approval_pending",
+		Summary:         "当前 PRD 还没有通过审批，执行链路需要先补齐 PRD 审批。",
+		SuggestedAction: "submit_prd_approval",
+	}
+}
+
+func (h *Handler) statusContextForTemplateApproval(bundle preparedBundleRecord, rawStatus string) *publicJobStatusContext {
+	if err := h.validatePreparedApprovalSnapshots(bundle); err != nil && (strings.Contains(err.Error(), "template approval subject_version mismatch") || strings.Contains(err.Error(), "resolve template approval subject version")) {
+		return &publicJobStatusContext{
+			ReasonCode:      "template_approval_drift",
+			Summary:         "当前模板匹配结果或模板冻结版本已变化，prepare 中冻结的模板审批快照不再匹配，必须先对当前模板重新提审。",
+			SuggestedAction: "submit_template_approval",
+		}
+	}
+	if rawStatus == appruns.ApprovalStatusRejected {
+		return &publicJobStatusContext{
+			ReasonCode:      "template_approval_rejected",
+			Summary:         "当前模板审批未通过，执行链路不能继续推进。",
+			SuggestedAction: "revise_template_selection",
+		}
+	}
+	return &publicJobStatusContext{
+		ReasonCode:      "template_approval_pending",
+		Summary:         "当前模板还没有通过审批，执行链路需要先补齐模板审批。",
+		SuggestedAction: "submit_template_approval",
+	}
+}
+
+func statusContextForPreparedInputStale(latestRun *appruns.RunRecord) *publicJobStatusContext {
+	summary := "当前 prepare 输入已经不同于最近一次 run 使用的输入，旧 run 的恢复语义已失效，需要基于当前输入重新 start。"
+	if latestRun != nil && latestRun.Status == appruns.StatusFailed {
+		summary = "当前 prepare 输入已经不同于最近一次 failed run 使用的输入，旧失败现场不能继续 resume，需要基于当前输入重新 start。"
+	}
+	return &publicJobStatusContext{
+		ReasonCode:      "prepared_input_stale",
+		Summary:         summary,
+		SuggestedAction: "start",
+	}
+}
+
+func statusContextForPrepareRecompile(cause error) *publicJobStatusContext {
+	context := &publicJobStatusContext{
+		ReasonCode:      "prepare_recompile_required",
+		Summary:         "当前 prepare 输入与 builder-input.json 的编译来源不再一致，必须先重新 compile prepare bundle。",
+		SuggestedAction: "compile_prepare_bundle",
+	}
+	if cause == nil {
+		return context
+	}
+	message := cause.Error()
+	switch {
+	case strings.Contains(message, "prepared_prd_subject_version mismatch"):
+		context.ReasonCode = "prepared_prd_source_stale"
+		context.Summary = "当前 PRD 已变化，现有 builder-input.json 仍绑定旧 PRD 编译来源，必须先重新 compile prepare bundle。"
+	case strings.Contains(message, "prepared_template_subject_version mismatch"):
+		context.ReasonCode = "prepared_template_source_stale"
+		context.Summary = "当前模板冻结版本已变化，现有 builder-input.json 的模板编译来源不再有效，必须先重新 compile prepare bundle。"
+	}
+	return context
+}
+
+func preparedBundleChangedAfterRun(bundle preparedBundleRecord, run appruns.RunRecord) bool {
+	preparedInputDigest := appruns.PreparedInputDigest(bundle.BuilderInput, bundle.PrepareDir)
+	if preparedInputDigest != "" && strings.TrimSpace(run.PreparedInputDigest) != "" && preparedInputDigest != strings.TrimSpace(run.PreparedInputDigest) {
+		return true
+	}
+	bundleUpdatedAt, ok := parsePublicJobTimestamp(bundle.PRD.UpdatedAt)
+	if !ok {
+		bundleUpdatedAt, ok = parsePublicJobTimestamp(bundle.PRD.CreatedAt)
+	}
+	if !ok {
+		return false
+	}
+	return bundleUpdatedAt.After(run.UpdatedAt)
+}
+
+func validatePreparedBuilderInputSourceVersions(bundle preparedBundleRecord) error {
+	preparedPRDSubjectVersion := strings.TrimSpace(bundle.BuilderInput.PreparedPRDSubjectVersion)
+	preparedTemplateSubjectVersion := strings.TrimSpace(bundle.BuilderInput.PreparedTemplateSubjectVersion)
+	if preparedPRDSubjectVersion == "" && preparedTemplateSubjectVersion == "" {
+		return nil
+	}
+	expectedPRDSubjectVersion := appprepare.PRDCompileSourceVersion(bundle.PRD)
+	if preparedPRDSubjectVersion != "" && preparedPRDSubjectVersion != expectedPRDSubjectVersion {
+		return fmt.Errorf("builder input prepared_prd_subject_version mismatch: want %s got %s", expectedPRDSubjectVersion, preparedPRDSubjectVersion)
+	}
+	expectedTemplateSubjectVersion, err := expectedPreparedTemplateCompileSourceVersion(bundle)
+	if err != nil {
+		return fmt.Errorf("resolve builder input template subject version: %w", err)
+	}
+	if preparedTemplateSubjectVersion != "" && preparedTemplateSubjectVersion != expectedTemplateSubjectVersion {
+		return fmt.Errorf("builder input prepared_template_subject_version mismatch: want %s got %s", expectedTemplateSubjectVersion, preparedTemplateSubjectVersion)
+	}
+	return nil
+}
+
+func expectedPreparedTemplateCompileSourceVersion(bundle preparedBundleRecord) (string, error) {
+	entry, err := appprepare.GetTemplateRegistryEntry(bundle.BuilderInput.TemplateID)
+	if err != nil {
+		return "", err
+	}
+	return appprepare.TemplateCompileSourceVersion(bundle.BuilderInput.TemplateID, entry.PinnedRef), nil
+}
+
+func stalePreparedRunConflict(jobID string) error {
+	return fmt.Errorf("job %q has newer prepared bundle than latest run; use start instead of resume", jobID)
+}
+
+func stalePreparedBundleConflict(jobID string, cause error) error {
+	if cause == nil {
+		return fmt.Errorf("job %q requires prepare recompile before execution", jobID)
+	}
+	return fmt.Errorf("job %q requires prepare recompile before execution: %w", jobID, cause)
+}
+
 func readApprovalStatus(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -2384,6 +3108,80 @@ func readApprovalStatus(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(record.Status), nil
+}
+
+func expectedPreparedPRDApprovalSubjectVersion(bundle preparedBundleRecord) (string, error) {
+	prdMarkdown, err := os.ReadFile(filepath.Join(bundle.PrepareDir, "PRD.md"))
+	if err != nil {
+		return "", fmt.Errorf("read prepared prd markdown: %w", err)
+	}
+	requirement, err := os.ReadFile(filepath.Join(bundle.PrepareDir, "requirement.md"))
+	if err != nil {
+		return "", fmt.Errorf("read prepared requirement: %w", err)
+	}
+	return appprepare.PRDApprovalSubjectVersion(bundle.PRD, prdMarkdown, requirement), nil
+}
+
+func expectedPreparedTemplateApprovalSubjectVersion(bundle preparedBundleRecord) (string, error) {
+	entry, err := appprepare.GetTemplateRegistryEntry(bundle.BuilderInput.TemplateID)
+	if err != nil {
+		return "", err
+	}
+	fitReport, err := os.ReadFile(filepath.Join(bundle.PrepareDir, "template-fit-report.md"))
+	if err != nil {
+		return "", fmt.Errorf("read template fit report: %w", err)
+	}
+	return appprepare.TemplateApprovalSubjectVersion(bundle.BuilderInput.TemplateID, entry.PinnedRef, fitReport), nil
+}
+
+func validatePreparedApprovalSubjectVersion(path, label, expected string) error {
+	record, err := readApprovalRecordFromPath(path)
+	if err != nil {
+		return err
+	}
+	actual := strings.TrimSpace(record.SubjectVersion)
+	if actual != expected {
+		return fmt.Errorf("%s approval subject_version mismatch: want %s got %s", label, expected, actual)
+	}
+	return nil
+}
+
+func (h *Handler) validatePreparedApprovalSnapshots(bundle preparedBundleRecord) error {
+	prdExpected, err := expectedPreparedPRDApprovalSubjectVersion(bundle)
+	if err != nil {
+		return fmt.Errorf("resolve prd approval subject version: %w", err)
+	}
+	if err := validatePreparedApprovalSubjectVersion(filepath.Join(bundle.PrepareDir, appruns.PRDApprovalFileName), "prd", prdExpected); err != nil {
+		return err
+	}
+	templateExpected, err := expectedPreparedTemplateApprovalSubjectVersion(bundle)
+	if err != nil {
+		return fmt.Errorf("resolve template approval subject version: %w", err)
+	}
+	if err := validatePreparedApprovalSubjectVersion(filepath.Join(bundle.PrepareDir, appruns.TemplateApprovalFileName), "template", templateExpected); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *Handler) deriveEffectivePreparedApprovalStatuses(bundle preparedBundleRecord, prdApprovalStatus, templateApprovalStatus string) (string, string, error) {
+	effectivePRDApprovalStatus := prdApprovalStatus
+	effectiveTemplateApprovalStatus := templateApprovalStatus
+	if prdApprovalStatus != appruns.ApprovalStatusApproved && templateApprovalStatus != appruns.ApprovalStatusApproved {
+		return effectivePRDApprovalStatus, effectiveTemplateApprovalStatus, nil
+	}
+	if err := h.validatePreparedApprovalSnapshots(bundle); err != nil {
+		message := err.Error()
+		switch {
+		case strings.Contains(message, "prd approval subject_version mismatch"), strings.Contains(message, "resolve prd approval subject version"):
+			effectivePRDApprovalStatus = appruns.ApprovalStatusPending
+		case strings.Contains(message, "template approval subject_version mismatch"), strings.Contains(message, "resolve template approval subject version"):
+			effectiveTemplateApprovalStatus = appruns.ApprovalStatusPending
+		default:
+			return "", "", err
+		}
+	}
+	return effectivePRDApprovalStatus, effectiveTemplateApprovalStatus, nil
 }
 
 func (h *Handler) loadJobArtifacts(jobID string) (appruns.ArtifactManifest, error) {
@@ -2464,7 +3262,17 @@ func (h *Handler) loadJobEvents(jobID string) ([]publicJobEvent, error) {
 	if err != nil {
 		return nil, fmt.Errorf("glob job events: %w", err)
 	}
+	runRecordsByID := map[string]appruns.RunRecord{}
+	runOutputsByID := map[string]*appruns.BuildOutput{}
 	for _, path := range eventPaths {
+		runRecord, buildOutput, err := loadRunMetadataForEventPath(workspace, path)
+		if err != nil {
+			return nil, err
+		}
+		if runRecord != nil {
+			runRecordsByID[runRecord.RunID] = *runRecord
+			runOutputsByID[runRecord.RunID] = buildOutput
+		}
 		file, err := os.Open(path)
 		if err != nil {
 			return nil, fmt.Errorf("open job events: %w", err)
@@ -2480,6 +3288,11 @@ func (h *Handler) loadJobEvents(jobID string) ([]publicJobEvent, error) {
 				_ = file.Close()
 				return nil, fmt.Errorf("decode job event: %w", err)
 			}
+			if runRecord, ok := runRecordsByID[event.RunID]; ok {
+				event.CurrentPhase = strings.TrimSpace(event.CurrentPhase)
+				event.PhaseTrace = trimAndDedupeStrings(event.PhaseTrace)
+				attachPublicRunFileFacts(&event, runRecord, runOutputsByID[event.RunID])
+			}
 			items = append(items, event)
 		}
 		if err := scanner.Err(); err != nil {
@@ -2492,6 +3305,390 @@ func (h *Handler) loadJobEvents(jobID string) ([]publicJobEvent, error) {
 		return items[i].At < items[j].At
 	})
 	return items, nil
+}
+
+func loadRunMetadataForEventPath(workspace, eventPath string) (*appruns.RunRecord, *appruns.BuildOutput, error) {
+	runDir := filepath.Dir(eventPath)
+	runPath := filepath.Join(runDir, "run.json")
+	data, err := os.ReadFile(runPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil, nil
+		}
+		return nil, nil, fmt.Errorf("read run record: %w", err)
+	}
+	var run appruns.RunRecord
+	if err := json.Unmarshal(data, &run); err != nil {
+		return nil, nil, fmt.Errorf("decode run record: %w", err)
+	}
+	output, err := loadRunBuildOutput(workspace, run)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &run, output, nil
+}
+
+func attachPublicRunFileFacts(event *publicJobEvent, run appruns.RunRecord, output *appruns.BuildOutput) {
+	if event == nil {
+		return
+	}
+	if len(event.TargetPaths) == 0 {
+		event.TargetPaths = collectPublicRunTargetPaths(run)
+	}
+	if len(event.AffectedPaths) == 0 && publicJobEventUsesAffectedPaths(event.Type) {
+		event.AffectedPaths = collectPublicAffectedPaths(output)
+	}
+	if len(event.RoundSummaries) == 0 && publicJobEventUsesRoundSummaries(event.Type) {
+		event.RoundSummaries = collectPublicRoundSummaries(output)
+	}
+	if len(event.FileFacts) == 0 {
+		event.FileFacts = collectPublicEventFileFacts(*event, run, output)
+	}
+}
+
+func collectPublicRunTargetPaths(run appruns.RunRecord) []string {
+	paths := make([]string, 0)
+	seen := map[string]struct{}{}
+	for _, task := range run.TaskBundle {
+		for _, path := range task.TargetPaths {
+			normalized := strings.TrimSpace(path)
+			if normalized == "" {
+				continue
+			}
+			if _, ok := seen[normalized]; ok {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			paths = append(paths, normalized)
+		}
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func collectPublicAffectedPaths(output *appruns.BuildOutput) []string {
+	if output == nil {
+		return nil
+	}
+	paths := make([]string, 0)
+	seen := map[string]struct{}{}
+	appendPath := func(value string) {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			return
+		}
+		if _, ok := seen[normalized]; ok {
+			return
+		}
+		seen[normalized] = struct{}{}
+		paths = append(paths, normalized)
+	}
+	for _, item := range output.ModifiedFiles {
+		appendPath(item.Path)
+	}
+	for _, round := range output.RoundOutputs {
+		if round.WorkspacePatch == nil {
+			continue
+		}
+		for _, path := range round.WorkspacePatch.ModifiedFiles {
+			appendPath(path)
+		}
+		for _, operation := range round.WorkspacePatch.Operations {
+			appendPath(operation.Path)
+		}
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func publicJobEventUsesAffectedPaths(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "run_completed", "run_failed", "run_cancelled", "run_patch_applied":
+		return true
+	default:
+		return false
+	}
+}
+
+func publicJobEventUsesRoundSummaries(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "run_completed", "run_failed", "run_cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+func collectPublicRoundSummaries(output *appruns.BuildOutput) []publicJobRoundSummary {
+	if output == nil || len(output.RoundOutputs) == 0 {
+		return nil
+	}
+	items := make([]publicJobRoundSummary, 0, len(output.RoundOutputs))
+	roundInputsByID := map[string]appruns.RoundInput{}
+	for _, roundInput := range output.RoundInputs {
+		roundID := strings.TrimSpace(roundInput.RoundID)
+		if roundID == "" {
+			continue
+		}
+		roundInputsByID[roundID] = roundInput
+	}
+	for _, round := range output.RoundOutputs {
+		roundInput := roundInputsByID[strings.TrimSpace(round.RoundID)]
+		summary := publicJobRoundSummary{
+			RoundID:           strings.TrimSpace(round.RoundID),
+			Attempt:           roundInput.Attempt,
+			Status:            strings.TrimSpace(round.Status),
+			Summary:           strings.TrimSpace(round.Summary),
+			TargetPaths:       collectRoundTargetPaths(roundInput),
+			ModifiedPaths:     collectRoundModifiedPaths(round.WorkspacePatch),
+			FileFacts:         collectPublicRoundFileFacts(round, roundInput),
+			FailedChecks:      collectFailedValidationChecks(round.ValidationResults),
+			FailureSignatures: trimAndDedupeStrings(round.FailureSignatures),
+		}
+		if round.State != nil {
+			summary.CurrentPhase = strings.TrimSpace(string(round.State.CurrentPhase))
+			summary.PhaseTrace = collectRoundPhaseTrace(round.State)
+		}
+		items = append(items, summary)
+	}
+	return items
+}
+
+func collectRoundTargetPaths(input appruns.RoundInput) []string {
+	paths := make([]string, 0)
+	seen := map[string]struct{}{}
+	appendPath := func(value string) {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			return
+		}
+		if _, ok := seen[normalized]; ok {
+			return
+		}
+		seen[normalized] = struct{}{}
+		paths = append(paths, normalized)
+	}
+	for _, task := range input.TaskBundle {
+		for _, targetPath := range task.TargetPaths {
+			appendPath(targetPath)
+		}
+	}
+	for _, allowedPath := range input.AllowedPaths {
+		appendPath(allowedPath)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func collectRoundPhaseTrace(state *appruns.RoundState) []string {
+	if state == nil || len(state.PhaseTrace) == 0 {
+		return nil
+	}
+	items := make([]string, 0, len(state.PhaseTrace))
+	for _, phase := range state.PhaseTrace {
+		normalized := strings.TrimSpace(string(phase))
+		if normalized == "" {
+			continue
+		}
+		items = append(items, normalized)
+	}
+	return trimAndDedupeStrings(items)
+}
+
+func collectRoundModifiedPaths(patch *appruns.WorkspacePatch) []string {
+	if patch == nil {
+		return nil
+	}
+	paths := make([]string, 0)
+	seen := map[string]struct{}{}
+	appendPath := func(value string) {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			return
+		}
+		if _, ok := seen[normalized]; ok {
+			return
+		}
+		seen[normalized] = struct{}{}
+		paths = append(paths, normalized)
+	}
+	for _, path := range patch.ModifiedFiles {
+		appendPath(path)
+	}
+	for _, operation := range patch.Operations {
+		appendPath(operation.Path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func collectPublicRoundFileFacts(round appruns.RoundOutput, input appruns.RoundInput) []publicJobFileFact {
+	itemsByPath := map[string]publicJobFileFact{}
+	for _, path := range collectRoundTargetPaths(input) {
+		itemsByPath[path] = publicJobFileFact{Path: path, State: "targeted"}
+	}
+	for _, path := range collectRoundModifiedPaths(round.WorkspacePatch) {
+		itemsByPath[path] = publicJobFileFact{Path: path, State: "modified"}
+	}
+	return sortPublicJobFileFacts(itemsByPath)
+}
+
+func collectPublicEventFileFacts(event publicJobEvent, run appruns.RunRecord, output *appruns.BuildOutput) []publicJobFileFact {
+	state := publicJobFileFactStateForEventType(event.Type)
+	if state == "" {
+		return nil
+	}
+	itemsByPath := map[string]publicJobFileFact{}
+	if usesFinalizedPublicJobFileFacts(event.Type) {
+		for _, item := range collectPublicOutputFileChanges(output) {
+			itemsByPath[item.Path] = publicJobFileFact{
+				Path:       item.Path,
+				State:      state,
+				ChangeType: item.ChangeType,
+			}
+		}
+		return sortPublicJobFileFacts(itemsByPath)
+	}
+	paths := event.TargetPaths
+	if eventUsesAffectedPublicJobFileFacts(event.Type) && len(event.AffectedPaths) > 0 {
+		paths = event.AffectedPaths
+	}
+	if len(paths) == 0 {
+		paths = event.TargetPaths
+	}
+	if len(paths) == 0 && eventUsesAffectedPublicJobFileFacts(event.Type) {
+		paths = event.AffectedPaths
+	}
+	if len(paths) == 0 {
+		paths = collectPublicRunTargetPaths(run)
+	}
+	for _, path := range trimAndDedupeStrings(paths) {
+		itemsByPath[path] = publicJobFileFact{Path: path, State: state}
+	}
+	return sortPublicJobFileFacts(itemsByPath)
+}
+
+func collectPublicOutputFileChanges(output *appruns.BuildOutput) []appruns.FileChange {
+	if output == nil || len(output.ModifiedFiles) == 0 {
+		return nil
+	}
+	itemsByPath := map[string]appruns.FileChange{}
+	for _, item := range output.ModifiedFiles {
+		path := strings.TrimSpace(item.Path)
+		if path == "" {
+			continue
+		}
+		item.Path = path
+		item.ChangeType = strings.TrimSpace(item.ChangeType)
+		itemsByPath[path] = item
+	}
+	paths := make([]string, 0, len(itemsByPath))
+	for path := range itemsByPath {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	items := make([]appruns.FileChange, 0, len(paths))
+	for _, path := range paths {
+		items = append(items, itemsByPath[path])
+	}
+	return items
+}
+
+func publicJobFileFactStateForEventType(eventType string) string {
+	switch strings.TrimSpace(eventType) {
+	case "run_created", "run_heartbeat", "run_round_started":
+		return "targeted"
+	case "run_patch_generation_started":
+		return "generation_started"
+	case "run_patch_generated":
+		return "generated"
+	case "run_patch_generation_failed":
+		return "generation_failed"
+	case "run_patch_applied":
+		return "applied"
+	case "run_patch_apply_failed":
+		return "apply_failed"
+	case "run_completed", "run_failed", "run_cancelled":
+		return "finalized"
+	default:
+		return ""
+	}
+}
+
+func eventUsesAffectedPublicJobFileFacts(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "run_patch_applied":
+		return true
+	default:
+		return false
+	}
+}
+
+func usesFinalizedPublicJobFileFacts(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "run_completed", "run_failed", "run_cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+func sortPublicJobFileFacts(itemsByPath map[string]publicJobFileFact) []publicJobFileFact {
+	if len(itemsByPath) == 0 {
+		return nil
+	}
+	paths := make([]string, 0, len(itemsByPath))
+	for path := range itemsByPath {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	items := make([]publicJobFileFact, 0, len(paths))
+	for _, path := range paths {
+		items = append(items, itemsByPath[path])
+	}
+	return items
+}
+
+func collectFailedValidationChecks(results []appruns.ValidationResult) []string {
+	checks := make([]string, 0)
+	seen := map[string]struct{}{}
+	for _, result := range results {
+		if strings.EqualFold(strings.TrimSpace(result.Outcome), "passed") {
+			continue
+		}
+		label := strings.TrimSpace(result.Label)
+		if label == "" {
+			label = strings.TrimSpace(result.CheckID)
+		}
+		if label == "" {
+			continue
+		}
+		if _, ok := seen[label]; ok {
+			continue
+		}
+		seen[label] = struct{}{}
+		checks = append(checks, label)
+	}
+	sort.Strings(checks)
+	return checks
+}
+
+func trimAndDedupeStrings(values []string) []string {
+	items := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		items = append(items, normalized)
+	}
+	sort.Strings(items)
+	return items
 }
 
 func (h *Handler) startPublicJob(parent context.Context, jobID string, req startJobRequest) (publicJobRecord, error) {
@@ -2510,6 +3707,12 @@ func (h *Handler) startPublicJob(parent context.Context, jobID string, req start
 	if prdApprovalStatus != appruns.ApprovalStatusApproved || templateApprovalStatus != appruns.ApprovalStatusApproved {
 		return publicJobRecord{}, fmt.Errorf("job %q approvals not ready: prd=%s template=%s", jobID, prdApprovalStatus, templateApprovalStatus)
 	}
+	if err := h.validatePreparedApprovalSnapshots(bundle); err != nil {
+		return publicJobRecord{}, fmt.Errorf("job %q approval snapshot conflict: %w", jobID, err)
+	}
+	if err := validatePreparedBuilderInputSourceVersions(bundle); err != nil {
+		return publicJobRecord{}, stalePreparedBundleConflict(jobID, err)
+	}
 	workspace, err := h.appFactoryWorkspacePath()
 	if err != nil {
 		return publicJobRecord{}, fmt.Errorf("init workspace: %w", err)
@@ -2524,7 +3727,9 @@ func (h *Handler) startPublicJob(parent context.Context, jobID string, req start
 		return publicJobRecord{}, err
 	}
 	if latestRun != nil {
-		return publicJobRecord{}, fmt.Errorf("job %q already has run %q with status %s", jobID, latestRun.RunID, latestRun.Status)
+		if !preparedBundleChangedAfterRun(bundle, *latestRun) {
+			return publicJobRecord{}, fmt.Errorf("job %q already has run %q with status %s", jobID, latestRun.RunID, latestRun.Status)
+		}
 	}
 	builderSvc, err := h.buildersControlPlane()
 	if err != nil {
@@ -2810,6 +4015,12 @@ func (h *Handler) resumePublicJob(parent context.Context, jobID string, req resu
 	if prdApprovalStatus != appruns.ApprovalStatusApproved || templateApprovalStatus != appruns.ApprovalStatusApproved {
 		return publicJobRecord{}, fmt.Errorf("job %q approvals not ready: prd=%s template=%s", jobID, prdApprovalStatus, templateApprovalStatus)
 	}
+	if err := h.validatePreparedApprovalSnapshots(bundle); err != nil {
+		return publicJobRecord{}, fmt.Errorf("job %q approval snapshot conflict: %w", jobID, err)
+	}
+	if err := validatePreparedBuilderInputSourceVersions(bundle); err != nil {
+		return publicJobRecord{}, stalePreparedBundleConflict(jobID, err)
+	}
 	workspace, err := h.appFactoryWorkspacePath()
 	if err != nil {
 		return publicJobRecord{}, fmt.Errorf("init workspace: %w", err)
@@ -2826,6 +4037,9 @@ func (h *Handler) resumePublicJob(parent context.Context, jobID string, req resu
 	if latestRun == nil {
 		return publicJobRecord{}, fmt.Errorf("job %q has no failed run to resume", jobID)
 	}
+	if preparedBundleChangedAfterRun(bundle, *latestRun) {
+		return publicJobRecord{}, stalePreparedRunConflict(jobID)
+	}
 	resumeContext, err := h.derivePublicJobResumeContext(workspace, jobID, *latestRun)
 	if err != nil {
 		return publicJobRecord{}, err
@@ -2833,7 +4047,7 @@ func (h *Handler) resumePublicJob(parent context.Context, jobID string, req resu
 	switch latestRun.Status {
 	case appruns.StatusFailed:
 		if resumeContext != nil && !resumeContext.ResumeAllowed {
-			nextAction := publicJobResumeNextAction(resumeContext)
+			nextAction := publicJobResumeSuggestedAction(resumeContext)
 			return publicJobRecord{}, fmt.Errorf("job %q cannot be resumed yet; next_action=%s", jobID, nextAction)
 		}
 	case appruns.StatusCancelled:
@@ -2860,7 +4074,7 @@ func (h *Handler) resumePublicJob(parent context.Context, jobID string, req resu
 			mode = strings.TrimSpace(resumeContext.RecommendedResumeMode)
 		}
 		if resumeContext.RequiresHumanConfirmation && !req.Confirm {
-			return publicJobRecord{}, fmt.Errorf("job %q cannot be resumed yet; next_action=%s", jobID, publicJobResumeNextAction(resumeContext))
+			return publicJobRecord{}, fmt.Errorf("job %q cannot be resumed yet; next_action=%s", jobID, publicJobResumeSuggestedAction(resumeContext))
 		}
 		if resumeContext.RequiresPreservedWorkspace {
 			if strings.TrimSpace(resumeContext.PreservedWorkspacePath) == "" {
@@ -3039,7 +4253,8 @@ func (h *Handler) loadPersistedNotificationsSnapshot(workspace string) ([]public
 		return nil, fmt.Errorf("read notifications snapshot: %w", err)
 	}
 	var payload struct {
-		Items []publicNotification `json:"items"`
+		GeneratedAt string               `json:"generated_at"`
+		Items       []publicNotification `json:"items"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, fmt.Errorf("decode notifications snapshot: %w", err)
@@ -3149,7 +4364,10 @@ func (h *Handler) acknowledgeNotification(notificationID string) (publicNotifica
 
 func (h *Handler) persistPublicNotificationsSnapshot(workspace string, items []publicNotification) error {
 	path := filepath.Join(workspace, "appfactory", "notifications", "index.json")
-	data, err := json.MarshalIndent(map[string]any{"items": items}, "", "  ")
+	data, err := json.MarshalIndent(map[string]any{
+		"generated_at": time.Now().UTC().Format(time.RFC3339),
+		"items":        items,
+	}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal notifications snapshot: %w", err)
 	}
@@ -3184,8 +4402,8 @@ func syntheticPublicJobEvents(record publicJobRecord) []publicJobEvent {
 			items = append(items, event)
 		} else {
 			summary := "resume blocked"
-			if nextAction := strings.TrimSpace(record.ResumeContext.NextAction); nextAction != "" {
-				summary = "resume blocked; next_action=" + nextAction
+			if suggestedAction := strings.TrimSpace(record.ResumeContext.SuggestedAction); suggestedAction != "" {
+				summary = "resume blocked; suggested_action=" + suggestedAction
 			}
 			event := publicJobEvent{
 				At:      record.UpdatedAt,
@@ -3227,6 +4445,7 @@ func syntheticPublicJobDeliveryEvents(record publicJobRecord) []publicJobEvent {
 	if record.DeliveryContext == nil {
 		return nil
 	}
+	items := make([]publicJobEvent, 0, 3)
 	event := publicJobEvent{
 		At:      record.DeliveryContext.RecordedAt,
 		Type:    deliveryEventType(record.DeliveryContext.Status),
@@ -3238,12 +4457,35 @@ func syntheticPublicJobDeliveryEvents(record publicJobRecord) []publicJobEvent {
 	if strings.TrimSpace(event.Type) == "" {
 		event.Type = "delivery_recorded"
 	}
-	return []publicJobEvent{event}
+	items = append(items, event)
+	if record.DeliveryContext.DeviceVerification != nil {
+		items = append(items, publicJobEvent{
+			At:                       record.DeliveryContext.DeviceVerification.VerifiedAt,
+			Type:                     deviceVerificationEventType(record.DeliveryContext.DeviceVerification.Status),
+			JobID:                    record.JobID,
+			Status:                   record.Status,
+			Summary:                  strings.TrimSpace(record.DeliveryContext.DeviceVerification.Summary),
+			DeliveryStatus:           strings.TrimSpace(record.DeliveryContext.Status),
+			DeviceVerificationStatus: strings.TrimSpace(record.DeliveryContext.DeviceVerification.Status),
+		})
+	}
+	if record.DeliveryContext.ReleaseFollowUp != nil {
+		items = append(items, publicJobEvent{
+			At:                    record.DeliveryContext.ReleaseFollowUp.UpdatedAt,
+			Type:                  releaseFollowUpEventType(record.DeliveryContext.ReleaseFollowUp.Status),
+			JobID:                 record.JobID,
+			Status:                record.Status,
+			Summary:               strings.TrimSpace(record.DeliveryContext.ReleaseFollowUp.Summary),
+			DeliveryStatus:        strings.TrimSpace(record.DeliveryContext.Status),
+			ReleaseFollowUpStatus: strings.TrimSpace(record.DeliveryContext.ReleaseFollowUp.Status),
+		})
+	}
+	return items
 }
 
 func publicJobFailureSuggestedAction(record publicJobRecord) string {
 	if record.ResumeContext != nil {
-		return publicJobResumeNextAction(record.ResumeContext)
+		return publicJobResumeSuggestedAction(record.ResumeContext)
 	}
 	if len(preservedSnapshotArtifactPaths(record)) > 0 {
 		return "inspect_preserved_workspace"
@@ -3258,6 +4500,12 @@ func publicJobNotificationLinks(record publicJobRecord) []string {
 	}
 	if record.DeliveryContext != nil && strings.TrimSpace(record.DeliveryContext.DeliveryRecordPath) != "" {
 		links = append(links, record.DeliveryContext.DeliveryRecordPath)
+		if record.DeliveryContext.DeviceVerification != nil && strings.TrimSpace(record.DeliveryContext.DeviceVerification.RecordPath) != "" {
+			links = append(links, record.DeliveryContext.DeviceVerification.RecordPath)
+		}
+		if record.DeliveryContext.ReleaseFollowUp != nil && strings.TrimSpace(record.DeliveryContext.ReleaseFollowUp.RecordPath) != "" {
+			links = append(links, record.DeliveryContext.ReleaseFollowUp.RecordPath)
+		}
 	}
 	return mergePublicArtifactPaths(links, preservedSnapshotArtifactPaths(record))
 }
@@ -3266,6 +4514,7 @@ func publicDeliveryNotifications(record publicJobRecord) []publicNotification {
 	if record.DeliveryContext == nil {
 		return nil
 	}
+	items := make([]publicNotification, 0, 3)
 	notificationType, suggestedAction := deliveryNotificationDescriptor(record.DeliveryContext.Status)
 	if notificationType == "" {
 		return nil
@@ -3281,7 +4530,42 @@ func publicDeliveryNotifications(record publicJobRecord) []publicNotification {
 		CreatedAt:       strings.TrimSpace(record.DeliveryContext.RecordedAt),
 	}
 	applyPublicJobDeliveryMetadataToNotification(&item, record.DeliveryContext)
-	return []publicNotification{item}
+	items = append(items, item)
+	if record.DeliveryContext.DeviceVerification != nil {
+		notificationType, suggestedAction = deviceVerificationNotificationDescriptor(record.DeliveryContext.DeviceVerification.Status)
+		if notificationType != "" {
+			verificationItem := publicNotification{
+				NotificationID:  fmt.Sprintf("notification-%s-%s-%s", notificationType, record.JobID, normalizeNotificationTimestamp(record.DeliveryContext.DeviceVerification.VerifiedAt)),
+				Type:            notificationType,
+				JobID:           record.JobID,
+				Status:          record.Status,
+				Summary:         strings.TrimSpace(record.DeliveryContext.DeviceVerification.Summary),
+				SuggestedAction: suggestedAction,
+				Links:           publicJobNotificationLinks(record),
+				CreatedAt:       strings.TrimSpace(record.DeliveryContext.DeviceVerification.VerifiedAt),
+			}
+			applyPublicJobDeliveryMetadataToNotification(&verificationItem, record.DeliveryContext)
+			items = append(items, verificationItem)
+		}
+	}
+	if record.DeliveryContext.ReleaseFollowUp != nil {
+		notificationType, suggestedAction = releaseFollowUpNotificationDescriptor(record.DeliveryContext.ReleaseFollowUp.Status)
+		if notificationType != "" {
+			followUpItem := publicNotification{
+				NotificationID:  fmt.Sprintf("notification-%s-%s-%s", notificationType, record.JobID, normalizeNotificationTimestamp(record.DeliveryContext.ReleaseFollowUp.UpdatedAt)),
+				Type:            notificationType,
+				JobID:           record.JobID,
+				Status:          record.Status,
+				Summary:         strings.TrimSpace(record.DeliveryContext.ReleaseFollowUp.Summary),
+				SuggestedAction: suggestedAction,
+				Links:           publicJobNotificationLinks(record),
+				CreatedAt:       strings.TrimSpace(record.DeliveryContext.ReleaseFollowUp.UpdatedAt),
+			}
+			applyPublicJobDeliveryMetadataToNotification(&followUpItem, record.DeliveryContext)
+			items = append(items, followUpItem)
+		}
+	}
+	return items
 }
 
 func publicExecutionNotifications(record publicJobRecord, executionRecord *publicJobExecutionRecord) []publicNotification {
@@ -3304,16 +4588,36 @@ func publicExecutionNotifications(record publicJobRecord, executionRecord *publi
 			SuggestedAction: suggestedAction,
 			Links:           publicExecutionNotificationLinks(record),
 			CreatedAt:       strings.TrimSpace(event.At),
+			FailureDomain:   strings.TrimSpace(event.FailureDomain),
+			FailureCategory: strings.TrimSpace(event.FailureCategory),
 		})
+		applyPublicJobFailureMetadataToNotification(&items[len(items)-1], record)
+		applyPublicJobResumeMetadataToNotification(&items[len(items)-1], record.ResumeContext)
 	}
 	return items
 }
 
 func publicExecutionNotificationDescriptor(record publicJobRecord, event publicJobEvent) (string, string) {
 	switch strings.TrimSpace(event.Type) {
-	case "execution_dispatcher_lost":
+	case "execution_interrupted":
 		return "execution_interrupted", "resume_interrupted_job"
+	case "execution_failed":
+		if action := publicJobResumeSuggestedAction(record.ResumeContext); action != "" {
+			return "execution_failed", action
+		}
+		if domain, category := publicJobFailureDomainAndCategory(record); publicDeviceFailureSuggestedAction(domain, category) != "" {
+			return "execution_failed", publicDeviceFailureSuggestedAction(domain, category)
+		}
+		return "execution_failed", "inspect_failure_and_retry_later"
+	case "execution_cancelled":
+		return "execution_cancelled", "inspect_execution_history"
 	case "execution_recovery_failed":
+		if action := publicJobResumeSuggestedAction(record.ResumeContext); action != "" {
+			return "execution_recovery_failed", action
+		}
+		if domain, category := publicJobFailureDomainAndCategory(record); publicDeviceFailureSuggestedAction(domain, category) != "" {
+			return "execution_recovery_failed", publicDeviceFailureSuggestedAction(domain, category)
+		}
 		return "execution_recovery_failed", "inspect_failure_and_retry_later"
 	case "execution_handoff":
 		return "execution_handoff", "inspect_execution_history"
@@ -3350,9 +4654,13 @@ func orchestratorWatchSuggestedAction(record publicJobOrchestratorWatchAuditReco
 	switch strings.TrimSpace(record.Action) {
 	case "orchestrator_watch_started":
 		return "inspect_orchestrator_status"
+	case "orchestrator_watch_start_rejected":
+		return "inspect_orchestrator_status"
 	case "orchestrator_watch_stopped":
 		return "restart_orchestrator_watch"
 	case "orchestrator_watch_unlocked":
+		return "inspect_orchestrator_lock_owner"
+	case "orchestrator_watch_unlock_rejected":
 		return "inspect_orchestrator_lock_owner"
 	default:
 		return "inspect_orchestrator_status"
@@ -3486,10 +4794,15 @@ func (h *Handler) createApproval(req createApprovalRequest) (appruns.ApprovalRec
 		}
 		record.PRDID = bundle.PRD.ID
 		if subjectVersion == "" {
-			subjectVersion = strings.TrimSpace(bundle.PRD.Version)
-		}
-		if subjectVersion == "" {
-			subjectVersion = "unknown"
+			prdMarkdown, err := os.ReadFile(filepath.Join(bundle.PrepareDir, "PRD.md"))
+			if err != nil {
+				return appruns.ApprovalRecord{}, fmt.Errorf("read prepared prd markdown: %w", err)
+			}
+			requirement, err := os.ReadFile(filepath.Join(bundle.PrepareDir, "requirement.md"))
+			if err != nil {
+				return appruns.ApprovalRecord{}, fmt.Errorf("read prepared requirement: %w", err)
+			}
+			subjectVersion = appprepare.PRDApprovalSubjectVersion(bundle.PRD, prdMarkdown, requirement)
 		}
 		if summary == "" {
 			summary = fmt.Sprintf("PRD %s 等待人工审批。", bundle.PRD.ID)
@@ -3516,11 +4829,11 @@ func (h *Handler) createApproval(req createApprovalRequest) (appruns.ApprovalRec
 		}
 		record.PRDID = bundle.PRD.ID
 		if subjectVersion == "" {
-			version := strings.TrimSpace(entry.PinnedRef)
-			if version == "" {
-				version = "unknown"
+			fitReport, err := os.ReadFile(filepath.Join(bundle.PrepareDir, "template-fit-report.md"))
+			if err != nil {
+				return appruns.ApprovalRecord{}, fmt.Errorf("read template fit report: %w", err)
 			}
-			subjectVersion = "selected-template@" + bundle.BuilderInput.TemplateID + "@" + version
+			subjectVersion = appprepare.TemplateApprovalSubjectVersion(bundle.BuilderInput.TemplateID, entry.PinnedRef, fitReport)
 		}
 		if summary == "" {
 			summary = fmt.Sprintf("模板 %s 等待人工审批。", bundle.BuilderInput.TemplateID)
@@ -3745,6 +5058,10 @@ func (h *Handler) submitTemplateApproval(entry appprepare.TemplateRegistryEntry,
 	if version == "" {
 		version = "unknown"
 	}
+	fitReport, err := os.ReadFile(filepath.Join(prepareDir, "template-fit-report.md"))
+	if err != nil {
+		return appruns.ApprovalRecord{}, fmt.Errorf("load prepared template fit report: %w", err)
+	}
 	now := time.Now().UTC()
 	summary := strings.TrimSpace(req.Summary)
 	if summary == "" {
@@ -3756,7 +5073,7 @@ func (h *Handler) submitTemplateApproval(entry appprepare.TemplateRegistryEntry,
 		ApprovalType:   appruns.ApprovalTypeTemplate,
 		JobID:          strings.TrimSpace(req.JobID),
 		PRDID:          prd.ID,
-		SubjectVersion: "selected-template@" + entry.TemplateID + "@" + version,
+		SubjectVersion: appprepare.TemplateApprovalSubjectVersion(entry.TemplateID, version, fitReport),
 		Status:         appruns.ApprovalStatusApproved,
 		RequestedBy:    appruns.ApprovalActor{ActorType: "system", ActorID: "appfactory-api"},
 		Decision: &appruns.ApprovalDecision{
@@ -3794,8 +5111,20 @@ func (h *Handler) submitPRDApproval(prdID string, req submitPRDApprovalRequest) 
 		return appruns.ApprovalRecord{}, fmt.Errorf("prepared prd mismatch: want %s got %s", strings.TrimSpace(prdID), prd.ID)
 	}
 	version := strings.TrimSpace(req.Version)
+	subjectVersion := strings.TrimSpace(req.Version)
+	if subjectVersion == "" {
+		prdMarkdown, err := os.ReadFile(filepath.Join(prepareDir, "PRD.md"))
+		if err != nil {
+			return appruns.ApprovalRecord{}, fmt.Errorf("load prepared prd markdown: %w", err)
+		}
+		requirement, err := os.ReadFile(filepath.Join(prepareDir, "requirement.md"))
+		if err != nil {
+			return appruns.ApprovalRecord{}, fmt.Errorf("load prepared requirement: %w", err)
+		}
+		subjectVersion = appprepare.PRDApprovalSubjectVersion(prd, prdMarkdown, requirement)
+	}
 	if version == "" {
-		version = prd.Version
+		version = strings.TrimSpace(prd.Version)
 	}
 	if version == "" {
 		version = "unknown"
@@ -3822,7 +5151,7 @@ func (h *Handler) submitPRDApproval(prdID string, req submitPRDApprovalRequest) 
 		ApprovalType:   appruns.ApprovalTypePRD,
 		JobID:          strings.TrimSpace(req.JobID),
 		PRDID:          prd.ID,
-		SubjectVersion: version,
+		SubjectVersion: subjectVersion,
 		Status:         appruns.ApprovalStatusApproved,
 		RequestedBy:    appruns.ApprovalActor{ActorType: "system", ActorID: "appfactory-api"},
 		Decision: &appruns.ApprovalDecision{
@@ -3858,6 +5187,9 @@ func (h *Handler) compilePreparedBundle(_ context.Context, req compileRequestInp
 	if err != nil {
 		return appprepare.Bundle{}, "", err
 	}
+	if shouldRejectJobsUIGenericFallback(req, bundle) {
+		return appprepare.Bundle{}, "", fmt.Errorf("jobs-ui real_checks requires a concrete domain requirement; generic fallback only runs prepare-level smoke checks, please refine requirement_text with concrete domain keywords such as bookkeeping/finance")
+	}
 	workspace, err := h.appFactoryWorkspacePath()
 	if err != nil {
 		return appprepare.Bundle{}, "", fmt.Errorf("init workspace: %w", err)
@@ -3867,6 +5199,50 @@ func (h *Handler) compilePreparedBundle(_ context.Context, req compileRequestInp
 		return appprepare.Bundle{}, "", fmt.Errorf("write bundle: %w", err)
 	}
 	return bundle, bundleDir, nil
+}
+
+func shouldRejectJobsUIGenericFallback(req compileRequestInput, bundle appprepare.Bundle) bool {
+	if req.RequirementSource != "jobs-ui" || !req.RealChecks {
+		return false
+	}
+	for _, check := range bundle.BuilderInput.AcceptanceChecks {
+		for _, command := range check.Commands {
+			if strings.TrimSpace(command) == "echo generic-input-ready" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (h *Handler) compilePreparedBundleForJob(ctx context.Context, jobID string) (publicJobRecord, error) {
+	bundle, err := h.loadPreparedBundleByJobID(jobID)
+	if err != nil {
+		return publicJobRecord{}, err
+	}
+	requirementPath := filepath.Join(bundle.PrepareDir, "requirement.md")
+	requirementData, err := os.ReadFile(requirementPath)
+	if err != nil {
+		return publicJobRecord{}, fmt.Errorf("read prepared requirement: %w", err)
+	}
+	recompiled, err := appprepare.Recompile(appprepare.RecompileRequest{
+		RequirementText: string(requirementData),
+		PRD:             bundle.PRD,
+		JobID:           bundle.JobID,
+		TemplateID:      bundle.BuilderInput.TemplateID,
+		ExecutorImage:   bundle.BuilderInput.ExecutorImage,
+	})
+	if err != nil {
+		return publicJobRecord{}, err
+	}
+	if err := appprepare.WriteBundle(bundle.PrepareDir, recompiled); err != nil {
+		return publicJobRecord{}, fmt.Errorf("write bundle: %w", err)
+	}
+	recompiledBundle, err := h.loadPreparedBundleByJobID(jobID)
+	if err != nil {
+		return publicJobRecord{}, err
+	}
+	return h.createPublicJob(recompiledBundle)
 }
 
 func (h *Handler) executePreparedRequirementRun(parent context.Context, input appruns.BuildInput, req runRequirementRequest) (runRequirementResult, error) {
@@ -4138,7 +5514,7 @@ func writeJobStartError(w http.ResponseWriter, err error) {
 	switch {
 	case strings.Contains(message, "job ") && strings.Contains(message, "not found"):
 		writeInternalError(w, http.StatusNotFound, "JOB_NOT_FOUND", message)
-	case strings.Contains(message, "approvals not ready"), strings.Contains(message, "already has run"), strings.Contains(message, "active execution"):
+	case strings.Contains(message, "approvals not ready"), strings.Contains(message, "approval snapshot conflict"), strings.Contains(message, "requires prepare recompile"), strings.Contains(message, "already has run"), strings.Contains(message, "active execution"):
 		writeInternalError(w, http.StatusConflict, "JOB_START_CONFLICT", message)
 	case errors.Is(err, appbuilders.ErrNoBuilderCandidate), errors.Is(err, appbuilders.ErrBuilderAlreadyLeased):
 		writeInternalError(w, http.StatusConflict, "WORKER_NO_CANDIDATE", message)
@@ -4150,6 +5526,26 @@ func writeJobStartError(w http.ResponseWriter, err error) {
 		writeInternalError(w, http.StatusInternalServerError, "JOB_START_FAILED", message)
 	default:
 		writeInternalError(w, http.StatusInternalServerError, "JOB_START_FAILED", message)
+	}
+}
+
+func writeJobCompilePrepareError(w http.ResponseWriter, err error) {
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "job ") && strings.Contains(message, "not found"):
+		writeInternalError(w, http.StatusNotFound, "JOB_NOT_FOUND", message)
+	case strings.Contains(message, "read prepared requirement"):
+		writeInternalError(w, http.StatusInternalServerError, "PREPARE_READ_FAILED", message)
+	case strings.Contains(message, "requirement_text is required"):
+		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", message)
+	case strings.Contains(message, "init workspace"):
+		writeInternalError(w, http.StatusInternalServerError, "APPFACTORY_INIT_FAILED", message)
+	case strings.Contains(message, "write bundle"):
+		writeInternalError(w, http.StatusInternalServerError, "PREPARE_WRITE_FAILED", message)
+	case strings.Contains(message, "write job record"), strings.Contains(message, "marshal job record"):
+		writeInternalError(w, http.StatusInternalServerError, "JOB_WRITE_FAILED", message)
+	default:
+		writeInternalError(w, http.StatusBadRequest, "PREPARE_COMPILE_FAILED", message)
 	}
 }
 
@@ -4180,9 +5576,9 @@ func writeJobResumeError(w http.ResponseWriter, err error) {
 	switch {
 	case strings.Contains(message, "job ") && strings.Contains(message, "not found"):
 		writeInternalError(w, http.StatusNotFound, "JOB_NOT_FOUND", message)
-	case strings.Contains(message, "has no failed run to resume"), strings.Contains(message, "cannot be resumed"), strings.Contains(message, "is still running"), strings.Contains(message, "active execution"):
+	case strings.Contains(message, "has no failed run to resume"), strings.Contains(message, "cannot be resumed"), strings.Contains(message, "is still running"), strings.Contains(message, "active execution"), strings.Contains(message, "use start instead of resume"), strings.Contains(message, "requires prepare recompile"):
 		writeInternalError(w, http.StatusConflict, "JOB_RESUME_CONFLICT", message)
-	case strings.Contains(message, "approvals not ready"):
+	case strings.Contains(message, "approvals not ready"), strings.Contains(message, "approval snapshot conflict"):
 		writeInternalError(w, http.StatusConflict, "JOB_RESUME_CONFLICT", message)
 	case errors.Is(err, appbuilders.ErrNoBuilderCandidate), errors.Is(err, appbuilders.ErrBuilderAlreadyLeased):
 		writeInternalError(w, http.StatusConflict, "WORKER_NO_CANDIDATE", message)
@@ -4289,15 +5685,28 @@ func (h *Handler) newAppFactoryRunner(runsSvc runService) *appadapter.Runner {
 	if h != nil && h.appFactory.runnerFactory != nil {
 		return h.appFactory.runnerFactory(runsSvc)
 	}
-	return appadapter.NewRunnerWithBackend(runServiceRunnerBackend{runsSvc: runsSvc})
+	var cfg *config.Config
+	workspaceRoot := ""
+	if h != nil && strings.TrimSpace(h.configPath) != "" {
+		if loadedCfg, err := config.LoadConfig(h.configPath); err == nil {
+			cfg = loadedCfg
+			workspaceRoot = strings.TrimSpace(loadedCfg.WorkspacePath())
+		}
+	}
+	return appadapter.NewRunnerWithBackendAndAppConfig(runServiceRunnerBackend{runsSvc: runsSvc, workspaceRoot: workspaceRoot}, cfg)
 }
 
 type runServiceRunnerBackend struct {
-	runsSvc runService
+	runsSvc       runService
+	workspaceRoot string
 }
 
 func (backend runServiceRunnerBackend) GetRun(ctx context.Context, runID string) (appruns.RunRecord, error) {
-	return backend.runsSvc.Get(ctx, runID)
+	run, err := backend.runsSvc.Get(ctx, runID)
+	if err != nil {
+		return appruns.RunRecord{}, err
+	}
+	return normalizeRunRecordForExecution(run, backend.workspaceRoot), nil
 }
 
 func (backend runServiceRunnerBackend) Heartbeat(ctx context.Context, runID string, heartbeat appruns.Heartbeat) error {
@@ -4325,11 +5734,36 @@ func (backend runServiceRunnerBackend) IndexMetrics(ctx context.Context, runID s
 	return err
 }
 
+func normalizeRunRecordForExecution(run appruns.RunRecord, workspaceRoot string) appruns.RunRecord {
+	appFactoryRoot := strings.TrimSpace(workspaceRoot)
+	if appFactoryRoot == "" {
+		return run
+	}
+	run.WorkspacePath = resolveRunExecutionPath(appFactoryRoot, run.WorkspacePath)
+	run.ArtifactDir = resolveRunExecutionPath(appFactoryRoot, run.ArtifactDir)
+	run.LogPath = resolveRunExecutionPath(appFactoryRoot, run.LogPath)
+	return run
+}
+
+func resolveRunExecutionPath(workspaceRoot, pathValue string) string {
+	trimmed := strings.TrimSpace(pathValue)
+	if trimmed == "" {
+		return ""
+	}
+	if filepath.IsAbs(trimmed) {
+		return filepath.Clean(trimmed)
+	}
+	return filepath.Join(workspaceRoot, "appfactory", filepath.FromSlash(trimmed))
+}
+
 func buildRunExecutionCommand(ctx context.Context, run appruns.RunRecord, argv []string) (*exec.Cmd, error) {
 	if len(argv) == 0 || strings.TrimSpace(argv[0]) == "" {
 		return nil, fmt.Errorf("run %s has no launch command", run.RunID)
 	}
 	if run.ExecutorImage != "" {
+		if err := ensureDockerWritablePaths(ctx, run); err != nil {
+			return nil, err
+		}
 		return dockerRunCommand(ctx, run, argv), nil
 	}
 	env, err := localLaunchExecutionEnv(run)
@@ -4458,19 +5892,36 @@ type reviewBundleMetadata struct {
 }
 
 type deliveryRecord struct {
-	SchemaVersion       string   `json:"schema_version"`
-	JobID               string   `json:"job_id"`
-	RunID               string   `json:"run_id"`
-	Status              string   `json:"status"`
-	Summary             string   `json:"summary,omitempty"`
-	NextAction          string   `json:"next_action,omitempty"`
-	ReleaseChannel      string   `json:"release_channel,omitempty"`
-	RolloutPercent      int      `json:"rollout_percent,omitempty"`
-	ReviewerID          string   `json:"reviewer_id"`
-	EvidencePaths       []string `json:"evidence_paths,omitempty"`
-	RequiredChanges     []string `json:"required_changes,omitempty"`
-	SignedArtifactPaths []string `json:"signed_artifact_paths,omitempty"`
-	RecordedAt          string   `json:"recorded_at"`
+	SchemaVersion       string                            `json:"schema_version"`
+	JobID               string                            `json:"job_id"`
+	RunID               string                            `json:"run_id"`
+	Status              string                            `json:"status"`
+	Summary             string                            `json:"summary,omitempty"`
+	NextAction          string                            `json:"next_action,omitempty"`
+	ReleaseChannel      string                            `json:"release_channel,omitempty"`
+	RolloutPercent      int                               `json:"rollout_percent,omitempty"`
+	ReviewerID          string                            `json:"reviewer_id"`
+	EvidencePaths       []string                          `json:"evidence_paths,omitempty"`
+	RequiredChanges     []string                          `json:"required_changes,omitempty"`
+	SignedArtifactPaths []string                          `json:"signed_artifact_paths,omitempty"`
+	DeviceVerification  *deliveryDeviceVerificationRecord `json:"device_verification,omitempty"`
+	ReleaseFollowUp     *deliveryReleaseFollowUpRecord    `json:"release_follow_up,omitempty"`
+	RecordedAt          string                            `json:"recorded_at"`
+}
+
+type deliveryDeviceVerificationRecord struct {
+	Status        string   `json:"status"`
+	Summary       string   `json:"summary,omitempty"`
+	EvidencePaths []string `json:"evidence_paths,omitempty"`
+	VerifiedAt    string   `json:"verified_at"`
+}
+
+type deliveryReleaseFollowUpRecord struct {
+	Status        string   `json:"status"`
+	Summary       string   `json:"summary,omitempty"`
+	OwnerID       string   `json:"owner_id"`
+	EvidencePaths []string `json:"evidence_paths,omitempty"`
+	UpdatedAt     string   `json:"updated_at"`
 }
 
 func deriveReviewPreparationOutcome(run appruns.RunRecord) reviewPreparationOutcome {
@@ -4788,6 +6239,14 @@ func normalizeDeliveryReleaseChannel(channel string) string {
 	return strings.TrimSpace(strings.ToLower(channel))
 }
 
+func normalizeDeviceVerificationStatus(status string) string {
+	return strings.TrimSpace(strings.ToLower(status))
+}
+
+func normalizeReleaseFollowUpStatus(status string) string {
+	return strings.TrimSpace(strings.ToLower(status))
+}
+
 func isSupportedDeliveryStatus(status string) bool {
 	switch normalizeDeliveryStatus(status) {
 	case "changes_requested", "approved_for_signing", "signed", "staged", "released":
@@ -4880,12 +6339,92 @@ func deliveryNotificationDescriptor(status string) (string, string) {
 	}
 }
 
+func isSupportedDeviceVerificationStatus(status string) bool {
+	switch normalizeDeviceVerificationStatus(status) {
+	case "", "pending", "passed", "failed":
+		return true
+	default:
+		return false
+	}
+}
+
+func isSupportedReleaseFollowUpStatus(status string) bool {
+	switch normalizeReleaseFollowUpStatus(status) {
+	case "monitoring", "stable", "issue_detected":
+		return true
+	default:
+		return false
+	}
+}
+
+func deviceVerificationSuggestedAction(status string) string {
+	switch normalizeDeviceVerificationStatus(status) {
+	case "failed":
+		return "update_subject_and_resubmit"
+	case "passed":
+		return "inspect_delivery_record"
+	case "pending":
+		return "verify_staged_release"
+	default:
+		return "inspect_delivery_record"
+	}
+}
+
+func releaseFollowUpSuggestedAction(status string) string {
+	switch normalizeReleaseFollowUpStatus(status) {
+	case "issue_detected":
+		return "update_subject_and_resubmit"
+	case "stable", "monitoring":
+		return "monitor_release_feedback"
+	default:
+		return "inspect_delivery_record"
+	}
+}
+
+func deviceVerificationEventType(status string) string {
+	return "device_verification_updated"
+}
+
+func releaseFollowUpEventType(status string) string {
+	return "delivery_follow_up_updated"
+}
+
+func deviceVerificationNotificationDescriptor(status string) (string, string) {
+	if normalizeDeviceVerificationStatus(status) == "" {
+		return "", ""
+	}
+	return "device_verification_updated", deviceVerificationSuggestedAction(status)
+}
+
+func releaseFollowUpNotificationDescriptor(status string) (string, string) {
+	if normalizeReleaseFollowUpStatus(status) == "" {
+		return "", ""
+	}
+	return "delivery_follow_up_updated", releaseFollowUpSuggestedAction(status)
+}
+
 func deliveryRecordReportPath() string {
 	return filepath.ToSlash(filepath.Join("reports", "delivery-record.json"))
 }
 
+func deliveryDeviceVerificationReportPath() string {
+	return filepath.ToSlash(filepath.Join("reports", "device-verification.json"))
+}
+
+func deliveryReleaseFollowUpReportPath() string {
+	return filepath.ToSlash(filepath.Join("reports", "release-follow-up.json"))
+}
+
 func deliveryRecordPublicPath(jobID string) string {
 	return filepath.ToSlash(filepath.Join("jobs", jobID, "reports", "delivery-record.json"))
+}
+
+func deliveryDeviceVerificationPublicPath(jobID string) string {
+	return filepath.ToSlash(filepath.Join("jobs", jobID, "reports", "device-verification.json"))
+}
+
+func deliveryReleaseFollowUpPublicPath(jobID string) string {
+	return filepath.ToSlash(filepath.Join("jobs", jobID, "reports", "release-follow-up.json"))
 }
 
 func deliveryRecordArtifactItem() appruns.ArtifactItem {
@@ -4900,12 +6439,36 @@ func deliveryRecordArtifactItem() appruns.ArtifactItem {
 	}
 }
 
+func deliveryDeviceVerificationArtifactItem() appruns.ArtifactItem {
+	return appruns.ArtifactItem{
+		ArtifactID:   "device-verification",
+		Path:         deliveryDeviceVerificationReportPath(),
+		ArtifactType: "other",
+		Produced:     true,
+		Required:     false,
+		Label:        "device verification",
+		Description:  "设备验证结构化记录",
+	}
+}
+
+func deliveryReleaseFollowUpArtifactItem() appruns.ArtifactItem {
+	return appruns.ArtifactItem{
+		ArtifactID:   "release-follow-up",
+		Path:         deliveryReleaseFollowUpReportPath(),
+		ArtifactType: "other",
+		Produced:     true,
+		Required:     false,
+		Label:        "release follow-up",
+		Description:  "发布后跟踪结构化记录",
+	}
+}
+
 func publicJobDeliveryContextFromRecord(jobID string, record deliveryRecord) *publicJobDeliveryContext {
-	return &publicJobDeliveryContext{
+	context := &publicJobDeliveryContext{
 		DeliveryRecordPath:  deliveryRecordPublicPath(jobID),
 		Status:              strings.TrimSpace(record.Status),
 		Summary:             strings.TrimSpace(record.Summary),
-		NextAction:          strings.TrimSpace(record.NextAction),
+		SuggestedAction:     strings.TrimSpace(record.NextAction),
 		ReleaseChannel:      strings.TrimSpace(record.ReleaseChannel),
 		RolloutPercent:      record.RolloutPercent,
 		ReviewerID:          strings.TrimSpace(record.ReviewerID),
@@ -4914,6 +6477,54 @@ func publicJobDeliveryContextFromRecord(jobID string, record deliveryRecord) *pu
 		SignedArtifactPaths: append([]string(nil), record.SignedArtifactPaths...),
 		RecordedAt:          strings.TrimSpace(record.RecordedAt),
 	}
+	if record.DeviceVerification != nil {
+		context.DeviceVerification = &publicDeviceVerificationContext{
+			RecordPath:      deliveryDeviceVerificationPublicPath(jobID),
+			Status:          strings.TrimSpace(record.DeviceVerification.Status),
+			Summary:         strings.TrimSpace(record.DeviceVerification.Summary),
+			EvidencePaths:   append([]string(nil), record.DeviceVerification.EvidencePaths...),
+			VerifiedAt:      strings.TrimSpace(record.DeviceVerification.VerifiedAt),
+			SuggestedAction: deviceVerificationSuggestedAction(record.DeviceVerification.Status),
+		}
+	}
+	if record.ReleaseFollowUp != nil {
+		context.ReleaseFollowUp = &publicReleaseFollowUpContext{
+			RecordPath:      deliveryReleaseFollowUpPublicPath(jobID),
+			Status:          strings.TrimSpace(record.ReleaseFollowUp.Status),
+			Summary:         strings.TrimSpace(record.ReleaseFollowUp.Summary),
+			OwnerID:         strings.TrimSpace(record.ReleaseFollowUp.OwnerID),
+			EvidencePaths:   append([]string(nil), record.ReleaseFollowUp.EvidencePaths...),
+			UpdatedAt:       strings.TrimSpace(record.ReleaseFollowUp.UpdatedAt),
+			SuggestedAction: releaseFollowUpSuggestedAction(record.ReleaseFollowUp.Status),
+		}
+	}
+	return context
+}
+
+func writeDeliveryDeviceVerificationRecord(workspace, jobID string, record deliveryDeviceVerificationRecord) error {
+	path := filepath.Join(workspace, "appfactory", "jobs", jobID, "reports", "device-verification.json")
+	data, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal device verification record: %w", err)
+	}
+	data = append(data, '\n')
+	if err := fileutil.WriteFileAtomic(path, data, 0o600); err != nil {
+		return fmt.Errorf("write device verification record: %w", err)
+	}
+	return nil
+}
+
+func writeDeliveryReleaseFollowUpRecord(workspace, jobID string, record deliveryReleaseFollowUpRecord) error {
+	path := filepath.Join(workspace, "appfactory", "jobs", jobID, "reports", "release-follow-up.json")
+	data, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal release follow-up record: %w", err)
+	}
+	data = append(data, '\n')
+	if err := fileutil.WriteFileAtomic(path, data, 0o600); err != nil {
+		return fmt.Errorf("write release follow-up record: %w", err)
+	}
+	return nil
 }
 
 func loadDeliveryRecord(workspace, jobID string) (*deliveryRecord, error) {
@@ -4990,6 +6601,7 @@ func dockerLaunchRunCommand(ctx context.Context, run appruns.RunRecord) *exec.Cm
 func dockerRunCommand(ctx context.Context, run appruns.RunRecord, argv []string) *exec.Cmd {
 	root := filepath.Clean(filepath.Join(run.WorkspacePath, "..", "..", ".."))
 	useHostNetwork := strings.EqualFold(strings.TrimSpace(os.Getenv("APPFACTORY_BUILDER_DOCKER_NETWORK")), "host")
+	gradleUserHome := resolveBuilderGradleUserHome(run.WorkspacePath)
 	args := []string{
 		"run", "--rm",
 		"--user", strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid()),
@@ -5009,7 +6621,9 @@ func dockerRunCommand(ctx context.Context, run appruns.RunRecord, argv []string)
 	}
 	pubCacheDir := resolveBuilderPubCache(root)
 	_ = os.MkdirAll(pubCacheDir, 0o755)
+	_ = ensureBuilderGradleUserHome(gradleUserHome)
 	args = append(args, "-e", "PUB_CACHE="+pubCacheDir)
+	args = append(args, "-e", "GRADLE_USER_HOME="+gradleUserHome)
 	args = append(args, dockerEnvArgs(
 		"APPFACTORY_BUILDER_DOCKER_NETWORK",
 		"APPFACTORY_BUILDER_RUNTIME",
@@ -5034,7 +6648,12 @@ func localLaunchExecutionEnv(run appruns.RunRecord) ([]string, error) {
 	if err := os.MkdirAll(pubCacheDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create builder pub cache: %w", err)
 	}
+	gradleUserHome := resolveBuilderGradleUserHome(run.WorkspacePath)
+	if err := ensureBuilderGradleUserHome(gradleUserHome); err != nil {
+		return nil, fmt.Errorf("create builder gradle user home: %w", err)
+	}
 	env = append(env, "PUB_CACHE="+pubCacheDir)
+	env = append(env, "GRADLE_USER_HOME="+gradleUserHome)
 	return env, nil
 }
 
@@ -5058,6 +6677,57 @@ func dockerEnvArgs(names ...string) []string {
 	return args
 }
 
+func ensureDockerWritablePaths(ctx context.Context, run appruns.RunRecord) error {
+	root := filepath.Clean(filepath.Join(run.WorkspacePath, "..", "..", ".."))
+	paths := []string{
+		filepath.Clean(filepath.Join(run.WorkspacePath, "..")),
+		resolveBuilderPubCache(root),
+		resolveBuilderGradleUserHome(run.WorkspacePath),
+	}
+	args := []string{
+		"run", "--rm",
+		"--user", "0:0",
+		"-v", root + ":" + root,
+		run.ExecutorImage,
+		"exec",
+		"/bin/sh",
+		"-lc",
+		buildChownCommand(paths),
+	}
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("prepare docker workspace ownership: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 func resolveBuilderPubCache(root string) string {
 	return filepath.Join(root, ".runtime", "pub-cache")
+}
+
+func resolveBuilderGradleUserHome(workspacePath string) string {
+	return filepath.Join(workspacePath, ".runtime", "gradle-user-home")
+}
+
+func ensureBuilderGradleUserHome(path string) error {
+	for _, child := range []string{"", filepath.Join("wrapper", "dists")} {
+		target := path
+		if child != "" {
+			target = filepath.Join(path, child)
+		}
+		if err := os.MkdirAll(target, 0o755); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildChownCommand(paths []string) string {
+	commands := make([]string, 0, len(paths))
+	uidgid := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
+	for _, path := range paths {
+		quoted := shellQuote(path)
+		commands = append(commands, "mkdir -p "+quoted+" && chown -R "+uidgid+" "+quoted)
+	}
+	return strings.Join(commands, " && ")
 }

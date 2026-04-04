@@ -130,7 +130,22 @@ func applyWorkspacePatchOperation(state *workspacePatchState, op WorkspacePatchO
 			needle = op.Anchor
 		}
 		if strings.TrimSpace(needle) == "" {
-			return fmt.Errorf("replace_block requires old_content or anchor for %s", state.relPath)
+			if strings.TrimSpace(op.Start) == "" || strings.TrimSpace(op.End) == "" {
+				return fmt.Errorf("replace_block requires old_content, anchor, or start/end for %s", state.relPath)
+			}
+			startIndex := strings.Index(state.content, op.Start)
+			if startIndex < 0 {
+				return fmt.Errorf("replace_block start marker not found in %s", state.relPath)
+			}
+			endSearchStart := startIndex
+			if op.End != op.Start {
+				endSearchStart = startIndex + len(op.Start)
+			}
+			endRelativeIndex := strings.Index(state.content[endSearchStart:], op.End)
+			if endRelativeIndex < 0 {
+				return fmt.Errorf("replace_block end marker not found in %s", state.relPath)
+			}
+			needle = state.content[startIndex : endSearchStart+endRelativeIndex+len(op.End)]
 		}
 		replacement := op.NewContent
 		if replacement == "" {

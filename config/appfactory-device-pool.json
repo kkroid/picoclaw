@@ -1,0 +1,12 @@
+{
+  "devices": [
+    {
+      "serial": "10.12.11.182:2626",
+      "label": "rk3588-s-lab",
+      "enabled": true,
+      "tags": ["fast", "full", "device", "rk3588", "android-lab"],
+      "adb_server_socket": "tcp:127.0.0.1:5037",
+      "docker_args": "--network host"
+    }
+  ]
+}

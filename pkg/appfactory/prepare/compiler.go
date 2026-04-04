@@ -1,6 +1,8 @@
 package prepare
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -35,6 +37,16 @@ type Request struct {
 	TemplateID        string
 	ExecutorImage     string
 	RealBuild         bool
+	Now               func() time.Time
+}
+
+type RecompileRequest struct {
+	RequirementText   string
+	RequirementSource string
+	PRD               PRD
+	JobID             string
+	TemplateID        string
+	ExecutorImage     string
 	Now               func() time.Time
 }
 
@@ -240,10 +252,96 @@ func Compile(request Request) (Bundle, error) {
 		CreatedAt:           now.Format(time.RFC3339),
 		UpdatedAt:           now.Format(time.RFC3339),
 	}
+	return buildBundle(spec, prd, now)
+}
+
+func Recompile(request RecompileRequest) (Bundle, error) {
+	requirementText := strings.TrimSpace(request.RequirementText)
+	if requirementText == "" {
+		return Bundle{}, fmt.Errorf("requirement text is required")
+	}
+	jobID := strings.TrimSpace(request.JobID)
+	if jobID == "" {
+		return Bundle{}, fmt.Errorf("job_id is required")
+	}
+	if strings.TrimSpace(request.PRD.ID) == "" {
+		return Bundle{}, fmt.Errorf("prepared prd id is required")
+	}
+	now := time.Now().UTC()
+	if request.Now != nil {
+		now = request.Now().UTC()
+	}
+	compileRequest := Request{
+		RequirementText:   requirementText,
+		RequirementSource: request.RequirementSource,
+		TitleHint:         request.PRD.Title,
+		JobID:             jobID,
+		PRDID:             request.PRD.ID,
+		TemplateID:        request.TemplateID,
+		ExecutorImage:     request.ExecutorImage,
+		Now:               request.Now,
+	}
+	spec := analyzeRequirement(compileRequest, requirementText)
+	spec, err := finalizeTemplateSelection(spec)
+	if err != nil {
+		return Bundle{}, err
+	}
+	spec = applyPreparedPRDToDomainSpec(spec, request.PRD)
+	prd := normalizePreparedPRD(request.PRD, spec, now)
+	return buildBundle(spec, prd, now)
+}
+
+func applyPreparedPRDToDomainSpec(spec domainSpec, prd PRD) domainSpec {
+	spec.PRDID = prd.ID
+	spec.Title = prd.Title
+	spec.Summary = prd.Summary
+	spec.ProblemStatement = prd.ProblemStatement
+	spec.TargetUsers = append([]UserProfile(nil), prd.TargetUsers...)
+	spec.CoreScenarios = append([]Scenario(nil), prd.CoreScenarios...)
+	spec.Goals = append([]string(nil), prd.Goals...)
+	spec.NonGoals = append([]string(nil), prd.NonGoals...)
+	spec.FeatureList = append([]Feature(nil), prd.FeatureList...)
+	spec.ScreenList = append([]Screen(nil), prd.ScreenList...)
+	spec.UserFlows = append([]UserFlow(nil), prd.UserFlows...)
+	spec.DataEntities = append([]DataEntity(nil), prd.DataEntities...)
+	spec.TemplateConstraints = prd.TemplateConstraints
+	spec.AcceptanceCriteria = append([]AcceptanceCriterion(nil), prd.AcceptanceCriteria...)
+	spec.ManualReviewPoints = append([]ManualReviewPoint(nil), prd.ManualReviewPoints...)
+	spec.KnownUnknowns = append([]KnownUnknown(nil), prd.KnownUnknowns...)
+	if len(prd.SourceRefs) > 0 && strings.TrimSpace(prd.SourceRefs[0]) != "" {
+		spec.SourceSummary = strings.TrimSpace(prd.SourceRefs[0])
+	}
+	return spec
+}
+
+func normalizePreparedPRD(prd PRD, spec domainSpec, now time.Time) PRD {
+	normalized := prd
+	if strings.TrimSpace(normalized.SchemaVersion) == "" {
+		normalized.SchemaVersion = defaultSchemaVersion
+	}
+	normalized.ID = strings.TrimSpace(normalized.ID)
+	if normalized.ID == "" {
+		normalized.ID = strings.TrimSpace(spec.PRDID)
+	}
+	if strings.TrimSpace(normalized.Status) == "" {
+		normalized.Status = "draft"
+	}
+	if strings.TrimSpace(normalized.CreatedAt) == "" {
+		normalized.CreatedAt = now.Format(time.RFC3339)
+	}
+	if strings.TrimSpace(normalized.UpdatedAt) == "" {
+		normalized.UpdatedAt = now.Format(time.RFC3339)
+	}
+	return normalized
+}
+
+func buildBundle(spec domainSpec, prd PRD, now time.Time) (Bundle, error) {
 	prdJSON, err := marshalJSON(prd)
 	if err != nil {
 		return Bundle{}, err
 	}
+	prdMarkdown := renderPRDMarkdown(prd)
+	fitReport := renderTemplateFitReport(spec)
 	commandProfileJSON, err := json.Marshal(spec.CommandProfile)
 	if err != nil {
 		return Bundle{}, fmt.Errorf("marshal command profile: %w", err)
@@ -257,44 +355,47 @@ func Compile(request Request) (Bundle, error) {
 		return Bundle{}, fmt.Errorf("marshal human notes: %w", err)
 	}
 	builderInput := appruns.BuildInput{
-		SchemaVersion:    defaultSchemaVersion,
-		JobID:            spec.JobID,
-		PRDID:            spec.PRDID,
-		TemplateID:       spec.TemplateID,
-		ExecutorImage:    spec.ExecutorImage,
-		WorkspacePath:    filepath.ToSlash(filepath.Join("/workspace", spec.JobID)),
-		ArtifactDir:      filepath.ToSlash(filepath.Join("/artifacts", spec.JobID)),
-		GoalSummary:      spec.GoalSummary,
-		TaskBundle:       spec.TaskBundle,
-		AcceptanceChecks: spec.AcceptanceChecks,
-		AllowedPaths:     append([]string(nil), spec.PreferredAllowedPaths...),
-		ProtectedPaths:   append([]string(nil), spec.PreferredProtectedPaths...),
-		KnowledgePack:    append([]appruns.ProfileSkill(nil), spec.KnowledgePack...),
-		CommandProfile:   commandProfileJSON,
-		ContextFiles:     contextFilesJSON,
-		IterationBudget:  3,
-		TokenBudget:      4000,
-		HumanNotes:       humanNotesJSON,
+		SchemaVersion:                  defaultSchemaVersion,
+		JobID:                          spec.JobID,
+		PRDID:                          spec.PRDID,
+		TemplateID:                     spec.TemplateID,
+		PreparedPRDSubjectVersion:      PRDCompileSourceVersion(prd),
+		PreparedTemplateSubjectVersion: TemplateCompileSourceVersion(spec.TemplateID, spec.TemplatePinnedRef),
+		ExecutorImage:                  spec.ExecutorImage,
+		WorkspacePath:                  filepath.ToSlash(filepath.Join("/workspace", spec.JobID)),
+		ArtifactDir:                    filepath.ToSlash(filepath.Join("/artifacts", spec.JobID)),
+		GoalSummary:                    spec.GoalSummary,
+		TaskBundle:                     spec.TaskBundle,
+		AcceptanceChecks:               spec.AcceptanceChecks,
+		AllowedPaths:                   append([]string(nil), spec.PreferredAllowedPaths...),
+		ProtectedPaths:                 append([]string(nil), spec.PreferredProtectedPaths...),
+		KnowledgePack:                  append([]appruns.ProfileSkill(nil), spec.KnowledgePack...),
+		CommandProfile:                 commandProfileJSON,
+		ContextFiles:                   contextFilesJSON,
+		IterationBudget:                3,
+		TokenBudget:                    4000,
+		HumanNotes:                     humanNotesJSON,
 	}
 	builderInputJSON, err := marshalJSON(builderInput)
 	if err != nil {
 		return Bundle{}, err
 	}
-	prdApprovalJSON, err := marshalJSON(buildPRDApprovalRecord(spec, prd, now))
+	requirement := renderRequirement(spec)
+	prdApprovalJSON, err := marshalJSON(buildPRDApprovalRecord(spec, prd, prdMarkdown, requirement, now))
 	if err != nil {
 		return Bundle{}, err
 	}
-	templateApprovalJSON, err := marshalJSON(buildTemplateApprovalRecord(spec, prd, now))
+	templateApprovalJSON, err := marshalJSON(buildTemplateApprovalRecord(spec, prd, fitReport, now))
 	if err != nil {
 		return Bundle{}, err
 	}
 	files := map[string][]byte{
-		requirementFileName:      []byte(renderRequirement(spec)),
-		prdMarkdownFileName:      []byte(renderPRDMarkdown(prd)),
+		requirementFileName:      []byte(requirement),
+		prdMarkdownFileName:      []byte(prdMarkdown),
 		prdJSONFileName:          prdJSON,
 		prdApprovalFileName:      prdApprovalJSON,
 		templateApprovalFileName: templateApprovalJSON,
-		fitReportFileName:        []byte(renderTemplateFitReport(spec)),
+		fitReportFileName:        []byte(fitReport),
 		planFileName:             []byte(renderImplementationPlan(spec)),
 		constraintsFileName:      []byte(renderManualConstraints(spec)),
 		builderInputFileName:     builderInputJSON,
@@ -302,14 +403,14 @@ func Compile(request Request) (Bundle, error) {
 	return Bundle{PRD: prd, BuilderInput: builderInput, Files: files}, nil
 }
 
-func buildPRDApprovalRecord(spec domainSpec, prd PRD, now time.Time) appruns.ApprovalRecord {
+func buildPRDApprovalRecord(spec domainSpec, prd PRD, prdMarkdown, requirement string, now time.Time) appruns.ApprovalRecord {
 	return appruns.ApprovalRecord{
 		SchemaVersion:  defaultSchemaVersion,
 		ApprovalID:     "approval-prd-" + spec.PRDID,
 		ApprovalType:   appruns.ApprovalTypePRD,
 		JobID:          spec.JobID,
 		PRDID:          spec.PRDID,
-		SubjectVersion: prd.Version,
+		SubjectVersion: PRDApprovalSubjectVersion(prd, []byte(prdMarkdown), []byte(requirement)),
 		Status:         appruns.ApprovalStatusApproved,
 		RequestedBy:    approvalSystemActor(),
 		Decision: &appruns.ApprovalDecision{
@@ -324,11 +425,41 @@ func buildPRDApprovalRecord(spec domainSpec, prd PRD, now time.Time) appruns.App
 	}
 }
 
-func buildTemplateApprovalRecord(spec domainSpec, prd PRD, now time.Time) appruns.ApprovalRecord {
-	subjectVersion := "selected-template@" + spec.TemplateID + "@" + spec.TemplatePinnedRef
-	if strings.TrimSpace(spec.TemplatePinnedRef) == "" {
-		subjectVersion = "selected-template@" + spec.TemplateID + "@unknown"
+func PRDCompileSourceVersion(prd PRD) string {
+	prdID := strings.TrimSpace(prd.ID)
+	if prdID == "" {
+		prdID = "unknown-prd"
 	}
+	version := strings.TrimSpace(prd.Version)
+	if version == "" {
+		version = "unknown"
+	}
+	data, err := json.Marshal(prd)
+	if err != nil {
+		return prdID + "@" + version + "@invalid"
+	}
+	sum := sha256.Sum256(data)
+	return prdID + "@" + version + "@sha256:" + hex.EncodeToString(sum[:8])
+}
+
+func PRDApprovalSubjectVersion(prd PRD, prdMarkdown, requirement []byte) string {
+	base := PRDCompileSourceVersion(prd)
+	payload, err := json.Marshal(struct {
+		PRDMarkdown string `json:"prd_markdown"`
+		Requirement string `json:"requirement"`
+	}{
+		PRDMarkdown: string(prdMarkdown),
+		Requirement: string(requirement),
+	})
+	if err != nil {
+		payload = append(append(append([]byte(nil), prdMarkdown...), '\n'), requirement...)
+	}
+	sum := sha256.Sum256(payload)
+	return base + "@sha256:" + hex.EncodeToString(sum[:8])
+}
+
+func buildTemplateApprovalRecord(spec domainSpec, prd PRD, fitReport string, now time.Time) appruns.ApprovalRecord {
+	subjectVersion := TemplateApprovalSubjectVersion(spec.TemplateID, spec.TemplatePinnedRef, []byte(fitReport))
 	return appruns.ApprovalRecord{
 		SchemaVersion:  defaultSchemaVersion,
 		ApprovalID:     "approval-template-" + spec.TemplateID,
@@ -348,6 +479,24 @@ func buildTemplateApprovalRecord(spec domainSpec, prd PRD, now time.Time) apprun
 		EvidencePaths: []string{fitReportFileName, prdJSONFileName},
 		CreatedAt:     now.Format(time.RFC3339),
 	}
+}
+
+func TemplateCompileSourceVersion(templateID, pinnedRef string) string {
+	trimmedTemplateID := strings.TrimSpace(templateID)
+	if trimmedTemplateID == "" {
+		trimmedTemplateID = "unknown-template"
+	}
+	trimmedPinnedRef := strings.TrimSpace(pinnedRef)
+	if trimmedPinnedRef == "" {
+		trimmedPinnedRef = "unknown"
+	}
+	return "selected-template@" + trimmedTemplateID + "@" + trimmedPinnedRef
+}
+
+func TemplateApprovalSubjectVersion(templateID, pinnedRef string, fitReport []byte) string {
+	base := TemplateCompileSourceVersion(templateID, pinnedRef)
+	sum := sha256.Sum256(fitReport)
+	return base + "@sha256:" + hex.EncodeToString(sum[:8])
 }
 
 func approvalSystemActor() appruns.ApprovalActor {
@@ -402,8 +551,12 @@ func compileBookkeepingSpec(request Request, requirementText string) domainSpec 
 	if title == "" {
 		title = "轻量记账 App"
 	}
-	jobID := fallbackID(request.JobID, "job-bookkeeping-lite")
-	prdID := fallbackID(request.PRDID, "prd-bookkeeping-lite")
+	now := time.Now().UTC()
+	if request.Now != nil {
+		now = request.Now()
+	}
+	jobID := fallbackGeneratedID(request.JobID, "job-bookkeeping-lite", request.RequirementSource, now)
+	prdID := fallbackGeneratedID(request.PRDID, "prd-bookkeeping-lite", request.RequirementSource, now)
 	selectedTemplateLabel := fallbackID(request.TemplateID, "flutter-finance-lite")
 	templateID := strings.TrimSpace(request.TemplateID)
 	preferredTemplateIDs := []string{"flutter-finance-lite"}
@@ -426,11 +579,11 @@ func compileBookkeepingSpec(request Request, requirementText string) domainSpec 
 	}
 	flutterProfile := appruns.NewFlutterAndroidProfile()
 	acceptanceChecks := []appruns.AcceptanceCheck{{CheckID: "check-context-ready", Label: "准备上下文文件", Stage: "baseline", Required: true, Commands: []string{"echo context-ready"}, SuccessCriteria: "上下文装载命令返回 0。", TimeoutSeconds: 30}, {CheckID: "check-bookkeeping-scope", Label: "确认记账 MVP 范围", Stage: "baseline", Required: true, Commands: []string{"echo bookkeeping-scope-home-entry-ledger"}, SuccessCriteria: "最小范围被明确限定在首页、录入页和列表页。", TimeoutSeconds: 30}, {CheckID: "check-plan-ready", Label: "确认 Builder 输入包可执行", Stage: "cheap", Required: true, Commands: []string{"echo builder-input-ready"}, SuccessCriteria: "Builder 输入包与最小计划文件已生成。", TimeoutSeconds: 30}}
-	acceptanceChecks = append(acceptanceChecks, flutterProfile.StructuralChecks...)
-	goalSummary := "生成一个围绕首页概览、记账录入、账单列表三块核心功能的记账 App 最小输入包，并驱动当前 P0 Builder 链路执行。"
-	implementationPhases := []string{"阶段 1：冻结记账 App 最小范围，确认首页、录入页、列表页和数据模型。", "阶段 2：把范围拆成 task bundle，生成 Builder 可执行的 acceptance checks。", "阶段 3：通过当前 P0 adapter 跑通最小链路，为后续接入真实 Flutter Builder runtime 留接口。"}
-	manualConstraints := []string{"当前阶段不接入登录、远程同步、上架流程。", "日志和构建报告保留英文输出，文档与计划说明使用中文。", "Builder 只允许执行白名单命令，避免在 P0 阶段扩散风险。", "默认无 real build 路径至少必须通过 Flutter 结构检查，不能只停留在 prepare smoke check。"}
-	humanNotes := []map[string]string{{"note_id": "note-scope", "summary": "当前实验只验证需求整理和 Builder 链路，不追求真实 APK。", "scope": "engineering"}, {"note_id": "note-template", "summary": "优先匹配 " + selectedTemplateLabel + "，避免引入复杂模板依赖。", "scope": "product"}}
+	acceptanceChecks = append(acceptanceChecks, defaultFlutterFallbackChecks()...)
+	goalSummary := "生成一个围绕首页概览、记账录入、账单列表三块核心功能的记账 App 最小输入包，并驱动当前 P0 Builder 默认执行器写入交接探针，证明 inspect/edit/validate 闭环可用。"
+	implementationPhases := []string{"阶段 1：冻结记账 App 最小范围，确认首页、录入页、列表页和数据模型。", "阶段 2：把范围拆成 task bundle，生成 Builder 可执行的 acceptance checks。", "阶段 3：通过当前 P0 adapter 写入交接探针并跑通最小链路，为后续接入真实 Flutter Builder runtime 留接口。"}
+	manualConstraints := []string{"当前阶段不接入登录、远程同步、上架流程。", "日志和构建报告保留英文输出，文档与计划说明使用中文。", "Builder 只允许执行白名单命令，避免在 P0 阶段扩散风险。", "默认无 real build 路径只验证 seed 工作区和交接探针，不再把仓库内硬编码业务 Dart 生成当作完成标准。"}
+	humanNotes := []map[string]string{{"note_id": "note-scope", "summary": "当前实验只验证需求整理、交接探针和 Builder 链路，不追求真实 APK。", "scope": "engineering"}, {"note_id": "note-template", "summary": "优先匹配 " + selectedTemplateLabel + "，避免引入复杂模板依赖。", "scope": "product"}}
 	commandProfile := appruns.CommandProfile{ProfileName: "prepare-p0", AllowedStages: []string{"baseline", "cheap"}, AllowedCommands: []string{"echo", "grep"}, DeniedCommands: []string{"rm", "sudo"}, MaxSingleCommandSeconds: 60, MaxParallelCommands: 1, NetworkPolicy: "disabled", WritableRoots: []string{"lib", "assets", "."}, EnvAllowlist: []string{"PATH", "HOME"}}
 	if realBuild {
 		gaps = []string{
@@ -500,7 +653,7 @@ func compileBookkeepingSpec(request Request, requirementText string) domainSpec 
 		AcceptanceCriteria:      []AcceptanceCriterion{{CriterionID: "ac-home", Label: "首页展示本月概览", Category: "functional", Required: true, Description: "首页必须展示收入、支出、结余和最近账单入口。"}, {CriterionID: "ac-entry", Label: "记账录入链路完整", Category: "functional", Required: true, Description: "用户可以新增一笔账单并返回首页。"}, {CriterionID: "ac-ledger", Label: "账单列表可浏览", Category: "functional", Required: true, Description: "账单列表按时间倒序显示，并展示金额和分类。"}, {CriterionID: "ac-persistence", Label: "本地持久化可恢复", Category: "smoke", Required: true, Description: "应用重启后仍能读取本地账单数据。"}, {CriterionID: "ac-navigation", Label: "核心页面可导航", Category: "ui", Required: true, Description: "首页、录入页、列表页之间的入口明确且可达。"}},
 		ManualReviewPoints:      []ManualReviewPoint{{PointID: "mrp-copy", Summary: "检查首页与录入页中文文案是否一致", Reason: "P0 阶段主要靠模板改造，文案容易残留模板默认值。", Owner: "product"}, {PointID: "mrp-data", Summary: "确认本地持久化方案不引入额外后端依赖", Reason: "当前实验阶段明确不接入云端服务。", Owner: "engineering"}},
 		KnownUnknowns:           []KnownUnknown{{Question: "是否需要在下一阶段加入按分类过滤或图表统计", Impact: "medium", Owner: "product"}, {Question: "后续设备验证与恢复闭环是否沿用当前 acceptance check 结构", Impact: "medium", Owner: "engineering"}},
-		TaskBundle:              []appruns.TaskBundleItem{{TaskID: "task-domain-models", Title: "冻结账单与汇总领域模型", Category: "domain", Objective: "先明确记账 App 的实体字段、派生汇总和目录落点，避免后续页面和存储反复漂移。", Priority: "p0", RelatedRequirements: []string{"feature-local-data", "feature-home-summary"}, TargetPaths: []string{"lib/models/entry.dart", "lib/models/summary.dart"}, OutputExpectations: []string{"账单实体字段稳定", "月度汇总可从账单实体推导"}, CompletionCriteria: []string{"账单记录包含金额、分类、日期和备注", "汇总模型可以表达收入、支出和结余"}, RiskNotes: []string{"如果实体字段频繁变化，后续页面和测试都会跟着返工"}}, {TaskID: "task-storage-wiring", Title: "接通本地持久化与仓储边界", Category: "storage", Objective: "把本地持久化方案和 repository 边界固定下来，确保新增账单后可恢复。", Priority: "p0", RelatedRequirements: []string{"feature-local-data"}, Dependencies: []string{"task-domain-models"}, TargetPaths: []string{"lib/repositories/entry_repository.dart", "pubspec.yaml"}, OutputExpectations: []string{"明确的本地持久化实现", "账单读写入口稳定"}, CompletionCriteria: []string{"代码或依赖中出现明确的本地持久化实现", "应用重启后仍能读取账单列表"}, RiskNotes: []string{"不要同时引入两个同类本地存储方案"}}, {TaskID: "task-screen-scaffold", Title: "搭建首页、录入页和列表页骨架", Category: "screen", Objective: "先把三块核心页面、导航入口和主要视觉区域搭出来，不把默认 seed 页面当作完成结果。", Priority: "p0", RelatedRequirements: []string{"feature-home-summary", "feature-add-entry", "feature-ledger"}, Dependencies: []string{"task-domain-models"}, TargetPaths: []string{"lib/main.dart", "lib/views/home_page.dart", "lib/views/entry_form_page.dart", "lib/views/entry_list_page.dart"}, OutputExpectations: []string{"首页概览区", "记一笔表单骨架", "账单列表骨架"}, CompletionCriteria: []string{"首页、录入页、列表页之间入口明确可达", "默认 counter demo 页面与文案已被移除"}, RiskNotes: []string{"页面骨架完成不等于交互链路完成"}}, {TaskID: "task-flow-wiring", Title: "接通记一笔与首页刷新主流程", Category: "flow", Objective: "把录入保存、首页概览刷新和账单列表回显串成一个完整功能闭环。", Priority: "p0", RelatedRequirements: []string{"feature-add-entry", "feature-home-summary", "feature-ledger", "feature-local-data"}, Dependencies: []string{"task-storage-wiring", "task-screen-scaffold"}, TargetPaths: []string{"lib/controllers/home_controller.dart", "lib/controllers/entry_form_controller.dart", "lib/controllers/entry_list_controller.dart", "lib/repositories/entry_repository.dart", "test/widget_test.dart"}, OutputExpectations: []string{"保存动作可触发持久化", "首页和列表页能看到新增账单"}, CompletionCriteria: []string{"录入表单字段齐全并可保存", "新增账单后首页和列表页都能反映最新数据"}, RiskNotes: []string{"不要为了接线方便重做整套页面结构或状态管理"}}, {TaskID: "task-validation-closure", Title: "完成 analyze、test 与 APK 构建收口", Category: "validation", Objective: "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 debug APK 全通过。", Priority: "p0", RelatedRequirements: []string{"ac-entry", "ac-ledger", "ac-persistence", "ac-navigation"}, Dependencies: []string{"task-flow-wiring"}, TargetPaths: []string{"lib/main.dart", "lib/views/**", "lib/controllers/**", "lib/repositories/**", "test/**", "pubspec.yaml"}, OutputExpectations: []string{"静态检查通过", "测试通过", "可构建 Debug APK"}, CompletionCriteria: []string{"flutter analyze 无错误", "flutter test 全通过", "flutter build apk --debug 成功"}, RiskNotes: []string{"只做低风险收口，不把单点失败扩展为大面积自由重构"}}},
+		TaskBundle:              []appruns.TaskBundleItem{{TaskID: "task-domain-models", Title: "冻结账单与汇总领域模型", Category: "domain", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, Objective: "先明确记账 App 的实体字段、派生汇总和目录落点，避免后续页面和存储反复漂移。", Priority: "p0", RelatedRequirements: []string{"feature-local-data", "feature-home-summary"}, TargetPaths: []string{"lib/models/entry.dart", "lib/models/summary.dart"}, OutputExpectations: []string{"账单实体字段稳定", "月度汇总可从账单实体推导"}, CompletionCriteria: []string{"账单记录包含金额、分类、日期和备注", "汇总模型可以表达收入、支出和结余"}, RiskNotes: []string{"如果实体字段频繁变化，后续页面和测试都会跟着返工"}}, {TaskID: "task-storage-wiring", Title: "接通本地持久化与仓储边界", Category: "storage", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, Objective: "把本地持久化方案和 repository 边界固定下来，确保新增账单后可恢复。", Priority: "p0", RelatedRequirements: []string{"feature-local-data"}, Dependencies: []string{"task-domain-models"}, TargetPaths: []string{"lib/repositories/entry_repository.dart", "pubspec.yaml"}, OutputExpectations: []string{"明确的本地持久化实现", "账单读写入口稳定"}, CompletionCriteria: []string{"代码或依赖中出现明确的本地持久化实现", "应用重启后仍能读取账单列表"}, RiskNotes: []string{"不要同时引入两个同类本地存储方案"}}, {TaskID: "task-screen-scaffold", Title: "搭建首页、录入页和列表页骨架", Category: "screen", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, Objective: "先把三块核心页面、导航入口和主要视觉区域搭出来，不把默认 seed 页面当作完成结果。", Priority: "p0", RelatedRequirements: []string{"feature-home-summary", "feature-add-entry", "feature-ledger"}, Dependencies: []string{"task-domain-models"}, TargetPaths: []string{"lib/main.dart", "lib/views/home_page.dart", "lib/views/entry_form_page.dart", "lib/views/entry_list_page.dart"}, OutputExpectations: []string{"首页概览区", "记一笔表单骨架", "账单列表骨架"}, CompletionCriteria: []string{"首页、录入页、列表页之间入口明确可达", "默认 counter demo 页面与文案已被移除"}, RiskNotes: []string{"页面骨架完成不等于交互链路完成"}}, {TaskID: "task-flow-wiring", Title: "接通记一笔与首页刷新主流程", Category: "flow", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, Objective: "把录入保存、首页概览刷新和账单列表回显串成一个完整功能闭环。", Priority: "p0", RelatedRequirements: []string{"feature-add-entry", "feature-home-summary", "feature-ledger", "feature-local-data"}, Dependencies: []string{"task-storage-wiring", "task-screen-scaffold"}, TargetPaths: []string{"lib/controllers/home_controller.dart", "lib/controllers/entry_form_controller.dart", "lib/controllers/entry_list_controller.dart", "lib/repositories/entry_repository.dart", "test/widget_test.dart"}, OutputExpectations: []string{"保存动作可触发持久化", "首页和列表页能看到新增账单"}, CompletionCriteria: []string{"录入表单字段齐全并可保存", "新增账单后首页和列表页都能反映最新数据"}, RiskNotes: []string{"不要为了接线方便重做整套页面结构或状态管理"}}, {TaskID: "task-validation-closure", Title: "完成 analyze、test 与 APK 构建收口", Category: "validation", TaskType: appruns.BuilderRuntimeTaskTypeClosureRepair, Objective: "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 debug APK 全通过。", Priority: "p0", RelatedRequirements: []string{"ac-entry", "ac-ledger", "ac-persistence", "ac-navigation"}, Dependencies: []string{"task-flow-wiring"}, TargetPaths: []string{"lib/main.dart", "lib/views/**", "lib/controllers/**", "lib/repositories/**", "test/**", "pubspec.yaml"}, OutputExpectations: []string{"静态检查通过", "测试通过", "可构建 Debug APK"}, CompletionCriteria: []string{"flutter analyze 无错误", "flutter test 全通过", "flutter build apk --debug 成功"}, RiskNotes: []string{"只做低风险收口，不把单点失败扩展为大面积自由重构"}}},
 		AcceptanceChecks:        acceptanceChecks,
 		GoalSummary:             goalSummary,
 		TemplateFitReasons:      reasons,
@@ -537,8 +690,12 @@ func compileGenericSpec(request Request, requirementText string) domainSpec {
 	if title == "" {
 		title = "Android MVP App"
 	}
-	jobID := fallbackID(request.JobID, "job-generic-mvp")
-	prdID := fallbackID(request.PRDID, "prd-generic-mvp")
+	now := time.Now().UTC()
+	if request.Now != nil {
+		now = request.Now()
+	}
+	jobID := fallbackGeneratedID(request.JobID, "job-generic-mvp", request.RequirementSource, now)
+	prdID := fallbackGeneratedID(request.PRDID, "prd-generic-mvp", request.RequirementSource, now)
 	selectedTemplateLabel := fallbackID(request.TemplateID, "flutter-template-demo")
 	templateID := strings.TrimSpace(request.TemplateID)
 	preferredTemplateIDs := []string{"flutter-template-demo"}
@@ -568,7 +725,7 @@ func compileGenericSpec(request Request, requirementText string) domainSpec {
 		AcceptanceCriteria:      []AcceptanceCriterion{{CriterionID: "ac-primary", Label: "主流程可达", Category: "functional", Required: true, Description: "应用可进入主页面并完成一次主操作。"}},
 		ManualReviewPoints:      []ManualReviewPoint{{PointID: "mrp-primary", Summary: "确认需求是否还需要拆更多页面", Reason: "当前只保留单屏 MVP。", Owner: "product"}},
 		KnownUnknowns:           []KnownUnknown{{Question: "是否需要额外页面或外部集成", Impact: "medium", Owner: "product"}},
-		TaskBundle:              []appruns.TaskBundleItem{{TaskID: "task-generic-domain", Title: "冻结 MVP 核心记录模型", Category: "domain", Objective: "先把最小数据对象和命名边界固定下来，避免主流程描述漂移。", Priority: "p0", TargetPaths: []string{"lib/models/**"}, CompletionCriteria: []string{"核心记录字段定义完整", "数据对象命名与主流程一致"}}, {TaskID: "task-generic-screen", Title: "搭建 MVP 主页面骨架", Category: "screen", Objective: "让 Builder 看到明确的主页面入口和一次核心交互。", Priority: "p0", Dependencies: []string{"task-generic-domain"}, TargetPaths: []string{"lib/**"}, CompletionCriteria: []string{"主页面定义完整", "核心操作入口可见"}}, {TaskID: "task-generic-validation", Title: "完成最小输入包校验", Category: "validation", Objective: "确认 builder 输入包和上下文文件可被后续 Builder 消费。", Priority: "p0", Dependencies: []string{"task-generic-screen"}, TargetPaths: []string{"implementation-plan.md", "builder-input.json"}, CompletionCriteria: []string{"builder-input.json 已生成", "主流程可被描述为可执行任务"}}},
+		TaskBundle:              []appruns.TaskBundleItem{{TaskID: "task-generic-domain", Title: "冻结 MVP 核心记录模型", Category: "domain", TaskType: appruns.BuilderRuntimeTaskTypeSingleFileEdit, Objective: "先把最小数据对象和命名边界固定下来，避免主流程描述漂移。", Priority: "p0", TargetPaths: []string{"lib/models/**"}, CompletionCriteria: []string{"核心记录字段定义完整", "数据对象命名与主流程一致"}}, {TaskID: "task-generic-screen", Title: "搭建 MVP 主页面骨架", Category: "screen", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, Objective: "让 Builder 看到明确的主页面入口和一次核心交互。", Priority: "p0", Dependencies: []string{"task-generic-domain"}, TargetPaths: []string{"lib/**"}, CompletionCriteria: []string{"主页面定义完整", "核心操作入口可见"}}, {TaskID: "task-generic-validation", Title: "完成最小输入包校验", Category: "validation", TaskType: appruns.BuilderRuntimeTaskTypeClosureRepair, Objective: "确认 builder 输入包和上下文文件可被后续 Builder 消费。", Priority: "p0", Dependencies: []string{"task-generic-screen"}, TargetPaths: []string{"implementation-plan.md", "builder-input.json"}, CompletionCriteria: []string{"builder-input.json 已生成", "主流程可被描述为可执行任务"}}},
 		AcceptanceChecks:        []appruns.AcceptanceCheck{{CheckID: "check-primary", Label: "确认输入包生成", Stage: "baseline", Required: true, Commands: []string{"echo generic-input-ready"}, SuccessCriteria: "Builder 输入包命令返回 0。", TimeoutSeconds: 30}},
 		GoalSummary:             "将通用需求整理成基于 " + selectedTemplateLabel + " 的最小 Android MVP 输入包。",
 		TemplateFitReasons:      []string{"默认 Flutter 模板足以承载单屏 MVP。"},
@@ -855,12 +1012,72 @@ func renderManualConstraints(spec domainSpec) string {
 	return builder.String()
 }
 
+func defaultFlutterFallbackChecks() []appruns.AcceptanceCheck {
+	return []appruns.AcceptanceCheck{
+		{
+			CheckID:         "check-structural-template-files-ready",
+			Label:           "确认 Flutter seed 工作区存在",
+			Stage:           "baseline",
+			Required:        true,
+			Commands:        []string{"grep -q . pubspec.yaml lib/main.dart test/widget_test.dart"},
+			SuccessCriteria: "默认 seed 工作区关键文件已就位。",
+			TimeoutSeconds:  30,
+		},
+		{
+			CheckID:         "check-legacy-thin-fallback-probe",
+			Label:           "确认默认 thin fallback 写入探针",
+			Stage:           "cheap",
+			Required:        true,
+			Commands:        []string{"grep -E \"Generated by PicoClaw thin executor.|'goalSummary':\" lib/picoclaw_executor_probe.dart >/dev/null 2>&1"},
+			SuccessCriteria: "默认 thin executor fallback 已在允许目录中写入探针文件，用于证明 legacy fallback 链可用。",
+			TimeoutSeconds:  30,
+		},
+		{
+			CheckID:         "check-legacy-thin-fallback-metadata",
+			Label:           "确认 fallback 探针包含执行元数据",
+			Stage:           "cheap",
+			Required:        true,
+			Commands:        []string{"grep -E \"'taskCount': [0-9]+,|'acceptanceCheckCount': [0-9]+,\" lib/picoclaw_executor_probe.dart >/dev/null 2>&1"},
+			SuccessCriteria: "fallback 探针里已带上 task 与 acceptance check 元数据，供定位 legacy fallback 输入边界，不代表真实 builder-runtime 产出。",
+			TimeoutSeconds:  30,
+		},
+	}
+}
+
 func fallbackID(value, fallback string) string {
 	value = strings.TrimSpace(value)
 	if value != "" {
 		return value
 	}
 	return fallback
+}
+
+func fallbackGeneratedID(value, fallback, source string, now time.Time) string {
+	value = strings.TrimSpace(value)
+	if value != "" {
+		return value
+	}
+	if strings.TrimSpace(source) == "jobs-ui" {
+		return fmt.Sprintf("%s_%s", jobsUIObjectLabel(fallback), jobsUITimestamp(now))
+	}
+	return fallback
+}
+
+func jobsUITimestamp(now time.Time) string {
+	utc := now.UTC()
+	return fmt.Sprintf("%s%03d", utc.Format("20060102150405"), utc.Nanosecond()/1_000_000)
+}
+
+func jobsUIObjectLabel(fallback string) string {
+	fallback = strings.TrimSpace(fallback)
+	switch {
+	case strings.HasPrefix(fallback, "job-"):
+		return "JOB"
+	case strings.HasPrefix(fallback, "prd-"):
+		return "PRD"
+	default:
+		return "TASK"
+	}
 }
 
 func sourceSummary(source string) string {

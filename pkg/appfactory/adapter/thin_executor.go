@@ -29,6 +29,7 @@ type TaskExecutionPreview struct {
 	TaskID    string
 	Title     string
 	Category  appruns.TaskCategory
+	TaskType  appruns.BuilderRuntimeTaskType
 	DependsOn []string
 }
 
@@ -160,136 +161,30 @@ func buildDefaultEditCommand(ctx context.Context, run runRecord) (*exec.Cmd, str
 }
 
 func buildDefaultEditPlan(run runRecord) (defaultEditPlan, error) {
-	if plan, ok := buildFlutterLandingEditPlan(run); ok {
-		return plan, nil
-	}
 	outputPath, err := defaultExecutorOutputPath(run)
 	if err != nil {
 		return defaultEditPlan{}, err
 	}
+	summary := buildExecutionSummary(run) + " | output=" + outputPath
+	if run.BuilderRuntime != nil && run.BuilderRuntime.Enabled {
+		if route, upgraded := selectBuilderRuntimeRoute(run); route.Model.Primary != "" {
+			summary = buildExecutionSummary(run) + " | output=builder-runtime-workspace-patch"
+			if route.RouteSource != "" {
+				summary += " | route=" + route.RouteSource
+			}
+			if upgraded {
+				summary += " | upgraded=true"
+			}
+		}
+	}
 	return defaultEditPlan{
-		Summary: buildExecutionSummary(run) + " | output=" + outputPath,
+		Summary: summary,
 		Files: []defaultEditFile{{
 			Path:    outputPath,
 			Content: renderDefaultEditContent(run, outputPath),
 			Mode:    defaultEditOverwrite,
 		}},
 	}, nil
-}
-
-func buildFlutterLandingEditPlan(run runRecord) (defaultEditPlan, bool) {
-	if !looksLikeFlutterLandingRun(run) {
-		return defaultEditPlan{}, false
-	}
-	files := []defaultEditFile{
-		{
-			Path:    "lib/models/entry.dart",
-			Content: renderFlutterEntryModel(),
-			Mode:    defaultEditIfMissing,
-		},
-		{
-			Path:    "lib/models/summary.dart",
-			Content: renderFlutterSummaryModel(),
-			Mode:    defaultEditIfMissing,
-		},
-		{
-			Path:    "lib/repositories/entry_repository.dart",
-			Content: renderFlutterEntryRepository(),
-			Mode:    defaultEditIfMissing,
-		},
-		{
-			Path:    "lib/controllers/home_controller.dart",
-			Content: renderFlutterHomeController(),
-			Mode:    defaultEditIfMissing,
-		},
-		{
-			Path:    "lib/controllers/entry_form_controller.dart",
-			Content: renderFlutterEntryFormController(),
-			Mode:    defaultEditIfMissing,
-		},
-		{
-			Path:    "lib/controllers/entry_list_controller.dart",
-			Content: renderFlutterEntryListController(),
-			Mode:    defaultEditIfMissing,
-		},
-		{
-			Path:    "lib/views/home_page.dart",
-			Content: renderFlutterHomePage(),
-			Mode:    defaultEditIfMissing,
-		},
-		{
-			Path:    "lib/views/entry_form_page.dart",
-			Content: renderFlutterEntryFormPage(),
-			Mode:    defaultEditIfMissing,
-		},
-		{
-			Path:    "lib/views/entry_list_page.dart",
-			Content: renderFlutterEntryListPage(),
-			Mode:    defaultEditIfMissing,
-		},
-		{
-			Path:    "lib/main.dart",
-			Content: renderFlutterMain(),
-			Mode:    defaultEditIfDemo,
-		},
-	}
-	if isProbePathAllowed("pubspec.yaml", run.AllowedPaths, run.ProtectedPaths) {
-		files = append(files, defaultEditFile{
-			Path:    "pubspec.yaml",
-			Content: renderFlutterPubspec(),
-			Mode:    defaultEditIfIncomplete,
-		})
-	}
-	if isProbePathAllowed("test/widget_test.dart", run.AllowedPaths, run.ProtectedPaths) {
-		files = append(files, defaultEditFile{
-			Path:    "test/widget_test.dart",
-			Content: renderFlutterWidgetTest(),
-			Mode:    defaultEditIfDemo,
-		})
-	}
-	filtered := make([]defaultEditFile, 0, len(files))
-	for _, file := range files {
-		if isProbePathAllowed(file.Path, run.AllowedPaths, run.ProtectedPaths) {
-			filtered = append(filtered, file)
-		}
-	}
-	if len(filtered) == 0 {
-		return defaultEditPlan{}, false
-	}
-	return defaultEditPlan{
-		Summary: buildExecutionSummary(run) + " | flutter landing skeleton",
-		Files:   filtered,
-	}, true
-}
-
-func looksLikeFlutterLandingRun(run runRecord) bool {
-	if hasKnowledgeSkill(run, "flutter-mvc-template") || hasKnowledgeSkill(run, "builder-direct-edit") {
-		return true
-	}
-	for _, check := range run.AcceptanceChecks {
-		switch strings.TrimSpace(check.CheckID) {
-		case "check-counter-demo-removed", "check-entry-form-wiring", "check-local-persistence-wiring":
-			return true
-		}
-		if strings.HasPrefix(strings.TrimSpace(check.CheckID), "check-flutter-") {
-			return true
-		}
-	}
-	for _, allowedPath := range run.AllowedPaths {
-		trimmed := filepath.ToSlash(strings.TrimSpace(allowedPath))
-		if trimmed == "pubspec.yaml" || trimmed == "test/**" || trimmed == "lib/**" {
-			return true
-		}
-	}
-	for _, task := range run.TaskBundle {
-		for _, targetPath := range task.TargetPaths {
-			trimmed := filepath.ToSlash(strings.TrimSpace(targetPath))
-			if trimmed == "lib/main.dart" || strings.HasPrefix(trimmed, "lib/views/") || strings.HasPrefix(trimmed, "lib/controllers/") || strings.HasPrefix(trimmed, "lib/repositories/") {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func defaultExecutorOutputPath(run runRecord) (string, error) {
@@ -318,6 +213,12 @@ func candidateProbePathFromReference(reference string) (string, bool) {
 	cleaned := path.Clean(trimmed)
 	if cleaned == "." || strings.HasPrefix(cleaned, "../") || path.IsAbs(cleaned) {
 		return "", false
+	}
+	if strings.HasPrefix(cleaned, "lib/") || cleaned == "lib" {
+		return path.Join("lib", defaultProbeFilename("lib")), true
+	}
+	if strings.HasPrefix(cleaned, "test/") || cleaned == "test" {
+		return path.Join("test", defaultProbeFilename("test")), true
 	}
 	return path.Join(path.Dir(cleaned), defaultProbeFilename(cleaned)), true
 }
@@ -386,7 +287,7 @@ func buildDefaultEditScript(plan defaultEditPlan) string {
 		case defaultEditIfIncomplete:
 			builder.WriteString("if [ ! -f ")
 			builder.WriteString(shellQuote(file.Path))
-			builder.WriteString(" ] || ! grep -E '^[[:space:]]*shared_preferences:' ")
+			builder.WriteString(" ] || ! grep -E '^[[:space:]]*hive_flutter:' ")
 			builder.WriteString(shellQuote(file.Path))
 			builder.WriteString(" >/dev/null 2>&1; then\n")
 			appendDefaultEditHereDoc(&builder, file.Path, file.Content)
@@ -448,709 +349,8 @@ func renderDefaultTextProbe(run runRecord) string {
 	}, "\n") + "\n"
 }
 
-func renderFlutterPubspec() string {
-	return strings.TrimLeft(`name: picoclaw_executor_app
-description: Minimal bookkeeping workspace generated by PicoClaw thin executor.
-publish_to: 'none'
-version: 0.1.0+1
-
-environment:
-  sdk: '>=3.3.0 <4.0.0'
-
-dependencies:
-  flutter:
-    sdk: flutter
-  shared_preferences: ^2.2.3
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
-
-flutter:
-  uses-material-design: true
-`, "\n")
-}
-
-func renderFlutterMain() string {
-	return strings.TrimLeft(`import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'controllers/entry_form_controller.dart';
-import 'controllers/entry_list_controller.dart';
-import 'controllers/home_controller.dart';
-import 'repositories/entry_repository.dart';
-import 'views/entry_form_page.dart';
-import 'views/entry_list_page.dart';
-import 'views/home_page.dart';
-
-Future<void> main() async {
-	WidgetsFlutterBinding.ensureInitialized();
-	final preferences = await SharedPreferences.getInstance();
-	final repository = EntryRepository(preferences: preferences);
-	runApp(BookkeepingApp(repository: repository));
-}
-
-class BookkeepingApp extends StatefulWidget {
-	const BookkeepingApp({super.key, required this.repository});
-
-	final EntryRepository repository;
-
-	@override
-	State<BookkeepingApp> createState() => _BookkeepingAppState();
-}
-
-class _BookkeepingAppState extends State<BookkeepingApp> {
-	late final HomeController _homeController;
-	late final EntryFormController _entryFormController;
-	late final EntryListController _entryListController;
-	int _currentIndex = 0;
-
-	@override
-	void initState() {
-		super.initState();
-		_homeController = HomeController(repository: widget.repository);
-		_entryFormController = EntryFormController(repository: widget.repository);
-		_entryListController = EntryListController(repository: widget.repository);
-		_homeController.reload();
-		_entryListController.load();
-	}
-
-	@override
-	void dispose() {
-		_homeController.dispose();
-		_entryFormController.dispose();
-		_entryListController.dispose();
-		super.dispose();
-	}
-
-	Future<void> _handleEntrySaved() async {
-		await _homeController.reload();
-		await _entryListController.load();
-		if (!mounted) {
-			return;
-		}
-		setState(() {
-			_currentIndex = 0;
-		});
-	}
-
-	@override
-	Widget build(BuildContext context) {
-		final pages = <Widget>[
-			HomePage(
-				controller: _homeController,
-				onAddPressed: () => setState(() {
-					_currentIndex = 1;
-				}),
-				onListPressed: () => setState(() {
-					_currentIndex = 2;
-				}),
-			),
-			EntryFormPage(
-				controller: _entryFormController,
-				onSaved: _handleEntrySaved,
-			),
-			EntryListPage(controller: _entryListController),
-		];
-
-		return MaterialApp(
-			title: 'PicoClaw Bookkeeping',
-			theme: ThemeData(
-				colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
-				useMaterial3: true,
-			),
-			home: Scaffold(
-				body: SafeArea(child: pages[_currentIndex]),
-				bottomNavigationBar: NavigationBar(
-					selectedIndex: _currentIndex,
-					onDestinationSelected: (index) {
-						setState(() {
-							_currentIndex = index;
-						});
-						if (index == 0) {
-							_homeController.reload();
-						}
-						if (index == 2) {
-							_entryListController.load();
-						}
-					},
-					destinations: const [
-						NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Overview'),
-						NavigationDestination(icon: Icon(Icons.add_circle_outline), label: 'Add Entry'),
-						NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'Entries'),
-					],
-				),
-			),
-		);
-	}
-}
-`, "\n")
-}
-
-func renderFlutterEntryModel() string {
-	return strings.TrimLeft(`enum EntryType { income, expense }
-
-class Entry {
-	const Entry({
-		required this.amount,
-		required this.type,
-		required this.date,
-		this.note = '',
-	});
-
-	final double amount;
-	final EntryType type;
-	final DateTime date;
-	final String note;
-
-	Map<String, Object> toJson() {
-		return {
-			'amount': amount,
-			'type': type.name,
-			'date': date.toIso8601String(),
-			'note': note,
-		};
-	}
-
-	factory Entry.fromJson(Map<String, dynamic> json) {
-		final typeName = json['type'] as String? ?? EntryType.expense.name;
-		return Entry(
-			amount: (json['amount'] as num?)?.toDouble() ?? 0,
-			type: EntryType.values.firstWhere(
-				(item) => item.name == typeName,
-				orElse: () => EntryType.expense,
-			),
-			date: DateTime.tryParse(json['date'] as String? ?? '') ?? DateTime.now(),
-			note: json['note'] as String? ?? '',
-		);
-	}
-}
-`, "\n")
-}
-
-func renderFlutterSummaryModel() string {
-	return strings.TrimLeft(`class EntrySummary {
-	const EntrySummary({
-		required this.totalIncome,
-		required this.totalExpense,
-	});
-
-	final double totalIncome;
-	final double totalExpense;
-
-	double get balance => totalIncome - totalExpense;
-}
-`, "\n")
-}
-
-func renderFlutterEntryRepository() string {
-	return strings.TrimLeft(`import 'dart:convert';
-
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../models/entry.dart';
-import '../models/summary.dart';
-
-class EntryRepository {
-	EntryRepository({required this.preferences});
-
-	final SharedPreferences preferences;
-	static const _entriesKey = 'bookkeeping_entries';
-
-	Future<List<Entry>> loadEntries() async {
-		final payload = preferences.getString(_entriesKey);
-		if (payload == null || payload.isEmpty) {
-			return const [];
-		}
-		final decoded = jsonDecode(payload) as List<dynamic>;
-		return decoded
-				.map((item) => Entry.fromJson(item as Map<String, dynamic>))
-				.toList()
-			..sort((left, right) => right.date.compareTo(left.date));
-	}
-
-	Future<void> saveEntry(Entry entry) async {
-		final entries = await loadEntries();
-		final updated = <Entry>[entry, ...entries];
-		final encoded = jsonEncode(updated.map((item) => item.toJson()).toList());
-		await preferences.setString(_entriesKey, encoded);
-	}
-
-	Future<EntrySummary> loadSummary() async {
-		final entries = await loadEntries();
-		double income = 0;
-		double expense = 0;
-		for (final entry in entries) {
-			if (entry.type == EntryType.income) {
-				income += entry.amount;
-			} else {
-				expense += entry.amount;
-			}
-		}
-		return EntrySummary(totalIncome: income, totalExpense: expense);
-	}
-}
-`, "\n")
-}
-
-func renderFlutterHomeController() string {
-	return strings.TrimLeft(`import 'package:flutter/foundation.dart';
-
-import '../models/entry.dart';
-import '../models/summary.dart';
-import '../repositories/entry_repository.dart';
-
-class HomeController extends ChangeNotifier {
-	HomeController({required this.repository});
-
-	final EntryRepository repository;
-	EntrySummary _summary = const EntrySummary(totalIncome: 0, totalExpense: 0);
-	List<Entry> _recentEntries = const [];
-	bool _loading = false;
-
-	EntrySummary get summary => _summary;
-	List<Entry> get recentEntries => _recentEntries;
-	bool get loading => _loading;
-
-	Future<void> reload() async {
-		_loading = true;
-		notifyListeners();
-		_summary = await repository.loadSummary();
-		_recentEntries = (await repository.loadEntries()).take(5).toList();
-		_loading = false;
-		notifyListeners();
-	}
-}
-`, "\n")
-}
-
-func renderFlutterEntryFormController() string {
-	return strings.TrimLeft(`import 'package:flutter/widgets.dart';
-
-import '../models/entry.dart';
-import '../repositories/entry_repository.dart';
-
-class EntryFormController extends ChangeNotifier {
-	EntryFormController({required this.repository});
-
-	final EntryRepository repository;
-	final amountController = TextEditingController();
-	final noteController = TextEditingController();
-	EntryType selectedType = EntryType.expense;
-	DateTime selectedDate = DateTime.now();
-	bool saving = false;
-
-	void setSelectedType(EntryType type) {
-		selectedType = type;
-		notifyListeners();
-	}
-
-	void setSelectedDate(DateTime date) {
-		selectedDate = date;
-		notifyListeners();
-	}
-
-	Future<bool> submit() async {
-		final amount = double.tryParse(amountController.text.trim());
-		if (amount == null || amount <= 0) {
-			return false;
-		}
-		saving = true;
-		notifyListeners();
-		await repository.saveEntry(Entry(
-			amount: amount,
-			type: selectedType,
-			date: selectedDate,
-			note: noteController.text.trim(),
-		));
-		amountController.clear();
-		noteController.clear();
-		selectedType = EntryType.expense;
-		selectedDate = DateTime.now();
-		saving = false;
-		notifyListeners();
-		return true;
-	}
-
-	@override
-	void dispose() {
-		amountController.dispose();
-		noteController.dispose();
-		super.dispose();
-	}
-}
-`, "\n")
-}
-
-func renderFlutterEntryListController() string {
-	return strings.TrimLeft(`import 'package:flutter/foundation.dart';
-
-import '../models/entry.dart';
-import '../repositories/entry_repository.dart';
-
-class EntryListController extends ChangeNotifier {
-	EntryListController({required this.repository});
-
-	final EntryRepository repository;
-	List<Entry> _entries = const [];
-	bool _loading = false;
-
-	List<Entry> get entries => _entries;
-	bool get loading => _loading;
-
-	Future<void> load() async {
-		_loading = true;
-		notifyListeners();
-		_entries = await repository.loadEntries();
-		_loading = false;
-		notifyListeners();
-	}
-}
-`, "\n")
-}
-
-func renderFlutterHomePage() string {
-	return strings.TrimLeft(`import 'package:flutter/material.dart';
-
-import '../controllers/home_controller.dart';
-import '../models/entry.dart';
-
-class HomePage extends StatefulWidget {
-	const HomePage({
-		super.key,
-		required this.controller,
-		required this.onAddPressed,
-		required this.onListPressed,
-	});
-
-	final HomeController controller;
-	final VoidCallback onAddPressed;
-	final VoidCallback onListPressed;
-
-	@override
-	State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-	@override
-	void initState() {
-		super.initState();
-		widget.controller.reload();
-	}
-
-	@override
-	Widget build(BuildContext context) {
-		return AnimatedBuilder(
-			animation: widget.controller,
-			builder: (context, _) {
-				final summary = widget.controller.summary;
-				return RefreshIndicator(
-					onRefresh: widget.controller.reload,
-					child: ListView(
-						padding: const EdgeInsets.all(24),
-						children: [
-							Text('Bookkeeping overview', style: Theme.of(context).textTheme.headlineMedium),
-							const SizedBox(height: 8),
-							Text('Track quick income, expenses, and recent entries in one place.', style: Theme.of(context).textTheme.bodyMedium),
-							const SizedBox(height: 24),
-							Wrap(
-								spacing: 12,
-								runSpacing: 12,
-								children: [
-									_SummaryCard(label: 'Income', value: summary.totalIncome),
-									_SummaryCard(label: 'Expense', value: summary.totalExpense),
-									_SummaryCard(label: 'Balance', value: summary.balance),
-								],
-							),
-							const SizedBox(height: 24),
-							Row(
-								children: [
-									ElevatedButton.icon(onPressed: widget.onAddPressed, icon: const Icon(Icons.add), label: const Text('Add entry')),
-									const SizedBox(width: 12),
-									OutlinedButton.icon(onPressed: widget.onListPressed, icon: const Icon(Icons.receipt_long_outlined), label: const Text('View entries')),
-								],
-							),
-							const SizedBox(height: 24),
-							Text('Recent entries', style: Theme.of(context).textTheme.titleLarge),
-							const SizedBox(height: 12),
-							if (widget.controller.loading)
-								const Center(child: CircularProgressIndicator())
-							else if (widget.controller.recentEntries.isEmpty)
-								const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No saved entries yet. Start with the add entry form.')))
-							else
-								...widget.controller.recentEntries.map(_EntryTile.new),
-						],
-					),
-				);
-			},
-		);
-	}
-}
-
-class _SummaryCard extends StatelessWidget {
-	const _SummaryCard({required this.label, required this.value});
-
-	final String label;
-	final double value;
-
-	@override
-	Widget build(BuildContext context) {
-		return SizedBox(
-			width: 180,
-			child: Card(
-				child: Padding(
-					padding: const EdgeInsets.all(16),
-					child: Column(
-						crossAxisAlignment: CrossAxisAlignment.start,
-						children: [
-							Text(label, style: Theme.of(context).textTheme.labelLarge),
-							const SizedBox(height: 8),
-							Text(value.toStringAsFixed(2), style: Theme.of(context).textTheme.headlineSmall),
-						],
-					),
-				),
-			),
-		);
-	}
-}
-
-class _EntryTile extends StatelessWidget {
-	const _EntryTile(this.entry);
-
-	final Entry entry;
-
-	@override
-	Widget build(BuildContext context) {
-		return Card(
-			child: ListTile(
-				leading: Icon(entry.type == EntryType.income ? Icons.south_west : Icons.north_east),
-				title: Text(entry.note.isEmpty ? entry.type.name.toUpperCase() : entry.note),
-				subtitle: Text(entry.date.toIso8601String().split('T').first),
-				trailing: Text(entry.amount.toStringAsFixed(2)),
-			),
-		);
-	}
-}
-`, "\n")
-}
-
-func renderFlutterEntryFormPage() string {
-	return strings.TrimLeft(`import 'package:flutter/material.dart';
-
-import '../controllers/entry_form_controller.dart';
-import '../models/entry.dart';
-
-class EntryFormPage extends StatefulWidget {
-	const EntryFormPage({
-		super.key,
-		required this.controller,
-		required this.onSaved,
-	});
-
-	final EntryFormController controller;
-	final Future<void> Function() onSaved;
-
-	@override
-	State<EntryFormPage> createState() => _EntryFormPageState();
-}
-
-class _EntryFormPageState extends State<EntryFormPage> {
-	final _formKey = GlobalKey<FormState>();
-
-	Future<void> _pickDate() async {
-		final picked = await showDatePicker(
-			context: context,
-			initialDate: widget.controller.selectedDate,
-			firstDate: DateTime(2020),
-			lastDate: DateTime(2100),
-		);
-		if (picked != null) {
-			widget.controller.setSelectedDate(picked);
-		}
-	}
-
-	Future<void> _submit() async {
-		if (!_formKey.currentState!.validate()) {
-			return;
-		}
-		final saved = await widget.controller.submit();
-		if (!mounted) {
-			return;
-		}
-		if (!saved) {
-			ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid positive amount.')));
-			return;
-		}
-		await widget.onSaved();
-		if (!mounted) {
-			return;
-		}
-		ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Entry saved locally.')));
-	}
-
-	@override
-	Widget build(BuildContext context) {
-		return AnimatedBuilder(
-			animation: widget.controller,
-			builder: (context, _) {
-				return ListView(
-					padding: const EdgeInsets.all(24),
-					children: [
-						Text('Add entry', style: Theme.of(context).textTheme.headlineMedium),
-						const SizedBox(height: 8),
-						Text('Capture amount, type, and date, then persist it locally.', style: Theme.of(context).textTheme.bodyMedium),
-						const SizedBox(height: 24),
-						Form(
-							key: _formKey,
-							child: Column(
-								crossAxisAlignment: CrossAxisAlignment.start,
-								children: [
-									TextFormField(
-										controller: widget.controller.amountController,
-										keyboardType: const TextInputType.numberWithOptions(decimal: true),
-										decoration: const InputDecoration(labelText: 'Amount'),
-										validator: (value) {
-											final amount = double.tryParse((value ?? '').trim());
-											if (amount == null || amount <= 0) {
-												return 'Enter a valid amount';
-											}
-											return null;
-										},
-									),
-									const SizedBox(height: 16),
-									DropdownButtonFormField<EntryType>(
-										value: widget.controller.selectedType,
-										decoration: const InputDecoration(labelText: 'Type'),
-										items: EntryType.values
-												.map((item) => DropdownMenuItem(value: item, child: Text(item.name)))
-												.toList(),
-										onChanged: (value) {
-											if (value != null) {
-												widget.controller.setSelectedType(value);
-											}
-										},
-									),
-									const SizedBox(height: 16),
-									TextFormField(
-										controller: widget.controller.noteController,
-										decoration: const InputDecoration(labelText: 'Note'),
-									),
-									const SizedBox(height: 16),
-									OutlinedButton.icon(
-										onPressed: _pickDate,
-										icon: const Icon(Icons.calendar_today_outlined),
-										label: Text(widget.controller.selectedDate.toIso8601String().split('T').first),
-									),
-									const SizedBox(height: 24),
-									FilledButton.icon(
-										onPressed: widget.controller.saving ? null : _submit,
-										icon: const Icon(Icons.save_outlined),
-										label: Text(widget.controller.saving ? 'Saving...' : 'Save locally'),
-									),
-								],
-							),
-						),
-					],
-				);
-			},
-		);
-	}
-}
-`, "\n")
-}
-
-func renderFlutterEntryListPage() string {
-	return strings.TrimLeft(`import 'package:flutter/material.dart';
-
-import '../controllers/entry_list_controller.dart';
-import '../models/entry.dart';
-
-class EntryListPage extends StatefulWidget {
-	const EntryListPage({super.key, required this.controller});
-
-	final EntryListController controller;
-
-	@override
-	State<EntryListPage> createState() => _EntryListPageState();
-}
-
-class _EntryListPageState extends State<EntryListPage> {
-	@override
-	void initState() {
-		super.initState();
-		widget.controller.load();
-	}
-
-	@override
-	Widget build(BuildContext context) {
-		return AnimatedBuilder(
-			animation: widget.controller,
-			builder: (context, _) {
-				if (widget.controller.loading) {
-					return const Center(child: CircularProgressIndicator());
-				}
-				return ListView(
-					padding: const EdgeInsets.all(24),
-					children: [
-						Text('Saved entries', style: Theme.of(context).textTheme.headlineMedium),
-						const SizedBox(height: 8),
-						Text('Review locally persisted bookkeeping items in reverse chronological order.', style: Theme.of(context).textTheme.bodyMedium),
-						const SizedBox(height: 24),
-						if (widget.controller.entries.isEmpty)
-							const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No entries available yet.')))
-						else
-							...widget.controller.entries.map(_EntryRow.new),
-					],
-				);
-			},
-		);
-	}
-}
-
-class _EntryRow extends StatelessWidget {
-	const _EntryRow(this.entry);
-
-	final Entry entry;
-
-	@override
-	Widget build(BuildContext context) {
-		return Card(
-			child: ListTile(
-				title: Text(entry.note.isEmpty ? entry.type.name.toUpperCase() : entry.note),
-				subtitle: Text(entry.date.toIso8601String().split('T').first),
-				trailing: Text(entry.amount.toStringAsFixed(2)),
-			),
-		);
-	}
-}
-`, "\n")
-}
-
-func renderFlutterWidgetTest() string {
-	return strings.TrimLeft(`import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
-void main() {
-	testWidgets('bookkeeping shell renders', (tester) async {
-		await tester.pumpWidget(const MaterialApp(home: Text('Bookkeeping overview')));
-
-		expect(find.text('Bookkeeping overview'), findsOneWidget);
-	});
-}
-`, "\n")
-}
-
-func dartString(value string) string {
-	replacer := strings.NewReplacer("\\", "\\\\", "'", "\\'", "\n", "\\n", "\r", "\\r")
-	return "'" + replacer.Replace(value) + "'"
-}
-
 func buildExecutionCommand(ctx context.Context, run runRecord, argv []string, extraEnv []string) (*exec.Cmd, error) {
-	if len(argv) == 0 || strings.TrimSpace(argv[0]) == "" {
-		return nil, fmt.Errorf("run %s has no launch command", run.RunID)
-	}
-	if run.ExecutorImage != "" {
+	if strings.TrimSpace(run.ExecutorImage) != "" {
 		return dockerCommand(ctx, run, argv, extraEnv)
 	}
 	env, err := localExecutionEnv(run)
@@ -1159,9 +359,19 @@ func buildExecutionCommand(ctx context.Context, run runRecord, argv []string, ex
 	}
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = run.WorkspacePath
-	cmd.Env = append(os.Environ(), env...)
-	cmd.Env = append(cmd.Env, extraEnv...)
+	cmd.Env = append(env, extraEnv...)
 	return cmd, nil
+}
+
+func dartString(value string) string {
+	replacer := strings.NewReplacer(
+		"\\", "\\\\",
+		"'", "\\'",
+		"\n", "\\n",
+		"\r", "\\r",
+		"\t", "\\t",
+	)
+	return "'" + replacer.Replace(strings.TrimSpace(value)) + "'"
 }
 
 func localExecutionEnv(run runRecord) ([]string, error) {
@@ -1171,7 +381,12 @@ func localExecutionEnv(run runRecord) ([]string, error) {
 	if err := os.MkdirAll(pubCacheDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create builder pub cache: %w", err)
 	}
+	gradleUserHome := resolveBuilderGradleUserHome(root)
+	if err := ensureBuilderGradleUserHome(gradleUserHome); err != nil {
+		return nil, fmt.Errorf("create builder gradle user home: %w", err)
+	}
 	env = append(env, "PUB_CACHE="+pubCacheDir)
+	env = append(env, "GRADLE_USER_HOME="+gradleUserHome)
 	return env, nil
 }
 
@@ -1184,9 +399,14 @@ func LocalExecutionEnvForTest(run RunRecord) ([]string, error) {
 }
 
 func baseExecutionEnv(run runRecord) []string {
+	jobRoot := filepath.Clean(filepath.Join(run.WorkspacePath, ".."))
+	reportsDir := filepath.Join(jobRoot, "reports")
 	return []string{
 		"PICOCLAW_RUN_ID=" + run.RunID,
 		"PICOCLAW_JOB_ID=" + run.JobID,
+		"PICOCLAW_JOB_ROOT=" + jobRoot,
+		"PICOCLAW_REPORTS_DIR=" + reportsDir,
+		"PICOCLAW_WORKSPACE_PATH=" + run.WorkspacePath,
 		"PICOCLAW_ARTIFACT_DIR=" + run.ArtifactDir,
 	}
 }
@@ -1471,6 +691,7 @@ func previewTasks(tasks []appruns.TaskBundleItem) []TaskExecutionPreview {
 			TaskID:    task.TaskID,
 			Title:     task.Title,
 			Category:  task.Category,
+			TaskType:  task.EffectiveTaskType(),
 			DependsOn: append([]string(nil), task.Dependencies...),
 		})
 	}

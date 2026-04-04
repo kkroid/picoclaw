@@ -1488,7 +1488,7 @@ func executionAttemptReleaseEventDescriptor(attempt publicJobExecutionAttempt, r
 	case "cancelled":
 		return "execution_cancelled", fmt.Sprintf("orchestrator attempt %d cancelled under %s", attempt.Attempt, ownerID)
 	case "dispatcher_lost":
-		return "execution_dispatcher_lost", fmt.Sprintf("orchestrator attempt %d lost dispatcher ownership under %s", attempt.Attempt, ownerID)
+		return "execution_interrupted", fmt.Sprintf("orchestrator attempt %d lost dispatcher ownership under %s", attempt.Attempt, ownerID)
 	case "recovery_failed":
 		return "execution_recovery_failed", fmt.Sprintf("orchestrator attempt %d failed during recovery under %s", attempt.Attempt, ownerID)
 	case "lease_reacquired":

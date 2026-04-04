@@ -223,12 +223,91 @@ func TestConfig_BackwardCompat_NoAgentsList(t *testing.T) {
 	}
 }
 
+func TestConfig_AppFactoryBuilderRuntimeParse(t *testing.T) {
+	jsonData := `{
+		"appfactory": {
+			"builder_runtime": {
+				"enabled": true,
+				"default_model": {
+					"primary": "qwen2.5-coder-14b-local",
+					"fallbacks": ["gpt-5.4"]
+				},
+				"upgrade_model": "qwen2.5-coder-32b-local",
+				"task_routes": [
+					{
+						"task_type": "single_file_edit",
+						"model": "qwen2.5-coder-14b-local"
+					},
+					{
+						"task_type": "high_risk_repair",
+						"model": {
+							"primary": "qwen2.5-coder-32b-local",
+							"fallbacks": ["gpt-5.4"]
+						}
+					}
+				],
+				"upgrade_threshold": {
+					"max_attempts_before_upgrade": 2,
+					"max_files_before_upgrade": 3,
+					"upgrade_on_validation_fail": true,
+					"upgrade_on_patch_parse_fail": true,
+					"upgrade_on_scope_violation": true
+				}
+			}
+		}
+	}`
+
+	cfg := DefaultConfig()
+	if err := json.Unmarshal([]byte(jsonData), cfg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if !cfg.AppFactory.BuilderRuntime.Enabled {
+		t.Fatal("BuilderRuntime should be enabled")
+	}
+	if cfg.AppFactory.BuilderRuntime.DefaultModel == nil || cfg.AppFactory.BuilderRuntime.DefaultModel.Primary != "qwen2.5-coder-14b-local" {
+		t.Fatalf("DefaultModel = %+v", cfg.AppFactory.BuilderRuntime.DefaultModel)
+	}
+	if cfg.AppFactory.BuilderRuntime.UpgradeModel == nil || cfg.AppFactory.BuilderRuntime.UpgradeModel.Primary != "qwen2.5-coder-32b-local" {
+		t.Fatalf("UpgradeModel = %+v", cfg.AppFactory.BuilderRuntime.UpgradeModel)
+	}
+	if len(cfg.AppFactory.BuilderRuntime.TaskRoutes) != 2 {
+		t.Fatalf("TaskRoutes len = %d, want 2", len(cfg.AppFactory.BuilderRuntime.TaskRoutes))
+	}
+	if cfg.AppFactory.BuilderRuntime.TaskRoutes[1].Model == nil || cfg.AppFactory.BuilderRuntime.TaskRoutes[1].Model.Primary != "qwen2.5-coder-32b-local" {
+		t.Fatalf("TaskRoutes[1].Model = %+v", cfg.AppFactory.BuilderRuntime.TaskRoutes[1].Model)
+	}
+	if cfg.AppFactory.BuilderRuntime.UpgradeThreshold.MaxAttemptsBeforeUpgrade != 2 {
+		t.Fatalf("MaxAttemptsBeforeUpgrade = %d, want 2", cfg.AppFactory.BuilderRuntime.UpgradeThreshold.MaxAttemptsBeforeUpgrade)
+	}
+	if !cfg.AppFactory.BuilderRuntime.UpgradeThreshold.UpgradeOnPatchParseFail {
+		t.Fatal("UpgradeOnPatchParseFail should be true")
+	}
+}
+
 // TestDefaultConfig_HeartbeatEnabled verifies heartbeat is enabled by default
 func TestDefaultConfig_HeartbeatEnabled(t *testing.T) {
 	cfg := DefaultConfig()
 
 	if !cfg.Heartbeat.Enabled {
 		t.Error("Heartbeat should be enabled by default")
+	}
+}
+
+func TestDefaultConfig_AppFactoryBuilderRuntimeDefaults(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.AppFactory.BuilderRuntime.Enabled {
+		t.Fatal("BuilderRuntime should be disabled by default")
+	}
+	if cfg.AppFactory.BuilderRuntime.UpgradeThreshold.MaxAttemptsBeforeUpgrade != 2 {
+		t.Fatalf("MaxAttemptsBeforeUpgrade = %d, want 2", cfg.AppFactory.BuilderRuntime.UpgradeThreshold.MaxAttemptsBeforeUpgrade)
+	}
+	if cfg.AppFactory.BuilderRuntime.UpgradeThreshold.MaxFilesBeforeUpgrade != 2 {
+		t.Fatalf("MaxFilesBeforeUpgrade = %d, want 2", cfg.AppFactory.BuilderRuntime.UpgradeThreshold.MaxFilesBeforeUpgrade)
+	}
+	if !cfg.AppFactory.BuilderRuntime.UpgradeThreshold.UpgradeOnValidationFail {
+		t.Fatal("UpgradeOnValidationFail should be true")
 	}
 }
 

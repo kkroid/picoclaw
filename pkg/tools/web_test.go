@@ -730,9 +730,21 @@ func TestWebFetch_Blocks6to4WithPrivateEmbed(t *testing.T) {
 
 // TestWebFetch_Allows6to4WithPublicEmbed verifies 6to4 with public embedded IPv4 is NOT blocked
 func TestWebFetch_Allows6to4WithPublicEmbed(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("http_proxy", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("https_proxy", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("all_proxy", "")
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
+
 	tool, err := NewWebFetchTool(50000, format, testFetchLimit)
 	if err != nil {
 		t.Fatalf("Failed to create web fetch tool: %v", err)
+	}
+	if transport, ok := tool.client.Transport.(*http.Transport); ok {
+		transport.Proxy = nil
 	}
 	// 2002:0801:0101::1 embeds 8.1.1.1 (public) — pre-flight should pass,
 	// connection will fail (no listener) but that's after the SSRF check.

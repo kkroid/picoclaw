@@ -13,7 +13,7 @@ template_id="flutter-finance-lite"
 builder_id="local-builder-01"
 display_name="Local Builder 01"
 builder_image="picoclaw/appfactory-builder:local"
-timeout_seconds=300
+timeout_seconds=2400
 poll_interval=2
 output_dir=""
 
@@ -29,7 +29,7 @@ Usage:
     [--builder-id local-builder-01] \
     [--display-name "Local Builder 01"] \
     [--builder-image picoclaw/appfactory-builder:local] \
-    [--timeout-seconds 300] \
+    [--timeout-seconds 2400] \
     [--poll-interval 2] \
     [--output-dir /tmp/appfactory-e2e]
 
@@ -43,7 +43,7 @@ Options:
   --builder-id       Builder id used for registration.
   --display-name     Builder display name.
   --builder-image    Builder image label stored in worker profile.
-  --timeout-seconds  Max seconds to wait for terminal job state.
+  --timeout-seconds  Max seconds to wait for terminal job state. Default: 2400.
   --poll-interval    Poll interval in seconds.
   --output-dir       Directory to store response snapshots.
 EOF

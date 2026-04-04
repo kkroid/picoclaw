@@ -543,7 +543,7 @@ func TestMessageTool_SendCallback_QueuesVoicePendingToLinkedOwner(t *testing.T) 
 
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.Workspace = tmpDir
-	cfg.Agents.Defaults.Model = "test-model"
+	cfg.Agents.Defaults.ModelName = "test-model"
 	cfg.Channels.Xiaozhi.DefaultOwnerID = "fallback-owner"
 	cfg.Session.IdentityLinks = map[string][]string{
 		"kkroid": {"telegram:chat-1"},
@@ -617,7 +617,7 @@ func TestMessageTool_SendCallback_QueuesVoicePendingEvenIfOutboundFails(t *testi
 
 	cfg := config.DefaultConfig()
 	cfg.Agents.Defaults.Workspace = tmpDir
-	cfg.Agents.Defaults.Model = "test-model"
+	cfg.Agents.Defaults.ModelName = "test-model"
 	cfg.Channels.Xiaozhi.DefaultOwnerID = "fallback-owner"
 	cfg.Session.IdentityLinks = map[string][]string{
 		"kkroid": {"telegram:chat-1"},

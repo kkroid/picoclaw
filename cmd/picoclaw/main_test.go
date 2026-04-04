@@ -34,6 +34,7 @@ func TestNewPicoclawCommand(t *testing.T) {
 	assert.Nil(t, cmd.PersistentPostRun)
 
 	allowedCommands := []string{
+		"appfactory",
 		"agent",
 		"auth",
 		"cron",

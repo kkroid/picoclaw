@@ -103,3 +103,36 @@ func TestApplyWorkspacePatchRequiresExactAnchorMatch(t *testing.T) {
 		t.Fatalf("anchor err = %v, want exact-match failure", err)
 	}
 }
+
+func TestApplyWorkspacePatchSupportsStartEndReplaceBlock(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, "lib"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	filePath := filepath.Join(workspaceRoot, "lib", "main.dart")
+	content := "void main() {\n  print('old');\n}\n"
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart) error = %v", err)
+	}
+
+	_, err := ApplyWorkspacePatch(workspaceRoot, []string{"lib/**"}, nil, WorkspacePatch{
+		PatchID: "patch-range",
+		Operations: []WorkspacePatchOperation{{
+			Type:       "replace_block",
+			Path:       "lib/main.dart",
+			Start:      "print('old');",
+			End:        "print('old');",
+			NewContent: "print('new');",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("ApplyWorkspacePatch() error = %v", err)
+	}
+	updated, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("ReadFile(main.dart) error = %v", err)
+	}
+	if string(updated) != "void main() {\n  print('new');\n}\n" {
+		t.Fatalf("main.dart = %q, want range-replaced content", string(updated))
+	}
+}

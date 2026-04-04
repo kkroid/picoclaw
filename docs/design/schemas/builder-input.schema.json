@@ -182,6 +182,16 @@
             "validation"
           ]
         },
+        "task_type": {
+          "type": "string",
+          "enum": [
+            "single_file_edit",
+            "dual_file_wiring",
+            "analyze_repair",
+            "test_repair",
+            "closure_repair"
+          ]
+        },
         "objective": {
           "type": "string",
           "minLength": 1

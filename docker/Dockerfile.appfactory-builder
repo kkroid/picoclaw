@@ -62,7 +62,8 @@ RUN yes | sdkmanager --licenses >/dev/null \
     "ndk;${ANDROID_NDK_VERSION}"
 
 RUN flutter config --no-analytics \
-    && flutter precache --android
+    && flutter precache --android \
+    && chmod -R a+rwX /opt/flutter/bin/cache /opt/pub-cache
 
 COPY scripts/setup-appfactory-builder.sh /usr/local/bin/setup-appfactory-builder
 

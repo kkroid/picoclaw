@@ -16,7 +16,6 @@ import { useTranslation } from "react-i18next"
 
 import {
   getOrchestratorStatus,
-  type OrchestratorStatus,
 } from "@/api/system"
 
 import {
@@ -45,6 +44,10 @@ import {
 } from "@/components/ui/tooltip"
 import { useGateway } from "@/hooks/use-gateway.ts"
 import { useTheme } from "@/hooks/use-theme.ts"
+import {
+  getOrchestratorLabel,
+  getOrchestratorToneClass,
+} from "@/lib/orchestrator-status"
 
 export function AppHeader() {
   const { i18n, t } = useTranslation()
@@ -79,7 +82,7 @@ export function AppHeader() {
   })
 
   const orchestrator = orchestratorQuery.data
-  const orchestratorTone = getOrchestratorTone(orchestrator)
+  const orchestratorTone = getOrchestratorToneClass(orchestrator)
   const orchestratorLabel = getOrchestratorLabel(orchestrator, t)
 
   const handleGatewayToggle = () => {
@@ -280,35 +283,4 @@ export function AppHeader() {
       </div>
     </header>
   )
-}
-
-function getOrchestratorTone(status?: OrchestratorStatus) {
-  if (!status) return "bg-muted-foreground/40"
-  if (status.watch_runner_state === "running") return "bg-emerald-500"
-  if (status.watch_runner_state === "stopping") return "bg-amber-500"
-  if (status.watch_lock_state === "held_by_other") return "bg-amber-500"
-  if (status.watch_lock_state === "stale") return "bg-orange-500"
-  return "bg-slate-400"
-}
-
-function getOrchestratorLabel(
-  status: OrchestratorStatus | undefined,
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  if (!status) {
-    return t("header.orchestrator.status.loading")
-  }
-  if (status.watch_runner_state === "running") {
-    return t("header.orchestrator.status.running")
-  }
-  if (status.watch_runner_state === "stopping") {
-    return t("header.orchestrator.status.stopping")
-  }
-  if (status.watch_lock_state === "held_by_other") {
-    return t("header.orchestrator.status.locked")
-  }
-  if (status.watch_lock_state === "stale") {
-    return t("header.orchestrator.status.stale")
-  }
-  return t("header.orchestrator.status.idle")
 }

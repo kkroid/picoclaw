@@ -49,6 +49,18 @@ func DefaultConfig() *Config {
 		Session: SessionConfig{
 			DMScope: "per-channel-peer",
 		},
+		AppFactory: AppFactoryConfig{
+			BuilderRuntime: BuilderRuntimeConfig{
+				Enabled: false,
+				UpgradeThreshold: BuilderRuntimeUpgradeThresholdConfig{
+					MaxAttemptsBeforeUpgrade: 2,
+					MaxFilesBeforeUpgrade:    2,
+					UpgradeOnValidationFail:  true,
+					UpgradeOnPatchParseFail:  true,
+					UpgradeOnScopeViolation:  true,
+				},
+			},
+		},
 		Channels: ChannelsConfig{
 			WhatsApp: WhatsAppConfig{
 				Enabled:          false,

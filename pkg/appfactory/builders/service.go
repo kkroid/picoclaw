@@ -107,8 +107,21 @@ func (service *Service) Dispatch(ctx context.Context, req Requirement) (Dispatch
 	if err != nil {
 		return DispatchResult{}, err
 	}
+	now := service.now().UTC()
 	candidates := make([]dispatchCandidate, 0)
 	for _, node := range nodes {
+		if service.isHeartbeatExpired(node, now) {
+			if node.Status != StatusOffline {
+				node.Status = StatusOffline
+				node.CurrentRunID = ""
+				node.LastFailureReason = "heartbeat timed out"
+				node.UpdatedAt = now
+				if err := service.registry.UpsertNode(ctx, node); err != nil {
+					return DispatchResult{}, err
+				}
+			}
+			continue
+		}
 		candidate, ok := buildDispatchCandidate(node, req)
 		if !ok {
 			continue
@@ -131,7 +144,6 @@ func (service *Service) Dispatch(ctx context.Context, req Requirement) (Dispatch
 		return candidates[i].Node.BuilderID < candidates[j].Node.BuilderID
 	})
 	selected := candidates[0].Node
-	now := service.now()
 	lease, err := service.leases.Acquire(ctx, LeaseAcquireRequest{
 		BuilderID: selected.BuilderID,
 		JobID:     req.JobID,
@@ -155,6 +167,19 @@ func (service *Service) Dispatch(ctx context.Context, req Requirement) (Dispatch
 		FallbackCount:       len(candidates) - 1,
 	}
 	return DispatchResult{Decision: decision, Lease: lease, Node: selected}, nil
+}
+
+func (service *Service) isHeartbeatExpired(node BuilderNode, now time.Time) bool {
+	if service == nil || service.heartbeatTimeout <= 0 {
+		return false
+	}
+	if node.Status == StatusDisabled || node.Status == StatusDraining {
+		return false
+	}
+	if node.LastSeenAt.IsZero() {
+		return false
+	}
+	return now.Sub(node.LastSeenAt.UTC()) > service.heartbeatTimeout
 }
 
 func (service *Service) BindRun(ctx context.Context, leaseID, runID string) error {

@@ -267,6 +267,57 @@ func TestServiceDispatchRejectsFlagshipBuilderForLowBudget(t *testing.T) {
 	}
 }
 
+func TestServiceDispatchSkipsHeartbeatExpiredIdleBuilders(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	registry, err := NewFileRegistryStore(filepath.Join(root, "nodes"))
+	if err != nil {
+		t.Fatalf("new registry: %v", err)
+	}
+	leases, err := NewFileLeaseStore(filepath.Join(root, "leases"))
+	if err != nil {
+		t.Fatalf("new leases: %v", err)
+	}
+	service := NewService(registry, leases, 2*time.Minute, 3*time.Minute)
+	now := time.Date(2026, 4, 2, 14, 20, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+	for _, req := range []RegisterRequest{ {
+		BuilderID:      "builder-stale",
+		DisplayName:    "Builder Stale",
+		CapabilityTags: []string{"flutter"},
+		WorkerProfile:  WorkerProfile{Image: "builder:latest"},
+	}, {
+		BuilderID:      "builder-fresh",
+		DisplayName:    "Builder Fresh",
+		CapabilityTags: []string{"flutter"},
+		WorkerProfile:  WorkerProfile{Image: "builder:latest"},
+	} } {
+		if _, err := service.Register(ctx, req); err != nil {
+			t.Fatalf("register builder %s: %v", req.BuilderID, err)
+		}
+	}
+	if err := registry.UpdateNodeHeartbeat(ctx, "builder-stale", now.Add(-10*time.Minute), StatusIdle, "", ""); err != nil {
+		t.Fatalf("mark stale heartbeat: %v", err)
+	}
+	result, err := service.Dispatch(ctx, Requirement{JobID: "job-1", RequiredCapabilityTags: []string{"flutter"}})
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if result.Node.BuilderID != "builder-fresh" {
+		t.Fatalf("selected builder = %s, want builder-fresh", result.Node.BuilderID)
+	}
+	staleNode, err := registry.GetNode(ctx, "builder-stale")
+	if err != nil {
+		t.Fatalf("get stale builder: %v", err)
+	}
+	if staleNode.Status != StatusOffline {
+		t.Fatalf("stale node status = %s, want offline", staleNode.Status)
+	}
+	if staleNode.LastFailureReason != "heartbeat timed out" {
+		t.Fatalf("stale node last_failure_reason = %q, want heartbeat timed out", staleNode.LastFailureReason)
+	}
+}
+
 func TestServiceDispatchMatchesModelTierAndWorkerProfile(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()

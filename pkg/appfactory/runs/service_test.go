@@ -22,6 +22,9 @@ func TestFileStoreRunLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
+	if run.PreparedInputDigest == "" {
+		t.Fatal("PreparedInputDigest should not be empty")
+	}
 	if run.Status != StatusRunning {
 		t.Fatalf("status = %s, want %s", run.Status, StatusRunning)
 	}
@@ -51,6 +54,17 @@ func TestFileStoreRunLifecycle(t *testing.T) {
 	if loaded.OutputPath == "" || loaded.ArtifactManifestPath == "" || loaded.MetricsPath == "" {
 		t.Fatalf("expected output/artifact/metrics paths to be stored, got %+v", loaded)
 	}
+	metricsData, err := os.ReadFile(filepath.Join(root, "jobs", loaded.JobID, "runs", loaded.RunID, "metrics.json"))
+	if err != nil {
+		t.Fatalf("ReadFile(metrics) error = %v", err)
+	}
+	var metrics Metrics
+	if err := json.Unmarshal(metricsData, &metrics); err != nil {
+		t.Fatalf("Unmarshal(metrics) error = %v", err)
+	}
+	if len(metrics.DeviceFailureCategories) != 1 || metrics.DeviceFailureCategories[0].Category != "device_check_failed:adb_device_unavailable" {
+		t.Fatalf("DeviceFailureCategories = %+v, want adb device unavailable stat", metrics.DeviceFailureCategories)
+	}
 	outputData, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(loaded.OutputPath)))
 	if err != nil {
 		t.Fatalf("ReadFile(output) error = %v", err)
@@ -70,6 +84,236 @@ func TestFileStoreRunLifecycle(t *testing.T) {
 	}
 	if _, err := service.Cancel(ctx, run.RunID, "should fail"); err != ErrTerminalRun {
 		t.Fatalf("Cancel() err = %v, want %v", err, ErrTerminalRun)
+	}
+}
+
+func TestBuildInputDigestIgnoresRuntimePathAndJSONFormatting(t *testing.T) {
+	left := sampleBuildInput()
+	right := sampleBuildInput()
+	right.ContextSourceDir = "/tmp/prepare"
+	right.TemplateSourceDir = "/tmp/template"
+	right.WorkspacePath = "/other/workspace/job-1"
+	right.ArtifactDir = "/other/artifacts/job-1"
+	right.CommandProfile = json.RawMessage("{\n  \"network_policy\": \"disabled\",\n  \"allowed_commands\": [\"flutter\", \"echo\"],\n  \"allowed_stages\": [\"baseline\", \"cheap\"],\n  \"profile_name\": \"manual-p0\"\n}")
+	right.ContextFiles = json.RawMessage("{\n  \"implementation_plan_path\": \"implementation-plan.md\",\n  \"manual_constraints_path\": \"manual-constraints.md\",\n  \"prd_json_path\": \"PRD.json\",\n  \"prd_markdown_path\": \"PRD.md\",\n  \"supporting_files\": [\"requirement.md\"],\n  \"template_fit_report_path\": \"template-fit-report.md\"\n}")
+
+	if BuildInputDigest(left) != BuildInputDigest(right) {
+		t.Fatalf("digest should ignore runtime-only paths and JSON formatting: left=%q right=%q", BuildInputDigest(left), BuildInputDigest(right))
+	}
+
+	right.IterationBudget++
+	if BuildInputDigest(left) == BuildInputDigest(right) {
+		t.Fatal("digest should change when semantic builder-input fields change")
+	}
+}
+
+func TestPreparedInputDigestIncludesContextFileContentsButIgnoresApprovalSnapshots(t *testing.T) {
+	prepareDir := t.TempDir()
+	input := sampleBuildInput()
+	input.ContextSourceDir = prepareDir
+	files := map[string]string{
+		"PRD.md":                 "prd markdown\n",
+		"PRD.json":               "{\"id\":\"prd-1\"}\n",
+		"template-fit-report.md": "fit\n",
+		"implementation-plan.md": "plan-v1\n",
+		"manual-constraints.md":  "constraints\n",
+		"requirement.md":         "requirement\n",
+		PRDApprovalFileName:      "approved-a\n",
+		TemplateApprovalFileName: "approved-b\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(prepareDir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+	base := PreparedInputDigest(input, prepareDir)
+	if base == "" {
+		t.Fatal("PreparedInputDigest should not be empty")
+	}
+	if err := os.WriteFile(filepath.Join(prepareDir, "implementation-plan.md"), []byte("plan-v2\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(implementation-plan.md) error = %v", err)
+	}
+	changed := PreparedInputDigest(input, prepareDir)
+	if changed == base {
+		t.Fatal("PreparedInputDigest should change when implementation plan changes")
+	}
+	if err := os.WriteFile(filepath.Join(prepareDir, "implementation-plan.md"), []byte("plan-v1\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(implementation-plan.md reset) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(prepareDir, PRDApprovalFileName), []byte("approved-c\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(prd-approval.json) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(prepareDir, TemplateApprovalFileName), []byte("approved-d\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(template-approval.json) error = %v", err)
+	}
+	approvalOnly := PreparedInputDigest(input, prepareDir)
+	if approvalOnly != base {
+		t.Fatalf("PreparedInputDigest should ignore approval snapshots: base=%q approvalOnly=%q", base, approvalOnly)
+	}
+}
+
+func TestPreparedInputDigestIgnoresTemplateFitReportContents(t *testing.T) {
+	prepareDir := t.TempDir()
+	input := sampleBuildInput()
+	input.ContextSourceDir = prepareDir
+	files := map[string]string{
+		"PRD.md":                 "prd markdown\n",
+		"PRD.json":               "{\"id\":\"prd-1\"}\n",
+		"template-fit-report.md": "fit-v1\n",
+		"implementation-plan.md": "plan-v1\n",
+		"manual-constraints.md":  "constraints\n",
+		"requirement.md":         "requirement\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(prepareDir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+	before := PreparedInputDigest(input, prepareDir)
+	if before == "" {
+		t.Fatal("PreparedInputDigest should not be empty")
+	}
+	if err := os.WriteFile(filepath.Join(prepareDir, "template-fit-report.md"), []byte("fit-v2\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(template-fit-report.md) error = %v", err)
+	}
+	after := PreparedInputDigest(input, prepareDir)
+	if after != before {
+		t.Fatalf("PreparedInputDigest should ignore template fit report drift: before=%q after=%q", before, after)
+	}
+}
+
+func TestPreparedInputDigestIgnoresPRDMarkdownContents(t *testing.T) {
+	prepareDir := t.TempDir()
+	input := sampleBuildInput()
+	input.ContextSourceDir = prepareDir
+	files := map[string]string{
+		"PRD.md":                 "prd markdown v1\n",
+		"PRD.json":               "{\"id\":\"prd-1\"}\n",
+		"template-fit-report.md": "fit\n",
+		"implementation-plan.md": "plan-v1\n",
+		"manual-constraints.md":  "constraints\n",
+		"requirement.md":         "requirement\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(prepareDir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+	before := PreparedInputDigest(input, prepareDir)
+	if before == "" {
+		t.Fatal("PreparedInputDigest should not be empty")
+	}
+	if err := os.WriteFile(filepath.Join(prepareDir, "PRD.md"), []byte("prd markdown v2\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(PRD.md) error = %v", err)
+	}
+	after := PreparedInputDigest(input, prepareDir)
+	if after != before {
+		t.Fatalf("PreparedInputDigest should ignore PRD markdown drift: before=%q after=%q", before, after)
+	}
+}
+
+func TestPreparedInputDigestIgnoresRequirementContents(t *testing.T) {
+	prepareDir := t.TempDir()
+	input := sampleBuildInput()
+	input.ContextSourceDir = prepareDir
+	files := map[string]string{
+		"PRD.md":                 "prd markdown\n",
+		"PRD.json":               "{\"id\":\"prd-1\"}\n",
+		"template-fit-report.md": "fit\n",
+		"implementation-plan.md": "plan-v1\n",
+		"manual-constraints.md":  "constraints\n",
+		"requirement.md":         "requirement-v1\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(prepareDir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+	before := PreparedInputDigest(input, prepareDir)
+	if before == "" {
+		t.Fatal("PreparedInputDigest should not be empty")
+	}
+	if err := os.WriteFile(filepath.Join(prepareDir, "requirement.md"), []byte("requirement-v2\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(requirement.md) error = %v", err)
+	}
+	after := PreparedInputDigest(input, prepareDir)
+	if after != before {
+		t.Fatalf("PreparedInputDigest should ignore requirement drift: before=%q after=%q", before, after)
+	}
+}
+
+func TestPreparedInputDigestTracksAbsoluteContextPaths(t *testing.T) {
+	prepareDir := t.TempDir()
+	input := sampleBuildInput()
+	contextFiles, err := json.Marshal(map[string]any{
+		"prd_markdown_path":        filepath.Join(prepareDir, "PRD.md"),
+		"prd_json_path":            filepath.Join(prepareDir, "PRD.json"),
+		"template_fit_report_path": filepath.Join(prepareDir, "template-fit-report.md"),
+		"implementation_plan_path": filepath.Join(prepareDir, "implementation-plan.md"),
+	})
+	if err != nil {
+		t.Fatalf("Marshal(context files) error = %v", err)
+	}
+	input.ContextFiles = contextFiles
+	files := map[string]string{
+		"PRD.md":                 "prd markdown\n",
+		"PRD.json":               "{\"id\":\"prd-1\"}\n",
+		"template-fit-report.md": "fit\n",
+		"implementation-plan.md": "plan-v1\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(prepareDir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+	before := PreparedInputDigest(input, prepareDir)
+	if err := os.WriteFile(filepath.Join(prepareDir, "implementation-plan.md"), []byte("plan-v2\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(implementation-plan.md) error = %v", err)
+	}
+	after := PreparedInputDigest(input, prepareDir)
+	if after == before {
+		t.Fatalf("PreparedInputDigest should change for absolute implementation-plan path: before=%q after=%q", before, after)
+	}
+}
+
+func TestPreparedInputDigestIncludesTemplateSourceContents(t *testing.T) {
+	prepareDir := t.TempDir()
+	templateDir := filepath.Join(t.TempDir(), "template")
+	if err := os.MkdirAll(filepath.Join(templateDir, "lib"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(templateDir) error = %v", err)
+	}
+	files := map[string]string{
+		"PRD.md":                 "prd markdown\n",
+		"PRD.json":               "{\"id\":\"prd-1\"}\n",
+		"template-fit-report.md": "fit\n",
+		"implementation-plan.md": "plan-v1\n",
+		"manual-constraints.md":  "constraints\n",
+		"requirement.md":         "requirement\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(prepareDir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", name, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "pubspec.yaml"), []byte("name: seeded_template\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(pubspec.yaml) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "main.dart"), []byte("void main() => print('v1');\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart) error = %v", err)
+	}
+	input := sampleBuildInput()
+	input.ContextSourceDir = prepareDir
+	input.TemplateSourceDir = templateDir
+	before := PreparedInputDigest(input, prepareDir)
+	if before == "" {
+		t.Fatal("PreparedInputDigest should not be empty when template source dir is present")
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "main.dart"), []byte("void main() => print('v2');\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(main.dart) error = %v", err)
+	}
+	after := PreparedInputDigest(input, prepareDir)
+	if after == before {
+		t.Fatalf("PreparedInputDigest should change when template source changes: before=%q after=%q", before, after)
 	}
 }
 
@@ -398,10 +642,15 @@ func sampleMetrics() Metrics {
 		TotalTokens:     1024,
 		DurationSeconds: 35,
 		CommandRuns:     4,
+		DeviceFailureCategories: []DeviceFailureCategoryStat{{
+			Category:      "device_check_failed:adb_device_unavailable",
+			FailureDomain: "device",
+			Count:         1,
+		}},
 		FailureSignatures: []FailureSignature{{
-			Signature: "lint_warning",
+			Signature: "device_check_failed:adb_device_unavailable",
 			Count:     1,
-			LastStage: "baseline",
+			LastStage: "device",
 		}},
 	}
 }

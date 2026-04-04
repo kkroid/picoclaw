@@ -17,6 +17,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/bus"
 	"github.com/sipeed/picoclaw/pkg/config"
 	"github.com/sipeed/picoclaw/pkg/providers"
+	"github.com/sipeed/picoclaw/pkg/providers/streamctx"
 	"github.com/sipeed/picoclaw/pkg/tts"
 )
 
@@ -53,6 +54,9 @@ func (m *textTurnStreamingProvider) Chat(
 	model string,
 	options map[string]any,
 ) (*providers.LLMResponse, error) {
+	if onChunk, ok := streamctx.GetCallback(ctx); ok {
+		return m.ChatStream(ctx, messages, tools, model, options, onChunk)
+	}
 	return &providers.LLMResponse{Content: m.response}, nil
 }
 
@@ -148,7 +152,7 @@ func newTestAgentLoop(t *testing.T, workspace string, provider providers.LLMProv
 		Agents: config.AgentsConfig{
 			Defaults: config.AgentDefaults{
 				Workspace:         workspace,
-				Model:             "test-model",
+				ModelName:         "test-model",
 				MaxTokens:         4096,
 				MaxToolIterations: 10,
 			},

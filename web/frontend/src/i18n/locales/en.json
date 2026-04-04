@@ -15,6 +15,44 @@
     "config": "Config",
     "logs": "Logs"
   },
+  "header": {
+    "gateway": {
+      "action": {
+        "start": "Start Gateway",
+        "stop": "Stop Gateway",
+        "restart": "Restart Gateway"
+      },
+      "status": {
+        "starting": "Starting Gateway...",
+        "restarting": "Restarting Gateway...",
+        "stopping": "Stopping Gateway..."
+      },
+      "restartRequired": "Restart required to apply changes",
+      "stopDialog": {
+        "title": "Stop Gateway",
+        "description": "Stopping the gateway will disconnect chat and background services until it is started again.",
+        "confirm": "Stop"
+      }
+    },
+    "orchestrator": {
+      "status": {
+        "loading": "Orchestrator loading",
+        "running": "Orchestrator running",
+        "stopping": "Orchestrator stopping",
+        "locked": "Orchestrator locked",
+        "stale": "Orchestrator stale lock",
+        "idle": "Orchestrator idle"
+      },
+      "menu": {
+        "loading": "Loading orchestrator status.",
+        "runningDetail": "The background watcher is running with a {{interval}} second interval.",
+        "stoppingDetail": "The background watcher is stopping and waiting for the current pass to finish.",
+        "lockedDetail": "Another watcher currently holds the lock, so a new watcher will not start.",
+        "staleDetail": "A stale lock was detected. Force unlock it if you are sure no watcher is still alive.",
+        "idleDetail": "No background watcher is running right now. You can start it from here."
+      }
+    }
+  },
   "chat": {
     "welcome": "How can I help you today?",
     "welcomeDesc": "Ask me about weather, settings, or any other tasks. I'm here to assist you.",
@@ -46,60 +84,7 @@
     },
     "modelGroup": {
       "apikey": "API Key",
-      "oauth": "OAuth",
-      "local": "Local"
-    }
-  },
-  "header": {
-    "gateway": {
-      "stopDialog": {
-        "title": "Stop Gateway Service?",
-        "description": "Are you sure you want to stop the gateway? This will disconnect your active chat sessions and halt inference.",
-        "confirm": "Stop Gateway"
-      },
-      "action": {
-        "start": "Start Gateway",
-        "stop": "Stop Gateway",
-        "restart": "Restart Gateway"
-      },
-      "status": {
-        "starting": "Starting Gateway...",
-        "restarting": "Restarting Gateway...",
-        "stopping": "Stopping Gateway..."
-      },
-      "restartRequired": "Model changes require a gateway restart to take effect."
-    },
-    "orchestrator": {
-      "status": {
-        "loading": "Orchestrator loading",
-        "running": "Orchestrator running",
-        "stopping": "Orchestrator stopping",
-        "locked": "Orchestrator locked",
-        "stale": "Orchestrator stale lock",
-        "idle": "Orchestrator idle"
-      },
-      "action": {
-        "startWatch": "Start orchestrator watch",
-        "stopWatch": "Stop orchestrator watch",
-        "forceUnlock": "Force unlock",
-        "refresh": "Refresh status"
-      },
-      "menu": {
-        "title": "AppFactory Orchestrator",
-        "loading": "Loading orchestrator status.",
-        "runningDetail": "The background watcher is running with a {{interval}} second interval.",
-        "stoppingDetail": "The background watcher is stopping and waiting for the current pass to finish.",
-        "lockedDetail": "Another watcher currently holds the lock, so a new watcher will not start.",
-        "staleDetail": "A stale lock was detected. Force unlock it if you are sure no watcher is still alive.",
-        "idleDetail": "No background watcher is running right now. You can start it from here.",
-        "lockOwner": "Current lock owner: {{owner}}"
-      },
-      "toast": {
-        "started": "Orchestrator watcher started",
-        "stopped": "Orchestrator watcher stopped",
-        "unlocked": "Orchestrator lock cleared",
-        "error": "Orchestrator action failed"
-      }
+      "description": "Only the app name and requirement text are needed."
     }
   },
   "common": {
@@ -255,13 +240,49 @@
   },
   "jobs": {
     "description": "Centralize AppFactory jobs, orchestrator health, human intervention notifications, and delivery artifacts in one operations view.",
+    "runtimeMode": {
+      "title": "Current execution mode",
+      "enabled": "Builder runtime is enabled. New jobs will prefer the real model-driven edit pipeline, using {{defaultModel}} as the default model and {{upgradeModel}} as the upgrade model.",
+      "disabled": "The system is still using thin executor fallback. New jobs will only validate the input bundle and probe file, not run a real Flutter build."
+    },
     "actions": {
+      "createJob": "New job",
       "refresh": "Refresh",
       "rebuildNotifications": "Rebuild notifications",
       "acknowledge": "Acknowledge"
     },
+    "create": {
+      "title": "Create job",
+      "description": "Only the app name and requirement text are needed. The system creates and starts the job automatically.",
+      "advanced": {
+        "trigger": "Advanced create options",
+        "description": "Only keep the two controls that change creation guardrails and auto-start policy. The section stays collapsed by default.",
+        "realChecks": {
+          "label": "Enable real checks",
+          "description": "When disabled, the flow only performs lightweight preparation and template compilation without requiring full build checks."
+        },
+        "autoStartBuilder": {
+          "label": "Auto-start after creation",
+          "description": "When disabled, the flow only creates the job record and skips builder registration and execution start."
+        }
+      },
+      "fields": {
+        "requirementText": "Requirement text",
+        "title": "App name"
+      },
+      "placeholders": {
+        "requirementText": "Describe a concrete product domain, core screens, and main flow, for example: an offline bookkeeping app with overview, add-entry, ledger list, and local persistence.",
+        "title": "For example: Lite bookkeeping"
+      },
+      "validation": {
+        "title": "App name is required",
+        "requirementText": "Requirement text is required",
+        "templateIdMissing": "The system did not return a usable template. Please retry."
+      }
+    },
     "filters": {
       "all": "All",
+      "attention": "Needs attention",
       "running": "Running",
       "failed": "Failed",
       "completed": "Completed",
@@ -271,20 +292,62 @@
       "total": "Total jobs",
       "running": "Active jobs",
       "attention": "Needs attention",
+      "failed": "Failed jobs",
+      "completed": "Completed jobs",
       "orchestrator": "Orchestrator",
       "visible": "{{count}} visible in current list",
       "pendingNotifications": "{{count}} unacknowledged notifications",
       "humanApprovals": "{{count}} human approvals pending"
     },
+    "workspace": {
+      "detailTitle": "Job workspace",
+      "detailDescription": "Handle the current task from one place: status, execution, artifacts, and delivery actions.",
+      "systemStatusTitle": "System status",
+      "focusTitle": "Current focus",
+      "focusDescription": "Identify the most important thing to handle first, then continue in the workspace below.",
+      "focusPrimaryAction": "Do this first",
+      "focusSelectedJob": "Current job",
+      "focusPendingActions": "Pending actions",
+      "focusNoSelection": "No job selected",
+      "focusOpenOverview": "Open current job overview",
+      "focusSelectedJobDetail": "Job {{jobId}} is selected. Open the overview first and handle the next action from there.",
+      "focusNeedsAttention": "Some jobs need immediate attention",
+      "focusNeedsAttentionDetail": "There are {{notifications}} pending notifications, and {{attention}} jobs are currently failed or waiting for approvals.",
+      "focusAllStable": "The mainline is currently stable",
+      "focusAllStableDetail": "There is no obvious action backlog right now. Pick a job from the left and continue with execution, artifacts, or delivery.",
+      "showSystemStatus": "Show system status",
+      "hideSystemStatus": "Hide system status",
+      "advancedInfo": "Advanced info",
+      "tabs": {
+        "overview": "Overview",
+        "execution": "Execution",
+        "artifacts": "Artifacts",
+        "delivery": "Delivery"
+      }
+    },
     "orchestrator": {
       "title": "Orchestrator control",
-      "unavailable": "Unavailable"
+      "unavailable": "Unavailable",
+      "queuedRecoveries": "Queued recoveries",
+      "runningRecoveries": "Running recoveries",
+      "foreignLiveLeaseSkips": "Foreign live lease skips"
     },
     "failureDomain": {
       "skill": "Skill",
       "executor": "Executor",
       "profile": "Profile constraint",
+      "device": "Device verification",
       "environment": "Environment"
+    },
+    "failureCategory": {
+      "environment_check_failed:adb_binary_unavailable": "adb is unavailable for device verification",
+      "environment_check_failed:debug_apk_missing": "Debug APK is missing for device verification",
+      "environment_check_failed:android_app_id_missing": "Android applicationId is missing for device verification",
+      "device_check_failed:adb_device_unavailable": "No available adb device detected",
+      "device_check_failed:apk_install_failed": "APK installation failed",
+      "device_check_failed:app_launch_failed": "App launch failed",
+      "device_check_failed:app_runtime_crash": "App crashed after launch",
+      "device_check_failed:log_capture_failed": "Runtime log capture failed"
     },
     "status": {
       "running": "Running",
@@ -301,12 +364,22 @@
     },
     "list": {
       "title": "Jobs",
-      "description": "Filter by status and jump directly into a specific run for triage.",
+      "description": "Filter and locate the job first, then continue from the workspace on the right.",
+      "resultSummary": "Showing {{visible}} / {{total}} jobs.",
       "empty": "No jobs match the current filter.",
+      "jobId": "Job ID",
       "prd": "PRD",
       "template": "Template",
       "updatedAt": "Updated",
       "approvals": "Approvals",
+      "searchPlaceholder": "Search job ID, failure summary, suggested action, or stage",
+      "currentActivity": "Current activity",
+      "pendingActions": "{{count}} actions pending",
+      "awaitingApprovals": "Waiting for human approvals: {{count}}",
+      "runningDetail": "Currently executing: {{phase}}",
+      "completedSummary": "Job completed. Review the artifacts and summary.",
+      "failedSummary": "Job failed. Review the failure summary and evidence paths first.",
+      "idleSummary": "No more specific execution signal is available yet.",
       "artifacts": "{{count}} artifacts",
       "noApprovals": "No manual approvals required"
     },
@@ -315,17 +388,37 @@
       "description": "Inspect runtime, budgets, paths, failure signals, and resume guidance.",
       "empty": "Select a job from the left to inspect it.",
       "none": "None",
+      "liveProgress": "Current progress",
+      "executionBreakdown": "Execution breakdown",
+      "executionSnapshot": "Execution snapshot",
       "prd": "PRD",
       "template": "Template",
       "createdAt": "Created",
       "updatedAt": "Updated",
       "startedAt": "Started",
       "finishedAt": "Finished",
+      "currentActivity": "Current activity",
+      "currentStage": "Current stage",
+      "currentStep": "Current step",
+      "currentRound": "Current round",
+      "currentRoundTargets": "Current round target files",
+      "latestSignal": "Latest signal",
+      "latestSignalAt": "Latest signal time",
+      "eventCount": "Event count",
       "runtime": "Runtime",
       "budgets": "Budget usage",
       "paths": "Path index",
+      "statusContext": "Status context",
       "failureContext": "Failure context",
+      "failurePanelTitle": "Failure diagnosis",
+      "failureStage": "Failure stage",
+      "failureImpact": "Impact scope",
+      "failureEvidencePriority": "Inspect this evidence first",
+      "failureTechnicalContext": "View technical details",
+      "failureInspectNow": "Inspect the failure evidence and isolate the cause first",
+      "failedSummaryFallback": "This job failed. Capture the evidence first, then decide whether to retry.",
       "resumeContext": "Resume guidance",
+      "deliveryContext": "Delivery context",
       "humanApprovals": "Human approvals",
       "builder": "Builder",
       "workerPool": "Worker pool",
@@ -341,8 +434,15 @@
       "builderOutputPath": "Builder output",
       "summaryLogPath": "Summary log",
       "eventLogPath": "Event log",
+      "statusReason": "Reason",
+      "statusSummary": "Summary",
+      "suggestedAction": "Suggested action",
+      "runSuggestedAction": "Run suggested action: {{action}}",
+      "manualActionHint": "This suggested action still requires a manual flow outside the jobs page.",
       "failureSignature": "Failure signature",
       "lastError": "Last error",
+      "failureGuidance": "Triage guidance",
+      "failureGuidanceEvidence": "Inspect these paths first",
       "retryable": "Retryable",
       "resumeAllowed": "Resume allowed",
       "recommendedResumeMode": "Recommended resume mode",
@@ -351,33 +451,360 @@
       "failureCategory": "Failure category",
       "requiresHumanConfirmation": "Requires human confirmation",
       "requiresPreservedWorkspace": "Requires preserved workspace",
+      "deliveryStatus": "Delivery status",
+      "deliverySummary": "Delivery summary",
+      "deliveryRecordPath": "Delivery record path",
+      "releaseChannel": "Release channel",
+      "rolloutPercent": "Rollout percent",
+      "reviewerId": "Reviewer",
+      "recordedAt": "Recorded at",
+      "evidencePaths": "Evidence paths",
+      "requiredChanges": "Required changes",
+      "signedArtifactPaths": "Signed artifact paths",
+      "deviceVerification": "Device verification",
+      "deviceVerificationStatus": "Device verification status",
+      "deviceVerificationSummary": "Device verification summary",
+      "deviceVerificationRecordPath": "Device verification record path",
+      "deviceVerificationEvidencePaths": "Device verification evidence paths",
+      "verifiedAt": "Verified at",
+      "releaseFollowUp": "Release follow-up",
+      "releaseFollowUpStatus": "Follow-up status",
+      "releaseFollowUpSummary": "Follow-up summary",
+      "releaseFollowUpRecordPath": "Follow-up record path",
+      "followUpOwnerId": "Follow-up owner",
+      "followUpUpdatedAt": "Updated at",
+      "followUpEvidencePaths": "Follow-up evidence paths",
       "preservedWorkspacePath": "Preserved workspace path",
       "booleanTrue": "Yes",
       "booleanFalse": "No"
+    ,
+      "failureImpactValue": {
+        "device": "Device verification and runtime evidence",
+        "environment": "Build environment and validation pipeline",
+        "profile": "Template structure and wiring constraints",
+        "builderRuntime": "Builder runtime patch generation or apply",
+        "generic": "The current execution pipeline"
+      }
+    },
+    "progress": {
+      "elapsed": {
+        "justNow": "started just now",
+        "minutes": "running for {{minutes}} min",
+        "hoursMinutes": "running for {{hours}} h {{minutes}} min"
+      },
+      "runningHint": {
+        "orchestrator": "The orchestrator is dispatching execution",
+        "thin-prepare": "Reading the PRD, breaking down tasks, and planning changes",
+        "baseline": "Preparing the Flutter build environment",
+        "cheap": "Running the fast validation checks",
+        "heavy": "Running the heavy validation checks",
+        "milestone": "Building and packaging the app",
+        "device": "Connecting to the device and verifying installation",
+        "smoke": "Launching the app and collecting runtime evidence",
+        "delivery": "Preparing the final deliverables and delivery records",
+        "generic": "The job is still running"
+      },
+      "stage": {
+        "pending": "Pending start / queued",
+        "builder": "Builder execution pipeline",
+        "orchestrator": "Orchestrator dispatch",
+        "thin-prepare": "Read PRD / break down tasks / plan changes",
+        "baseline": "Prepare build environment",
+        "cheap": "Fast validation checks",
+        "heavy": "Heavy validation",
+        "milestone": "Build and package validation",
+        "device": "Device verification",
+        "smoke": "Launch and runtime verification",
+        "manual": "Manual handling",
+        "other": "Other stage",
+        "delivery": "Delivery outputs",
+        "failed": "Execution failed"
+      },
+      "state": {
+        "pending": "Pending",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed"
+      },
+      "step": {
+        "orchestratorDispatch": "The orchestrator claimed the job and is dispatching execution",
+        "thinPrepare": "Read the PRD / break down tasks / plan changes",
+        "runCreated": "Execution record created and waiting for the orchestrator",
+        "executionEnqueued": "Queued and waiting for a builder allocation",
+        "executionClaimed": "The orchestrator claimed this execution and is preparing dispatch",
+        "executionStarted": "The orchestrator started dispatching the execution",
+        "completed": "Execution finished. Review the final outputs and reports next",
+        "failed": "Execution failed. Inspect the error and evidence paths first"
+      },
+      "check": {
+        "check-flutter-pub-get": "Install Flutter dependencies",
+        "check-counter-demo-removed": "Remove the default counter template",
+        "check-entry-form-wiring": "Wire the entry form and screens",
+        "check-local-persistence-wiring": "Wire local persistence",
+        "check-flutter-analyze": "Flutter analyze",
+        "check-flutter-test": "Flutter test",
+        "check-flutter-build-apk": "Build the Debug APK",
+        "check-adb-device-ready": "Check whether an adb device is online",
+        "check-install-debug-apk": "Install the APK on the device",
+        "check-launch-app-and-capture-logcat": "Launch the app and capture logcat"
+      }
+    },
+    "statusContext": {
+      "reason": {
+        "prd_approval_pending": "The current PRD is not approved yet",
+        "prd_approval_drift": "The current PRD changed and invalidated the frozen approval snapshot",
+        "prd_approval_rejected": "The current PRD approval was rejected",
+        "template_approval_pending": "The current template is not approved yet",
+        "template_approval_drift": "The current template selection or frozen version changed and invalidated the approval snapshot",
+        "template_approval_rejected": "The current template approval was rejected",
+        "execution_interrupted": "The current execution was interrupted by the orchestrator",
+        "execution_recovery_failed": "The current execution failed during recovery",
+        "execution_failed": "The current execution failed",
+        "execution_cancelled": "The current execution was cancelled",
+        "prepared_input_stale": "The current prepare input is newer than the latest run and requires a fresh start",
+        "prepare_recompile_required": "The current prepare input no longer matches the builder-input compile source and must be recompiled",
+        "prepared_prd_source_stale": "The PRD changed while builder-input is still bound to the old PRD compile source",
+        "prepared_template_source_stale": "The frozen template version changed and invalidated the builder-input template compile source"
+      },
+      "action": {
+        "submit_prd_approval": "Resubmit PRD approval",
+        "revise_prd": "Revise the PRD and resubmit approval",
+        "submit_template_approval": "Resubmit template approval",
+        "revise_template_selection": "Revise template selection and resubmit approval",
+        "resume_interrupted_job": "Resume the interrupted job",
+        "inspect_device_evidence": "Inspect device verification evidence",
+        "inspect_failure_and_retry_later": "Inspect the failure and decide whether to retry later",
+        "inspect_execution_history": "Inspect execution history",
+        "inspect_orchestrator_status": "Inspect orchestrator status",
+        "inspect_orchestrator_lock_owner": "Inspect orchestrator lock owner",
+        "restart_orchestrator_watch": "Restart orchestrator watch",
+        "inspect_delivery_record": "Inspect delivery record",
+        "verify_staged_release": "Verify staged release",
+        "prepare_signing": "Prepare signing artifacts",
+        "stage_release": "Stage the release",
+        "monitor_release_feedback": "Monitor release feedback",
+        "update_subject_and_resubmit": "Update the delivery package and resubmit",
+        "start": "Start a new execution from the current input",
+        "compile_prepare_bundle": "Recompile the prepare bundle"
+      }
+    },
+    "failureHelp": {
+      "action": {
+        "inspectEvents": "Jump to events",
+        "inspectArtifacts": "Jump to artifacts",
+        "inspectOrchestrator": "Jump to orchestrator"
+      },
+      "builderRuntimePatchParse": {
+        "title": "Builder runtime patch parse failed",
+        "description": "Builder runtime returned a WorkspacePatch, but the runtime could not parse it safely. Check builder-output, the summary log, and the event stream first for malformed JSON, conflicting operation shapes, or replace_block entries without replacements."
+      },
+      "workspacePatchApply": {
+        "title": "WorkspacePatch apply failed",
+        "description": "The patch parsed successfully, but failed while being applied to the workspace. Inspect builder-output and the event stream first to confirm whether the patch targeted missing files, escaped allowed paths, or hit target-file delete protection."
+      },
+      "environmentCheck": {
+        "title": "Real build validation failed",
+        "description": "The real Flutter validation failed during an environment or build step. Inspect build-report / smoke-test-report first, then use failure category {{category}} to determine whether pub, analyze, test, or build failed."
+      },
+      "deviceCheck": {
+        "title": "Device verification failed",
+        "description": "The device-side verification chain failed. Inspect device-logcat, smoke-test-report, build-report, and APK outputs first, then use failure category {{category}} to determine whether the device was unavailable, install failed, or the app crashed after launch."
+      },
+      "profileCheck": {
+        "title": "Template or structural check failed",
+        "description": "The generated result no longer satisfies the template or structural constraints. Inspect build-report and the event stream first, then use failure category {{category}} to verify target files, entry wiring, and persistence wiring."
+      },
+      "generic": {
+        "title": "Capture evidence before retrying",
+        "description": "The task already exposes failure_context, but no specialized hint matched yet. Preserve the event stream, summary log, and builder output first, then decide whether to recompile, restart, or continue manual triage."
+      }
     },
     "notifications": {
-      "title": "Notifications",
-      "description": "Aggregate human-facing events and let operators acknowledge or rebuild them.",
+      "title": "Action center",
+      "description": "Prioritize human actions and system reminders related to the current job.",
       "empty": "There are no pending notifications right now.",
       "acknowledged": "Acknowledged",
       "suggestedAction": "Suggested action: {{action}}"
     },
+    "delivery": {
+      "title": "Delivery actions",
+      "latestRunId": "Latest run ID",
+      "reviewBundleReady": "Review bundle ready",
+      "prepareReview": "Prepare review / handoff artifacts",
+      "recordDecision": "Record delivery decision",
+      "hideForm": "Hide delivery form",
+      "submitRecord": "Submit delivery record",
+      "recordFollowUp": "Record release follow-up",
+      "hideFollowUpForm": "Hide follow-up form",
+      "submitFollowUp": "Submit follow-up record",
+      "cancelEdit": "Cancel",
+      "reviewerId": "Reviewer",
+      "followUpOwnerId": "Follow-up owner",
+      "statusLabel": "Delivery decision",
+      "deviceVerificationTitle": "Device verification result",
+      "deviceVerificationStatusLabel": "Device verification status",
+      "deviceVerificationSummaryLabel": "Device verification summary",
+      "deviceVerificationEvidencePathsLabel": "Device verification evidence paths",
+      "followUpTitle": "Release follow-up",
+      "followUpStatusLabel": "Follow-up status",
+      "followUpSummaryLabel": "Follow-up summary",
+      "followUpEvidencePathsLabel": "Follow-up evidence paths",
+      "channel": {
+        "none": "No channel",
+        "internal": "Internal",
+        "canary": "Canary",
+        "production": "Production"
+      },
+      "workflowHint": {
+        "title": "Current delivery guidance",
+        "changes_requested": "Document the requested changes first, then refresh the review / handoff artifacts and supporting evidence.",
+        "approved_for_signing": "The package passed delivery review. Prepare signing outputs next and attach the signed file paths.",
+        "signed": "Signed artifacts are ready. Select a release channel and move toward staged or full release.",
+        "staged": "The release is in staged rollout. Record the channel, rollout ratio, and validation evidence before deciding on full release.",
+        "released": "The release is now live. Keep attaching follow-up evidence and release feedback as it comes in."
+      },
+      "followUpHint": {
+        "monitoring": "The release is live. Keep collecting production feedback, crash signals, and channel performance evidence.",
+        "stable": "Post-release signals look stable. Capture the final conclusion and closing evidence.",
+        "issue_detected": "A post-release issue was detected. Attach the evidence immediately and drive rollback or a new delivery decision."
+      },
+      "checklist": {
+        "title": "Delivery checklist",
+        "reviewBundle": "Review bundle prepared",
+        "handoffChecklist": "Handoff checklist prepared",
+        "reviewerAssigned": "Reviewer assigned",
+        "evidenceAttached": "Evidence attached",
+        "changesDocumented": "Requested changes documented",
+        "signedArtifactsAttached": "Signed artifacts attached",
+        "releaseChannelSelected": "Release channel selected",
+        "rolloutDefined": "Rollout percent set",
+        "deviceVerificationRecorded": "Device verification recorded"
+      },
+      "placeholders": {
+        "reviewerId": "For example: qa-owner",
+        "followUpOwnerId": "For example: release-duty",
+        "summary": "Summarize the delivery decision, risks, and next steps",
+        "deviceVerificationSummary": "Summarize covered devices, verification result, and observed issues",
+        "followUpSummary": "Summarize production feedback, monitoring results, or detected issues",
+        "multiline": "One item per line"
+      },
+      "suggestEvidence": "Add evidence: {{path}}",
+      "validation": {
+        "reviewerId": "Reviewer is required",
+        "rolloutPercent": "Rollout percent must be an integer between 0 and 100",
+        "evidencePaths": "At least one evidence path is required",
+        "requiredChanges": "Changes requested status requires at least one required-change entry",
+        "signedArtifactPaths": "This status requires signed artifact paths",
+        "releaseChannel": "Select a release channel before staged or released status",
+        "deviceVerificationStatus": "Record a device verification status before staged or released status",
+        "deviceVerificationEvidencePaths": "Provide verification evidence when device verification passed or failed",
+        "followUpOwnerId": "Follow-up owner is required",
+        "followUpEvidencePaths": "At least one follow-up evidence path is required"
+      },
+      "status": {
+        "changes_requested": "Changes requested",
+        "approved_for_signing": "Approved for signing",
+        "signed": "Signed",
+        "staged": "Staged",
+        "released": "Released"
+      },
+      "deviceVerificationStatus": {
+        "none": "Not recorded",
+        "pending": "Pending",
+        "passed": "Passed",
+        "failed": "Failed"
+      },
+      "followUpStatus": {
+        "monitoring": "Monitoring",
+        "stable": "Stable",
+        "issue_detected": "Issue detected"
+      }
+    },
     "events": {
       "title": "Event timeline",
       "description": "Show stage transitions, resume hints, and key snapshots from execution.",
+      "recentTitle": "Recent events",
+      "roundActivityTitle": "Round activity",
+      "roundActivityDetails": "View round timeline",
+      "recentDescription": "Show the latest {{count}} key events by default. The full timeline has {{total}} events.",
+      "fullTitle": "View full event timeline",
+      "type": {
+        "run_patch_generation_started": "Patch generation started",
+        "run_round_started": "Round started",
+        "run_patch_generated": "Patch generated",
+        "run_patch_generation_failed": "Patch generation failed",
+        "run_patch_applied": "Patch applied",
+        "run_patch_apply_failed": "Patch apply failed"
+      },
+      "summary": {
+        "runPatchGenerationStartedFallback": "{{roundId}} started patch generation for {{count}} files",
+        "runRoundStartedFallback": "Attempt {{attempt}} started: {{roundId}}",
+        "runPatchGeneratedFallback": "{{roundId}} generated a patch for {{count}} files",
+        "runPatchGenerationFailedFallback": "{{roundId}} failed patch generation for {{count}} files",
+        "runPatchAppliedFallback": "{{roundId}} applied a patch to {{count}} files",
+        "runPatchApplyFailedFallback": "{{roundId}} failed to apply a patch for {{count}} files"
+      },
+      "roundContext": "Current round",
+      "roundSummaries": "Round summaries",
+      "roundSummaryLine": "Attempt {{attempt}} · {{roundId}} · status {{status}} · phase {{phase}}",
+      "roundPhaseTrace": "Round phase trace",
+      "roundTargetPaths": "Round target files",
+      "roundModifiedPaths": "Round modified files",
+      "fileFacts": "File facts",
+      "checkpointKey": "Checkpoint",
+      "failedChecks": "Failed checks",
+      "failureSignatures": "Failure signatures",
+      "snapshotPath": "Workspace snapshot",
+      "targetPaths": "Target files",
+      "affectedPaths": "Affected files",
+      "deliveryRecordPath": "Delivery record",
+      "releaseChannel": "Release channel",
+      "deviceVerificationStatus": "Device verification status",
+      "releaseFollowUpStatus": "Release follow-up status",
+      "failureCategory": "Failure category",
+      "recommendedResumeMode": "Recommended resume mode",
+      "fileFactState": {
+        "targeted": "Targeted",
+        "generation_started": "Generation started",
+        "generated": "Generated",
+        "generation_failed": "Generation failed",
+        "applied": "Applied",
+        "apply_failed": "Apply failed",
+        "modified": "Modified",
+        "finalized": "Final result"
+      },
+      "fileFactChangeType": {
+        "added": "Added",
+        "modified": "Modified",
+        "deleted": "Deleted"
+      },
       "empty": "This job has no recorded events yet."
     },
     "artifacts": {
       "title": "Artifacts",
       "description": "Check whether review bundles, handoff checklists, and other deliverables were produced.",
+      "deliveryTitle": "Final deliverables / pickup info",
+      "deliveryDescription": "This section highlights the artifact closest to the final deliverable and where to pick it up.",
+      "localPickupPath": "Local pickup path",
+      "downloadUnavailable": "This version does not support direct browser downloads yet. Only local file paths are available.",
+      "workspaceRoot": "AppFactory root: {{path}}",
+      "noFinalDeliverable": "No installable or directly deliverable final artifact was detected yet. Check the full artifact list below.",
       "empty": "This job does not have an artifact manifest yet.",
       "required": "Required",
       "produced": "Produced",
       "missing": "Missing"
     },
     "toasts": {
+      "jobCreated": "Created job: {{jobId}}",
+      "jobCreatedAndStarted": "Created and started job: {{jobId}}",
+      "jobCreatedButStartFailed": "Created job: {{jobId}}, but auto-start failed: {{reason}}",
+      "jobCreateFailed": "Failed to create job",
+      "jobStartFailed": "Auto-start failed",
       "notificationsRebuilt": "Notifications rebuilt",
       "notificationAcked": "Notification acknowledged",
+      "reviewPrepared": "Prepared review / handoff artifacts",
+      "followUpRecorded": "Recorded release follow-up",
+      "actionCompleted": "Completed: {{action}}",
       "actionFailed": "Action failed"
     }
   },

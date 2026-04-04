@@ -71,6 +71,12 @@
       "type": "number",
       "minimum": 0
     },
+    "device_failure_categories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/deviceFailureCategory"
+      }
+    },
     "failure_signatures": {
       "type": "array",
       "items": {
@@ -79,6 +85,32 @@
     }
   },
   "$defs": {
+    "deviceFailureCategory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "failure_domain",
+        "count"
+      ],
+      "properties": {
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "failure_domain": {
+          "type": "string",
+          "enum": [
+            "device",
+            "environment"
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
     "failureSignature": {
       "type": "object",
       "additionalProperties": false,
