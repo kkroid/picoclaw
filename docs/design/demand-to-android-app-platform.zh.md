@@ -51,6 +51,7 @@ PicoClaw 在本方案中的定位是：
 - MVP 允许使用本地数据和第三方提供的服务接入。
 - MVP 默认页面规模为 3 到 5 个核心页面。
 - MVP 默认支持列表、详情、表单、设置这类典型工具型交互。
+- MVP 默认模板项目应服务单一核心任务，功能专精，不做大而全产品壳。
 - MVP 默认只要求在有限目标环境上跑通，不追求广泛设备型号和 Android 版本覆盖。
 
 ### 3.2 不做
@@ -84,9 +85,13 @@ PicoClaw 在本方案中的定位是：
 
 - **PRD 优先于自由对话**：后续研发必须以结构化 PRD 为唯一主输入，不允许直接拿零散聊天内容驱动代码生成。
 - **模板优先于从零生成**：优先基于受控模板做定制化改造，不追求从空白目录自由生成完整应用。
+- **模板矩阵按阶段演进**：长期应按能力包络拆成多份模板，分别覆盖不同功能板；但第一阶段只启用一个最小化 MVP 模板，先打稳主链路。
 - **单技术栈优先**：V1 只允许一种 Android 技术栈，避免同时支持多栈导致质量失控。
 - **成本优先于覆盖面**：V1 优先用最小成本打通主链路，不为低价值兼容性、额外设备覆盖和可选能力付费。
 - **可选能力默认删除**：能省则省，可要可不要的能力一律不进入 MVP。
+- **无自建服务器默认前提**：模板项目不得把自建后端作为基础依赖，除非后续有明确新模板专门承接。
+- **无广告默认前提**：广告不属于当前平台主线能力，不进入默认模板。
+- **功能专精优先于功能堆叠**：默认模板项目应围绕单一核心任务闭环，而不是预埋泛功能外壳。
 - **人工门禁不可移除**：产品确认、模板选型确认、代码验收、测试验收必须保留人工节点。
 - **可追溯**：每个需求、每个决策、每个生成结果都必须能追溯到来源、版本和审核记录。
 - **可重放**：同一份 PRD、同一模板版本、同一配置，应能重复生成接近一致的结果。
@@ -111,7 +116,33 @@ PicoClaw 在本方案中的定位是：
 - 标准命令链清晰，容易固化为可执行脚本：`flutter pub get`、`flutter analyze`、`flutter test`、`flutter build apk --debug`。
 - 更适合“模板优先”的路线：大量中小型 Flutter 模板可以被纳入受控模板注册表后做定制化改造。
 
-#### 5.1.2 暂不选择其他技术栈的原因
+#### 5.1.2 模板策略
+
+当前模板策略明确收敛为两层：
+
+- 长期策略：模板应拆成多份，每份模板覆盖一类相对稳定的功能包络，而不是试图用一个超级模板承接所有需求。
+- 第一阶段策略：只启用一个最小化 MVP 模板，先验证 `PRD -> task bundle -> builder-runtime -> analyze/test/build` 这条主链是否稳定。
+
+这里说的“多份模板”，指的是未来按能力边界拆分，例如：
+
+- 通用 CRUD / tracker 类模板
+- 记账类模板
+- 更偏内容展示的轻交互模板
+
+但这些都属于后续阶段。第一阶段不追求模板数量，而追求：
+
+- 模板边界足够清晰
+- AI 拆任务足够稳定
+- 回归和治理成本足够低
+
+因此，当前第一阶段模板口径固定为：
+
+- 内部模板 ID：`flutter-open-lite`
+- 模板类型：最小化 MVP 模板
+- 架构口径：MVP 友好的固定分层模板
+- 模板产品限制：无自建服务器前提、无广告、功能专精、可选能力默认删除
+
+#### 5.1.3 暂不选择其他技术栈的原因
 
 **React Native（含 Expo）暂不作为 V1 首选：**
 
@@ -179,6 +210,11 @@ thin executor 内核 **不负责**以下事项：
 - 审批流。
 - 最终交付裁决。
 
+补充边界说明：
+
+- `lib/picoclaw_executor_probe.dart` 这类 probe 产物只用于默认 thin executor fallback 证明链，证明受控工作区、allowed paths 和最小 inspect/edit/validate 闭环仍可执行。
+- 真实 builder-runtime 成功路径不应再以 probe 文件作为完成信号，而应以 `WorkspacePatch`、Flutter validate 结果、构建产物和交付报告为主证据。
+
 #### 5.2.4 技术栈 profile 的职责边界
 
 技术栈 profile **负责**以下事项：
@@ -198,24 +234,50 @@ thin executor 内核 **不负责**以下事项：
 
 skill 层主要承载三类内容：
 
-- 模板知识：单一 Flutter MVC 模板的目录约束、依赖白名单和命名规则。
+- 模板知识：当前激活模板的目录约束、依赖白名单和命名规则；第一阶段先收敛为单一最小化 MVP 模板。
 - 编排知识：把 PRD 编译成 `implementation-plan.md`、`builder-input.json` 和 `task_bundle` 的规则。
 - 收口知识：在 analyze、test、build 之前后只允许做哪些低风险修复。
 
 当前推荐起步 skill 仍然是：
 
-- `flutter-mvc-template`
+- `flutter-open-lite-template`
 - `prd-to-task-bundle`
 - `flutter-build-closure`
 
 说明：
 
 - 当前仍以 Flutter profile 作为第一条主链验证对象，因此 skill 仍然保留 Flutter 命名。
+- 长期允许模板 skill 扩展成多份，但第一阶段仍只启用 `flutter-open-lite-template` 这一条默认模板知识包。
 - 但这些 skill 属于“当前技术栈知识包”，不应与执行器内核绑定为同一层。
 
 #### 5.2.6 兼容分支定位
 
 外部 Builder 兼容分支不属于默认执行路径，也不参与核心接口语义定义。默认执行路径始终以 `skill-first + thin executor + stack profile` 为准；如需保留兼容分支，只能作为受控适配层存在，不能反向塑造平台主模型。
+
+#### 5.2.7 builder-runtime 的模型策略
+
+builder-runtime 的长期目标不是绑定单一模型或单一推理后端，而是接入统一模型池，并按任务类型做受控路由。
+
+当前结论如下：
+
+- builder-runtime 首轮验证以后端可替换为前提，不把 `Ollama`、`vLLM`、`LiteLLM` 或任一云 Provider 写死成架构前提。
+- 近阶段先以 `Ollama + qwen2.5-coder:14b` 作为本地验证后端，优先证明高频窄任务是否能稳定完成；`qwen2.5-coder:32b` 作为复杂修复升级层参与后续 A/B 对比。
+- 中长期建议把 builder-runtime 接到统一模型路由层，允许本地模型承担单文件实现、双文件接线、低风险 analyze/test 修复，让高质量云模型只处理规划、复杂 repair 和多文件高风险修改。
+- 模型路由必须按任务形态和失败状态决定，不能只按“当前默认模型”一把梭。至少应区分：规划类任务、窄编码任务、低风险收口任务、高风险升级任务。
+- 任何本地模型验证都不改变现有平台主边界：PicoClaw 继续负责控制平面；skill 继续负责模板约束、任务编译和收口知识；builder-runtime 只在 `builder-input.json`、`task_bundle`、`WorkspacePatch` 和 acceptance checks 的受控边界内执行。
+
+因此，当前推荐路线是：
+
+- 先用 `Ollama` 快速验证本地模型是否足够承担 builder-runtime 的高频窄任务。
+- 评估稳定后，再决定是否保留 `Ollama` 作为本地开发后端，或升级到更适合统一服务化和并发执行的 `vLLM` / `LiteLLM` 路线。
+- 无论底层后端如何变化，builder-runtime 暴露给平台的都应是统一的任务路由、重试、升级和失败上报语义，而不是 Provider 特定逻辑。
+
+为避免这套策略继续停留在文档层，配置层先收敛为一套最小骨架：
+
+- `appfactory.builder_runtime.default_model`：默认高频窄任务模型，可直接复用 `model_list` 中的别名，并支持 fallback。
+- `appfactory.builder_runtime.upgrade_model`：复杂修复或失败升级时使用的更强模型，同样复用 `model_list`。
+- `appfactory.builder_runtime.task_routes[]`：按 `task_type` 指定任务级模型路由，近阶段至少覆盖 `single_file_edit`、`dual_file_wiring`、`analyze_repair`、`test_repair`、`closure_repair`。
+- `appfactory.builder_runtime.upgrade_threshold`：先显式配置升级阈值，至少包括 repair 次数上限、多文件风险阈值，以及 validation fail、patch parse fail、scope violation 这类强制升级信号。
 
 ### 5.3 默认交付物
 
@@ -368,13 +430,19 @@ skill 层主要承载三类内容：
 - 用 skill 补认知流程。
 - 用技术栈无关的 thin executor 内核 / 过渡执行 Worker 承担受控执行。
 
-#### 7.4.3 Flutter MVC 模板与 workflow skill 的起步落地
+#### 7.4.3 Flutter 固定分层模板与 workflow skill 的起步落地
 
-如果后续决定把工具类 Android App 的自动开发进一步收敛到“固定 Flutter MVC 模板 + 多 skill 协作”的路线，建议把 skill 主要放在 `planning-engine` 和 `review-handoff` 这类认知型环节，而不是把整个系统误拆成 `model skill`、`view skill`、`controller skill` 三块。
+如果后续决定把工具类 Android App 的自动开发进一步收敛到“固定 Flutter 通用模板 + 多 skill 协作”的路线，建议把 skill 主要放在 `planning-engine` 和 `review-handoff` 这类认知型环节，而不是把整个系统误拆成 `model skill`、`view skill`、`controller skill` 三块。
+
+当前模板选型已经收敛为：
+
+- 内部模板 ID：`flutter-open-lite`
+- 模板架构口径：MVP 友好的固定分层模板
+- 外部主要参考来源：`zubairehman/flutter_boilerplate_project`
 
 当前更推荐的起步拆法是三段式：
 
-- `flutter-mvc-template`：固定目录结构、依赖白名单、命名规则、依赖方向和可接受的页面组织方式。
+- `flutter-open-lite-template`：固定目录结构、依赖白名单、命名规则、依赖方向和可接受的页面组织方式。
 - `prd-to-task-bundle`：把已批准 PRD 编译成实体、页面、用户流程和 acceptance checks 对应的任务包。
 - `flutter-build-closure`：在工作区接近完成时执行 analyze、test、build，并只做低风险、可回放的收口修复。
 
@@ -510,7 +578,7 @@ skill 层主要承载三类内容：
 | `approval_type` | 是 | PRD、模板、执行方案、构建结果、交接包等 |
 | `job_id` | 否 | 如与任务相关则记录 |
 | `prd_id` | 否 | 如与 PRD 相关则记录 |
-| `subject_version` | 是 | 当前审批对象版本 |
+| `subject_version` | 是 | 当前审批对象冻结版本标识；对 PRD 不能只写裸版本号，而要能同时区分 `PRD.json`、`PRD.md` 与 `requirement.md` 在同版本下的内容变化；对模板审批也不能只写 `template_id + pinned_ref`，而要能区分模板匹配结果内容变化 |
 | `status` | 是 | 待审批、已通过、已拒绝、要求修改等 |
 | `requested_by` | 是 | 谁发起了审批 |
 | `assignee` | 否 | 谁负责审批 |
@@ -586,7 +654,7 @@ flowchart LR
 	end
 
 	subgraph Skills["Skill 层"]
-		templateSkill[flutter-mvc-template]
+		templateSkill[flutter-open-lite-template]
 		bundleSkill[prd-to-task-bundle]
 		closureSkill[flutter-build-closure]
 		inputpkg --> bundleSkill
