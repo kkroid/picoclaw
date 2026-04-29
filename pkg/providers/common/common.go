@@ -15,10 +15,10 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
+	"github.com/sipeed/picoclaw/pkg/httpx"
 	"github.com/sipeed/picoclaw/pkg/providers/protocoltypes"
 )
 
@@ -40,28 +40,17 @@ const DefaultRequestTimeout = 120 * time.Second
 
 // NewHTTPClient creates an *http.Client with an optional proxy and the default timeout.
 func NewHTTPClient(proxy string) *http.Client {
-	client := &http.Client{
-		Timeout: DefaultRequestTimeout,
+	client, err := httpx.CreateHTTPClient(proxy, DefaultRequestTimeout)
+	if err == nil {
+		return client
 	}
-	if proxy != "" {
-		parsed, err := url.Parse(proxy)
-		if err == nil {
-			// Preserve http.DefaultTransport settings (TLS, HTTP/2, timeouts, etc.)
-			if base, ok := http.DefaultTransport.(*http.Transport); ok {
-				tr := base.Clone()
-				tr.Proxy = http.ProxyURL(parsed)
-				client.Transport = tr
-			} else {
-				// Fallback: minimal transport if DefaultTransport is not *http.Transport.
-				client.Transport = &http.Transport{
-					Proxy: http.ProxyURL(parsed),
-				}
-			}
-		} else {
-			log.Printf("common: invalid proxy URL %q: %v", proxy, err)
-		}
+
+	log.Printf("common: invalid proxy URL %q: %v", proxy, err)
+	client, fallbackErr := httpx.CreateHTTPClient("", DefaultRequestTimeout)
+	if fallbackErr == nil {
+		return client
 	}
-	return client
+	return &http.Client{Timeout: DefaultRequestTimeout}
 }
 
 // --- Message serialization ---

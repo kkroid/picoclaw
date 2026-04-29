@@ -1,0 +1,1278 @@
+{
+  "schema_version": "0.1.0",
+  "id": "prd-bookkeeping-prepare-sample",
+  "version": "0.1.0",
+  "status": "draft",
+  "title": "轻量记账 App",
+  "summary": "为个人用户提供一个只覆盖最小核心流程的 Android 记账应用，围绕收支概览、记账动作和账单集合浏览验证需求整理、PRD 生成、Builder 输入包生成和最小执行链路。",
+  "problem_statement": "当前实验阶段需要一条从自然语言需求到 Builder 输入包的最小闭环，用来验证 PicoClaw 能否把简单记账需求整理成结构化规格，并围绕中性交互承载驱动 Builder 执行最小任务链。",
+  "target_users": [
+    {
+      "user_id": "user-office-worker",
+      "label": "个人记账用户",
+      "summary": "希望快速记录日常收支，不想维护复杂预算系统。",
+      "pain_points": [
+        "记录动作过重",
+        "很难快速回看最近消费",
+        "实验阶段不需要注册登录"
+      ]
+    },
+    {
+      "user_id": "user-validator",
+      "label": "内部验证人员",
+      "summary": "需要一眼看出概览、记账动作和账单集合浏览承载是否已被清晰定义。",
+      "pain_points": [
+        "输入层散乱",
+        "Builder 输入包经常缺上下文"
+      ]
+    }
+  ],
+  "core_scenarios": [
+    {
+      "scenario_id": "scenario-quick-add",
+      "title": "快速新增一笔收支",
+      "summary": "用户能在数秒内录入金额、分类、日期和备注。",
+      "primary_user_refs": [
+        "user-office-worker"
+      ]
+    },
+    {
+      "scenario_id": "scenario-ledger",
+      "title": "查看最近账单",
+      "summary": "用户可以按时间顺序浏览最近账单并确认金额与分类。",
+      "primary_user_refs": [
+        "user-office-worker"
+      ]
+    },
+    {
+      "scenario_id": "scenario-summary",
+      "title": "查看本月概览",
+      "summary": "用户能在概览承载单元看到收入、支出和结余概览。",
+      "primary_user_refs": [
+        "user-office-worker",
+        "user-validator"
+      ]
+    }
+  ],
+  "goals": [
+    "输出完整 PRD.md 和 PRD.json，覆盖收支概览、记账动作、账单集合浏览三个核心范围。",
+    "生成可直接被当前 P0 Builder 链路消费的 builder-input.json。",
+    "将任务拆成最小 task bundle，便于后续继续收敛到稳定的 thin executor 主线。"
+  ],
+  "non_goals": [
+    "不做账号体系、云同步、多人协作。",
+    "不做应用上架、签名、隐私政策页面。",
+    "不做复杂预算、报税、OCR 导入。"
+  ],
+  "feature_list": [
+    {
+      "feature_id": "feature-home-summary",
+      "title": "收支概览",
+      "summary": "在概览承载单元展示本月收入、支出、结余和最近三笔账单。",
+      "priority": "p0",
+      "required": true,
+      "related_scenarios": [
+        "scenario-summary"
+      ],
+      "related_surface_refs": [
+        "surface-overview"
+      ],
+      "acceptance_refs": [
+        "ac-home",
+        "ac-navigation"
+      ]
+    },
+    {
+      "feature_id": "feature-add-entry",
+      "title": "记账动作",
+      "summary": "支持录入金额、类型、分类、日期和备注，并提交新增账单。",
+      "priority": "p0",
+      "required": true,
+      "related_scenarios": [
+        "scenario-quick-add"
+      ],
+      "related_surface_refs": [
+        "surface-mutation"
+      ],
+      "acceptance_refs": [
+        "ac-entry"
+      ]
+    },
+    {
+      "feature_id": "feature-ledger",
+      "title": "账单集合浏览",
+      "summary": "按时间倒序展示账单集合，并支持核对金额和分类。",
+      "priority": "p0",
+      "required": true,
+      "related_scenarios": [
+        "scenario-ledger"
+      ],
+      "related_surface_refs": [
+        "surface-collection"
+      ],
+      "acceptance_refs": [
+        "ac-ledger"
+      ]
+    },
+    {
+      "feature_id": "feature-local-data",
+      "title": "本地数据持久化",
+      "summary": "账单数据本地持久化，应用重启后仍能恢复概览与账单集合。",
+      "priority": "p1",
+      "required": true,
+      "related_scenarios": [
+        "scenario-quick-add",
+        "scenario-ledger",
+        "scenario-summary"
+      ],
+      "related_surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation"
+      ],
+      "acceptance_refs": [
+        "ac-persistence"
+      ]
+    }
+  ],
+  "surface_list": [
+    {
+      "surface_id": "surface-overview",
+      "label": "收支概览承载单元",
+      "purpose": "承载本月收支摘要、最近账单回看和主导航入口。",
+      "primary_feature_refs": [
+        "feature-home-summary",
+        "feature-ledger"
+      ]
+    },
+    {
+      "surface_id": "surface-mutation",
+      "label": "记账动作承载单元",
+      "purpose": "承载金额、分类、日期和备注录入，以及保存动作。",
+      "primary_feature_refs": [
+        "feature-add-entry"
+      ]
+    },
+    {
+      "surface_id": "surface-collection",
+      "label": "账单集合浏览承载单元",
+      "purpose": "承载账单集合浏览、结果核对和回到概览的入口。",
+      "primary_feature_refs": [
+        "feature-ledger",
+        "feature-local-data"
+      ]
+    }
+  ],
+  "user_flows": [
+    {
+      "flow_id": "flow-add-expense",
+      "title": "新增支出",
+      "steps": [
+        {
+          "step_id": "step-open-entry-action",
+          "title": "从概览承载单元进入记账动作入口",
+          "surface_ref": "surface-overview",
+          "actor": "个人记账用户",
+          "expected_result": "能看到金额和分类输入控件"
+        },
+        {
+          "step_id": "step-fill-entry",
+          "title": "填写金额、分类、日期和备注",
+          "surface_ref": "surface-mutation",
+          "actor": "个人记账用户",
+          "expected_result": "录入字段校验通过"
+        },
+        {
+          "step_id": "step-save-entry",
+          "title": "保存账单并回看概览与账单集合",
+          "surface_ref": "surface-mutation",
+          "actor": "个人记账用户",
+          "expected_result": "概览承载单元和账单集合浏览承载单元都能看到新增账单"
+        }
+      ]
+    },
+    {
+      "flow_id": "flow-review-ledger",
+      "title": "查看账单集合",
+      "steps": [
+        {
+          "step_id": "step-open-ledger",
+          "title": "从概览承载单元进入账单集合浏览",
+          "surface_ref": "surface-overview",
+          "actor": "个人记账用户",
+          "expected_result": "能看到最近账单集合"
+        },
+        {
+          "step_id": "step-confirm-entry",
+          "title": "核对账单金额和分类",
+          "surface_ref": "surface-collection",
+          "actor": "个人记账用户",
+          "expected_result": "关键信息易于识别"
+        }
+      ]
+    }
+  ],
+  "data_entities": [
+    {
+      "entity_id": "entity-entry",
+      "name": "账单记录",
+      "fields": [
+        {
+          "name": "entry_id",
+          "type": "string",
+          "required": true,
+          "description": "账单唯一标识"
+        },
+        {
+          "name": "entry_type",
+          "type": "enum[income,expense]",
+          "required": true,
+          "description": "收入或支出"
+        },
+        {
+          "name": "amount",
+          "type": "decimal",
+          "required": true,
+          "description": "金额"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "required": true,
+          "description": "分类"
+        },
+        {
+          "name": "occurred_on",
+          "type": "date",
+          "required": true,
+          "description": "发生日期"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "description": "备注"
+        }
+      ],
+      "source": "local_storage"
+    },
+    {
+      "entity_id": "entity-summary",
+      "name": "月度汇总",
+      "fields": [
+        {
+          "name": "month",
+          "type": "string",
+          "required": true,
+          "description": "月份标识"
+        },
+        {
+          "name": "income_total",
+          "type": "decimal",
+          "required": true,
+          "description": "本月收入总额"
+        },
+        {
+          "name": "expense_total",
+          "type": "decimal",
+          "required": true,
+          "description": "本月支出总额"
+        },
+        {
+          "name": "balance",
+          "type": "decimal",
+          "required": true,
+          "description": "结余"
+        }
+      ],
+      "source": "derived"
+    }
+  ],
+  "template_constraints": {
+    "stack": "flutter",
+    "android_required": true,
+    "required_capabilities": [
+      "list",
+      "form",
+      "local-storage",
+      "bottom-navigation",
+      "summary-card"
+    ],
+    "excluded_licenses": [
+      "GPL-3.0"
+    ],
+    "preferred_template_ids": [
+      "flutter-finance-lite"
+    ]
+  },
+  "acceptance_criteria": [
+    {
+      "criterion_id": "ac-home",
+      "label": "概览展示本月收支",
+      "category": "functional",
+      "required": true,
+      "description": "概览承载单元必须展示收入、支出、结余和最近账单入口。"
+    },
+    {
+      "criterion_id": "ac-entry",
+      "label": "记账动作链路完整",
+      "category": "functional",
+      "required": true,
+      "description": "用户可以在记账动作承载单元新增一笔账单，并回看概览与账单集合。"
+    },
+    {
+      "criterion_id": "ac-ledger",
+      "label": "账单集合可浏览",
+      "category": "functional",
+      "required": true,
+      "description": "账单集合浏览承载单元按时间倒序显示账单，并展示金额和分类。"
+    },
+    {
+      "criterion_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "category": "smoke",
+      "required": true,
+      "description": "应用重启后仍能读取本地账单数据，并恢复概览与账单集合。"
+    },
+    {
+      "criterion_id": "ac-navigation",
+      "label": "核心承载入口可导航",
+      "category": "ui",
+      "required": true,
+      "description": "概览承载、记账动作和账单集合浏览之间的入口明确且可达。"
+    }
+  ],
+  "manual_review_points": [
+    {
+      "point_id": "mrp-copy",
+      "summary": "检查概览承载与记账动作中文文案是否一致",
+      "reason": "P0 阶段主要靠模板改造，概览与动作文案容易残留模板默认值。",
+      "owner": "product"
+    },
+    {
+      "point_id": "mrp-data",
+      "summary": "确认本地持久化方案不引入额外后端依赖",
+      "reason": "当前实验阶段明确不接入云端服务。",
+      "owner": "engineering"
+    }
+  ],
+  "known_unknowns": [
+    {
+      "question": "是否需要在下一阶段加入按分类过滤或图表统计",
+      "impact": "medium",
+      "owner": "product"
+    },
+    {
+      "question": "后续设备验证与恢复闭环是否沿用当前 acceptance check 结构",
+      "impact": "medium",
+      "owner": "engineering"
+    }
+  ],
+  "execution_contract": {
+    "contract_version": "0.1.0",
+    "domain_model": {
+      "domain_name": "轻量记账 App",
+      "entities": [
+        {
+          "entity_id": "entity-entry",
+          "name": "账单记录",
+          "fields": [
+            {
+              "name": "entry_id",
+              "type": "string",
+              "required": true,
+              "description": "账单唯一标识"
+            },
+            {
+              "name": "entry_type",
+              "type": "enum[income,expense]",
+              "required": true,
+              "description": "收入或支出"
+            },
+            {
+              "name": "amount",
+              "type": "decimal",
+              "required": true,
+              "description": "金额"
+            },
+            {
+              "name": "category",
+              "type": "string",
+              "required": true,
+              "description": "分类"
+            },
+            {
+              "name": "occurred_on",
+              "type": "date",
+              "required": true,
+              "description": "发生日期"
+            },
+            {
+              "name": "note",
+              "type": "string",
+              "required": false,
+              "description": "备注"
+            }
+          ],
+          "source": "local_storage"
+        },
+        {
+          "entity_id": "entity-summary",
+          "name": "月度汇总",
+          "fields": [
+            {
+              "name": "month",
+              "type": "string",
+              "required": true,
+              "description": "月份标识"
+            },
+            {
+              "name": "income_total",
+              "type": "decimal",
+              "required": true,
+              "description": "本月收入总额"
+            },
+            {
+              "name": "expense_total",
+              "type": "decimal",
+              "required": true,
+              "description": "本月支出总额"
+            },
+            {
+              "name": "balance",
+              "type": "decimal",
+              "required": true,
+              "description": "结余"
+            }
+          ],
+          "source": "derived"
+        }
+      ],
+      "summary_metrics": [
+        "月度汇总"
+      ],
+      "critical_flow_refs": [
+        "flow-add-expense",
+        "flow-review-ledger"
+      ],
+      "semantic_acceptance_refs": [
+        "ac-home",
+        "ac-entry",
+        "ac-ledger",
+        "ac-persistence",
+        "ac-navigation"
+      ]
+    },
+    "surface_relation_schema": {
+      "anchor_collection_path": "surface_list",
+      "anchor_id_path": "surface_list[].surface_id",
+      "primary_ref_fields": [
+        "surface_ref",
+        "surface_refs"
+      ],
+      "allowed_references": [
+        {
+          "source_path": "feature_list[].related_surface_refs[]",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "many"
+        },
+        {
+          "source_path": "user_flows[].steps[].surface_ref",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "one"
+        },
+        {
+          "source_path": "execution_contract.surface_contracts[].surface_ref",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "one"
+        },
+        {
+          "source_path": "execution_contract.key_flows[].entry_surface_ref",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "one"
+        },
+        {
+          "source_path": "execution_contract.key_flows[].steps[].surface_ref",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "one"
+        },
+        {
+          "source_path": "task_allocation.units[].surface_refs[]",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "many"
+        },
+        {
+          "source_path": "execution_contract.task_projection[].surface_refs[]",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "many"
+        }
+      ],
+      "compatibility_fields": [
+        {
+          "field_path": "screen_list",
+          "canonical_path": "surface_list",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "surface_list[].legacy_screen_ref",
+          "canonical_path": "surface_list[].surface_id",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "feature_list[].related_screens[]",
+          "canonical_path": "feature_list[].related_surface_refs[]",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "user_flows[].steps[].screen_ref",
+          "canonical_path": "user_flows[].steps[].surface_ref",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "task_bundle[].allocation_transition.screen_refs[]",
+          "canonical_path": "task_bundle[].allocation_transition.surface_refs[]",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "task_allocation.units[].screen_refs[]",
+          "canonical_path": "task_allocation.units[].surface_refs[]",
+          "policy": "read_only_input"
+        }
+      ]
+    },
+    "surface_contracts": [
+      {
+        "contract_id": "contract-surface-overview",
+        "surface_ref": "surface-overview",
+        "template_binding_ref": "surface-overview",
+        "purpose": "承载本月收支摘要、最近账单回看和主导航入口。",
+        "primary_feature_refs": [
+          "feature-home-summary",
+          "feature-ledger"
+        ],
+        "primary_entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "target_paths": [
+          "lib/views/home_page.dart",
+          "lib/controllers/home_controller.dart",
+          "lib/models/summary.dart"
+        ],
+        "required_actions": [
+          {
+            "action_id": "flow-add-expense:step-open-entry-action",
+            "label": "从概览承载单元进入记账动作入口",
+            "trigger": "个人记账用户",
+            "outcome": "能看到金额和分类输入控件"
+          },
+          {
+            "action_id": "flow-review-ledger:step-open-ledger",
+            "label": "从概览承载单元进入账单集合浏览",
+            "trigger": "个人记账用户",
+            "outcome": "能看到最近账单集合"
+          }
+        ],
+        "required_states": [
+          {
+            "state_id": "state-home",
+            "label": "概览展示本月收支",
+            "evidence": "概览承载单元必须展示收入、支出、结余和最近账单入口。"
+          },
+          {
+            "state_id": "state-navigation",
+            "label": "核心承载入口可导航",
+            "evidence": "概览承载、记账动作和账单集合浏览之间的入口明确且可达。"
+          },
+          {
+            "state_id": "state-ledger",
+            "label": "账单集合可浏览",
+            "evidence": "账单集合浏览承载单元按时间倒序显示账单，并展示金额和分类。"
+          }
+        ],
+        "acceptance_refs": [
+          "ac-home",
+          "ac-navigation",
+          "ac-ledger"
+        ]
+      },
+      {
+        "contract_id": "contract-surface-mutation",
+        "surface_ref": "surface-mutation",
+        "template_binding_ref": "surface-mutation",
+        "purpose": "承载金额、分类、日期和备注录入，以及保存动作。",
+        "primary_feature_refs": [
+          "feature-add-entry"
+        ],
+        "primary_entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "target_paths": [
+          "lib/views/entry_form_page.dart",
+          "lib/controllers/entry_form_controller.dart"
+        ],
+        "required_actions": [
+          {
+            "action_id": "flow-add-expense:step-fill-entry",
+            "label": "填写金额、分类、日期和备注",
+            "trigger": "个人记账用户",
+            "outcome": "录入字段校验通过"
+          },
+          {
+            "action_id": "flow-add-expense:step-save-entry",
+            "label": "保存账单并回看概览与账单集合",
+            "trigger": "个人记账用户",
+            "outcome": "概览承载单元和账单集合浏览承载单元都能看到新增账单"
+          }
+        ],
+        "required_states": [
+          {
+            "state_id": "state-entry",
+            "label": "记账动作链路完整",
+            "evidence": "用户可以在记账动作承载单元新增一笔账单，并回看概览与账单集合。"
+          }
+        ],
+        "acceptance_refs": [
+          "ac-entry"
+        ]
+      },
+      {
+        "contract_id": "contract-surface-collection",
+        "surface_ref": "surface-collection",
+        "template_binding_ref": "surface-collection",
+        "purpose": "承载账单集合浏览、结果核对和回到概览的入口。",
+        "primary_feature_refs": [
+          "feature-ledger",
+          "feature-local-data"
+        ],
+        "primary_entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "target_paths": [
+          "lib/views/entry_list_page.dart",
+          "lib/controllers/entry_list_controller.dart"
+        ],
+        "required_actions": [
+          {
+            "action_id": "flow-review-ledger:step-confirm-entry",
+            "label": "核对账单金额和分类",
+            "trigger": "个人记账用户",
+            "outcome": "关键信息易于识别"
+          }
+        ],
+        "required_states": [
+          {
+            "state_id": "state-ledger",
+            "label": "账单集合可浏览",
+            "evidence": "账单集合浏览承载单元按时间倒序显示账单，并展示金额和分类。"
+          },
+          {
+            "state_id": "state-persistence",
+            "label": "本地持久化可恢复",
+            "evidence": "应用重启后仍能读取本地账单数据，并恢复概览与账单集合。"
+          }
+        ],
+        "acceptance_refs": [
+          "ac-ledger",
+          "ac-persistence"
+        ]
+      }
+    ],
+    "key_flows": [
+      {
+        "flow_id": "flow-add-expense",
+        "title": "新增支出",
+        "entry_surface_ref": "surface-overview",
+        "steps": [
+          {
+            "step_id": "step-open-entry-action",
+            "surface_ref": "surface-overview",
+            "actor": "个人记账用户",
+            "action": "从概览承载单元进入记账动作入口",
+            "expected_result": "能看到金额和分类输入控件"
+          },
+          {
+            "step_id": "step-fill-entry",
+            "surface_ref": "surface-mutation",
+            "actor": "个人记账用户",
+            "action": "填写金额、分类、日期和备注",
+            "expected_result": "录入字段校验通过"
+          },
+          {
+            "step_id": "step-save-entry",
+            "surface_ref": "surface-mutation",
+            "actor": "个人记账用户",
+            "action": "保存账单并回看概览与账单集合",
+            "expected_result": "概览承载单元和账单集合浏览承载单元都能看到新增账单"
+          }
+        ],
+        "write_entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "read_entity_refs": [
+          "entity-summary"
+        ],
+        "success_signals": [
+          "能看到金额和分类输入控件",
+          "录入字段校验通过",
+          "概览承载单元和账单集合浏览承载单元都能看到新增账单"
+        ],
+        "acceptance_refs": [
+          "ac-home",
+          "ac-navigation",
+          "ac-ledger",
+          "ac-persistence",
+          "ac-entry"
+        ]
+      },
+      {
+        "flow_id": "flow-review-ledger",
+        "title": "查看账单集合",
+        "entry_surface_ref": "surface-overview",
+        "steps": [
+          {
+            "step_id": "step-open-ledger",
+            "surface_ref": "surface-overview",
+            "actor": "个人记账用户",
+            "action": "从概览承载单元进入账单集合浏览",
+            "expected_result": "能看到最近账单集合"
+          },
+          {
+            "step_id": "step-confirm-entry",
+            "surface_ref": "surface-collection",
+            "actor": "个人记账用户",
+            "action": "核对账单金额和分类",
+            "expected_result": "关键信息易于识别"
+          }
+        ],
+        "read_entity_refs": [
+          "entity-summary",
+          "entity-entry"
+        ],
+        "success_signals": [
+          "能看到最近账单集合",
+          "关键信息易于识别"
+        ],
+        "acceptance_refs": [
+          "ac-home",
+          "ac-navigation",
+          "ac-ledger",
+          "ac-persistence"
+        ]
+      }
+    ],
+    "acceptance_matrix": [
+      {
+        "matrix_id": "matrix-check-context-ready",
+        "acceptance_ref": "check-context-ready",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-context-ready"
+        ],
+        "check_refs": [
+          "check-context-ready"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-bookkeeping-scope",
+        "acceptance_ref": "check-bookkeeping-scope",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-bookkeeping-scope"
+        ],
+        "check_refs": [
+          "check-bookkeeping-scope"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-plan-ready",
+        "acceptance_ref": "check-plan-ready",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-plan-ready"
+        ],
+        "check_refs": [
+          "check-plan-ready"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-structural-template-files-ready",
+        "acceptance_ref": "check-structural-template-files-ready",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-structural-template-files-ready"
+        ],
+        "check_refs": [
+          "check-structural-template-files-ready"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-legacy-thin-fallback-probe",
+        "acceptance_ref": "check-legacy-thin-fallback-probe",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-legacy-thin-fallback-probe"
+        ],
+        "check_refs": [
+          "check-legacy-thin-fallback-probe"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-legacy-thin-fallback-metadata",
+        "acceptance_ref": "check-legacy-thin-fallback-metadata",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-legacy-thin-fallback-metadata"
+        ],
+        "check_refs": [
+          "check-legacy-thin-fallback-metadata"
+        ]
+      },
+      {
+        "matrix_id": "matrix-ac-home",
+        "acceptance_ref": "ac-home",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "ac-home"
+        ],
+        "slot_refs": [
+          "surface-overview"
+        ],
+        "field_refs": [
+          "month",
+          "income_total",
+          "expense_total",
+          "balance"
+        ],
+        "check_refs": [
+          "ac-home"
+        ],
+        "evidence_pattern": "轻量记账 App|month|income_total|incomeTotal|income|expense_total|expenseTotal|expense|balance"
+      },
+      {
+        "matrix_id": "matrix-ac-entry",
+        "acceptance_ref": "ac-entry",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "ac-entry"
+        ],
+        "slot_refs": [
+          "surface-mutation"
+        ],
+        "field_refs": [
+          "month",
+          "income_total",
+          "expense_total",
+          "balance"
+        ],
+        "check_refs": [
+          "ac-entry"
+        ],
+        "evidence_pattern": "轻量记账 App|month|income_total|incomeTotal|income|expense_total|expenseTotal|expense|balance"
+      },
+      {
+        "matrix_id": "matrix-ac-ledger",
+        "acceptance_ref": "ac-ledger",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "ac-ledger"
+        ],
+        "slot_refs": [
+          "surface-collection"
+        ],
+        "field_refs": [
+          "entry_id",
+          "entry_type",
+          "amount",
+          "category",
+          "occurred_on",
+          "note"
+        ],
+        "check_refs": [
+          "ac-ledger"
+        ],
+        "evidence_pattern": "轻量记账 App|entry_id|entryId|entry_type|entryType|amount|category|occurred_on|occurredOn|note"
+      },
+      {
+        "matrix_id": "matrix-ac-persistence",
+        "acceptance_ref": "ac-persistence",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "ac-persistence"
+        ],
+        "slot_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "field_refs": [
+          "month",
+          "income_total",
+          "expense_total",
+          "balance"
+        ],
+        "check_refs": [
+          "ac-persistence"
+        ],
+        "evidence_pattern": "轻量记账 App|month|income_total|incomeTotal|income|expense_total|expenseTotal|expense|balance"
+      },
+      {
+        "matrix_id": "matrix-ac-navigation",
+        "acceptance_ref": "ac-navigation",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "ac-navigation"
+        ],
+        "slot_refs": [
+          "surface-overview"
+        ],
+        "field_refs": [
+          "month",
+          "income_total",
+          "expense_total",
+          "balance"
+        ],
+        "check_refs": [
+          "ac-navigation"
+        ],
+        "evidence_pattern": "轻量记账 App|month|income_total|incomeTotal|income|expense_total|expenseTotal|expense|balance"
+      },
+      {
+        "matrix_id": "matrix-mrp-copy",
+        "acceptance_ref": "mrp-copy",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "mrp-copy"
+        ],
+        "slot_refs": [
+          "domain-copy",
+          "app-entry",
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "check_refs": [
+          "mrp-copy"
+        ]
+      },
+      {
+        "matrix_id": "matrix-mrp-data",
+        "acceptance_ref": "mrp-data",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "mrp-data"
+        ],
+        "slot_refs": [
+          "storage-boundary",
+          "dependency-manifest"
+        ],
+        "check_refs": [
+          "mrp-data"
+        ]
+      },
+      {
+        "matrix_id": "matrix-flow-add-expense",
+        "acceptance_ref": "flow-add-expense",
+        "layer": "behavior",
+        "required": true,
+        "source_refs": [
+          "flow-add-expense"
+        ],
+        "slot_refs": [
+          "surface-overview",
+          "surface-mutation"
+        ],
+        "check_refs": [
+          "flow-add-expense"
+        ]
+      },
+      {
+        "matrix_id": "matrix-flow-review-ledger",
+        "acceptance_ref": "flow-review-ledger",
+        "layer": "behavior",
+        "required": true,
+        "source_refs": [
+          "flow-review-ledger"
+        ],
+        "slot_refs": [
+          "surface-overview",
+          "surface-collection"
+        ],
+        "check_refs": [
+          "flow-review-ledger"
+        ]
+      }
+    ],
+    "task_projection": [
+      {
+        "task_id": "task-domain-models",
+        "title": "冻结账单实体与收支汇总模型",
+        "wave": 0,
+        "lane": "domain",
+        "category": "domain",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "acceptance_refs": [
+          "feature-local-data",
+          "feature-home-summary"
+        ],
+        "semantic_intent_refs": [
+          "feature-local-data",
+          "feature-home-summary"
+        ],
+        "slot_refs": [
+          "domain-model"
+        ],
+        "target_paths": [
+          "lib/models/entry.dart",
+          "lib/models/summary.dart"
+        ],
+        "owned_paths": [
+          "lib/models/entry.dart",
+          "lib/models/summary.dart"
+        ],
+        "success_evidence": [
+          "账单记录包含金额、分类、日期和备注",
+          "汇总模型可以表达收入、支出和结余"
+        ]
+      },
+      {
+        "task_id": "task-storage-wiring",
+        "title": "接通本地持久化与账单仓储边界",
+        "wave": 1,
+        "lane": "storage",
+        "category": "storage",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "acceptance_refs": [
+          "feature-local-data"
+        ],
+        "semantic_intent_refs": [
+          "ac-persistence",
+          "mrp-data"
+        ],
+        "depends_on": [
+          "task-domain-models"
+        ],
+        "slot_refs": [
+          "storage-boundary",
+          "dependency-manifest"
+        ],
+        "target_paths": [
+          "lib/repositories/entry_repository.dart",
+          "pubspec.yaml"
+        ],
+        "owned_paths": [
+          "lib/repositories/entry_repository.dart",
+          "pubspec.yaml"
+        ],
+        "success_evidence": [
+          "代码或依赖中出现明确的本地持久化实现",
+          "应用重启后仍能读取账单集合并恢复概览"
+        ]
+      },
+      {
+        "task_id": "task-bind-core-surfaces",
+        "title": "绑定概览、记账动作与集合浏览承载单元",
+        "wave": 1,
+        "lane": "screen",
+        "category": "screen",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "acceptance_refs": [
+          "feature-home-summary",
+          "feature-add-entry",
+          "feature-ledger"
+        ],
+        "semantic_intent_refs": [
+          "mrp-copy"
+        ],
+        "depends_on": [
+          "task-domain-models"
+        ],
+        "slot_refs": [
+          "app-entry",
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "domain-copy"
+        ],
+        "target_paths": [
+          "lib/main.dart",
+          "lib/views/home_page.dart",
+          "lib/views/entry_form_page.dart",
+          "lib/views/entry_list_page.dart"
+        ],
+        "owned_paths": [
+          "lib/main.dart",
+          "lib/views/home_page.dart",
+          "lib/views/entry_form_page.dart",
+          "lib/views/entry_list_page.dart"
+        ],
+        "success_evidence": [
+          "概览、记账动作、账单集合浏览之间入口明确可达",
+          "默认 counter demo 页面与文案已被移除"
+        ]
+      },
+      {
+        "task_id": "task-flow-wiring",
+        "title": "接通记账动作、概览刷新与账单集合回显主流程",
+        "wave": 2,
+        "lane": "flow",
+        "category": "flow",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "acceptance_refs": [
+          "feature-add-entry",
+          "feature-home-summary",
+          "feature-ledger",
+          "feature-local-data"
+        ],
+        "semantic_intent_refs": [
+          "check-counter-demo-removed"
+        ],
+        "depends_on": [
+          "task-storage-wiring",
+          "task-bind-core-surfaces"
+        ],
+        "slot_refs": [
+          "flow-controller",
+          "storage-boundary",
+          "widget-test"
+        ],
+        "target_paths": [
+          "lib/controllers/home_controller.dart",
+          "lib/controllers/entry_form_controller.dart",
+          "lib/controllers/entry_list_controller.dart",
+          "lib/repositories/entry_repository.dart",
+          "test/widget_test.dart"
+        ],
+        "owned_paths": [
+          "lib/controllers/home_controller.dart",
+          "lib/controllers/entry_form_controller.dart",
+          "lib/controllers/entry_list_controller.dart",
+          "lib/repositories/entry_repository.dart",
+          "test/widget_test.dart"
+        ],
+        "success_evidence": [
+          "记账动作、概览刷新与账单集合回显主流程已接通"
+        ]
+      },
+      {
+        "task_id": "task-validation-closure",
+        "title": "完成 analyze、test 与 APK 构建收口",
+        "wave": 3,
+        "lane": "validation",
+        "category": "validation",
+        "task_type": "closure_repair",
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "acceptance_refs": [
+          "ac-entry",
+          "ac-ledger",
+          "ac-persistence",
+          "ac-navigation"
+        ],
+        "semantic_intent_refs": [
+          "ac-entry",
+          "ac-ledger",
+          "ac-persistence",
+          "ac-navigation"
+        ],
+        "depends_on": [
+          "task-flow-wiring"
+        ],
+        "slot_refs": [
+          "app-entry",
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "flow-controller",
+          "storage-boundary",
+          "dependency-manifest"
+        ],
+        "target_paths": [
+          "lib/main.dart",
+          "lib/views/**",
+          "lib/controllers/**",
+          "lib/repositories/**",
+          "test/**",
+          "pubspec.yaml"
+        ],
+        "owned_paths": [
+          "lib/main.dart",
+          "lib/views/**",
+          "lib/controllers/**",
+          "lib/repositories/**",
+          "test/**",
+          "pubspec.yaml"
+        ],
+        "success_evidence": [
+          "flutter analyze 无错误",
+          "flutter test 全通过",
+          "flutter build apk --debug 成功"
+        ]
+      }
+    ]
+  },
+  "source_refs": [
+    "examples/appfactory/bookkeeping/requirement.md"
+  ],
+  "created_at": "2026-04-11T11:00:00Z",
+  "updated_at": "2026-04-11T11:00:00Z"
+}

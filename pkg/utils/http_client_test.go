@@ -104,7 +104,23 @@ func TestCreateHTTPClient_ProxyFromEnvironmentWhenConfigEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("http.NewRequest() error: %v", err)
 	}
-	if _, err := tr.Proxy(req); err != nil {
+	proxyURL, err := tr.Proxy(req)
+	if err != nil {
 		t.Fatalf("transport.Proxy(req) error: %v", err)
+	}
+	if proxyURL == nil || proxyURL.String() != "http://127.0.0.1:8888" {
+		t.Fatalf("proxy URL = %v, want %q", proxyURL, "http://127.0.0.1:8888")
+	}
+
+	privateReq, err := http.NewRequest("GET", "http://10.12.11.159:11434/v1/models", nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest() error: %v", err)
+	}
+	proxyURL, err = tr.Proxy(privateReq)
+	if err != nil {
+		t.Fatalf("transport.Proxy(privateReq) error: %v", err)
+	}
+	if proxyURL != nil {
+		t.Fatalf("private proxy URL = %v, want nil", proxyURL)
 	}
 }

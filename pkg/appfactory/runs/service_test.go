@@ -96,14 +96,207 @@ func TestBuildInputDigestIgnoresRuntimePathAndJSONFormatting(t *testing.T) {
 	right.ArtifactDir = "/other/artifacts/job-1"
 	right.CommandProfile = json.RawMessage("{\n  \"network_policy\": \"disabled\",\n  \"allowed_commands\": [\"flutter\", \"echo\"],\n  \"allowed_stages\": [\"baseline\", \"cheap\"],\n  \"profile_name\": \"manual-p0\"\n}")
 	right.ContextFiles = json.RawMessage("{\n  \"implementation_plan_path\": \"implementation-plan.md\",\n  \"manual_constraints_path\": \"manual-constraints.md\",\n  \"prd_json_path\": \"PRD.json\",\n  \"prd_markdown_path\": \"PRD.md\",\n  \"supporting_files\": [\"requirement.md\"],\n  \"template_fit_report_path\": \"template-fit-report.md\"\n}")
+	right.InitialRoundState = &RoundState{
+		CurrentPhase:      RoundPhaseFinalize,
+		NextAction:        ControlActionResume,
+		PreserveWorkspace: true,
+		ResumeAllowed:     true,
+		CurrentTaskID:     "task-create-form-controller",
+		TaskStatuses: map[string]BuilderRuntimeTaskStatus{
+			"task-create-record-model": BuilderRuntimeTaskStatusValidated,
+		},
+	}
 
 	if BuildInputDigest(left) != BuildInputDigest(right) {
 		t.Fatalf("digest should ignore runtime-only paths and JSON formatting: left=%q right=%q", BuildInputDigest(left), BuildInputDigest(right))
 	}
-
 	right.IterationBudget++
 	if BuildInputDigest(left) == BuildInputDigest(right) {
 		t.Fatal("digest should change when semantic builder-input fields change")
+	}
+}
+
+func TestCreateRunCarriesInitialRoundState(t *testing.T) {
+	ctx := context.Background()
+	root := filepath.Join(t.TempDir(), "appfactory")
+	store, err := NewFileStore(root)
+	if err != nil {
+		t.Fatalf("NewFileStore() error = %v", err)
+	}
+	input := sampleBuildInput()
+	input.InitialRoundState = &RoundState{
+		CurrentPhase:      RoundPhaseFinalize,
+		NextAction:        ControlActionResume,
+		PreserveWorkspace: true,
+		ResumeAllowed:     true,
+		CurrentTaskID:     "task-create-form-controller",
+		TaskStatuses: map[string]BuilderRuntimeTaskStatus{
+			"task-create-record-model":   BuilderRuntimeTaskStatusValidated,
+			"task-create-summary-model":  BuilderRuntimeTaskStatusValidated,
+			"task-create-repository":     BuilderRuntimeTaskStatusValidated,
+			"task-create-home-controller": BuilderRuntimeTaskStatusValidated,
+		},
+	}
+	run, err := store.CreateRun(ctx, "builder-a", "worker-a", "lease-1", input)
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	if run.RoundState == nil {
+		t.Fatal("RoundState = nil, want restored initial round state")
+	}
+	if run.RoundState.NextAction != ControlActionResume || !run.RoundState.ResumeAllowed {
+		t.Fatalf("RoundState = %+v, want resumable state", run.RoundState)
+	}
+	if run.RoundState.CurrentTaskID != "task-create-form-controller" {
+		t.Fatalf("CurrentTaskID = %q, want task-create-form-controller", run.RoundState.CurrentTaskID)
+	}
+	if got := run.RoundState.TaskStatuses["task-create-home-controller"]; got != BuilderRuntimeTaskStatusValidated {
+		t.Fatalf("home-controller status = %q, want validated", got)
+	}
+	stored, err := store.GetRun(ctx, run.RunID)
+	if err != nil {
+		t.Fatalf("GetRun() error = %v", err)
+	}
+	if stored.RoundState == nil || stored.RoundState.CurrentTaskID != "task-create-form-controller" {
+		t.Fatalf("stored RoundState = %+v, want persisted resumable state", stored.RoundState)
+	}
+}
+
+func TestHeartbeatPreservesResumableRoundStateMetadata(t *testing.T) {
+	ctx := context.Background()
+	root := filepath.Join(t.TempDir(), "appfactory")
+	store, err := NewFileStore(root)
+	if err != nil {
+		t.Fatalf("NewFileStore() error = %v", err)
+	}
+	input := sampleBuildInput()
+	input.InitialRoundState = &RoundState{
+		CurrentPhase:      RoundPhaseFinalize,
+		NextAction:        ControlActionResume,
+		PreserveWorkspace: true,
+		ResumeAllowed:     true,
+		CurrentTaskID:     "task-create-form-controller",
+		TaskStatuses: map[string]BuilderRuntimeTaskStatus{
+			"task-create-record-model":    BuilderRuntimeTaskStatusValidated,
+			"task-create-summary-model":   BuilderRuntimeTaskStatusValidated,
+			"task-create-repository":      BuilderRuntimeTaskStatusValidated,
+			"task-create-home-controller": BuilderRuntimeTaskStatusValidated,
+		},
+	}
+	run, err := store.CreateRun(ctx, "builder-a", "worker-a", "lease-1", input)
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	updated, err := store.UpdateHeartbeat(ctx, run.RunID, Heartbeat{
+		Stage:         "thin-prepare",
+		Iteration:     1,
+		RoundID:       "round-1",
+		Attempt:       1,
+		CheckpointKey: "task-create-record-model",
+		RoundState: &RoundState{
+			CurrentPhase:      RoundPhaseEdit,
+			PhaseTrace:        []RoundPhase{RoundPhaseInspect, RoundPhaseEdit},
+			NextAction:        ControlActionNone,
+			PreserveWorkspace: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateHeartbeat() error = %v", err)
+	}
+	if updated.RoundState == nil {
+		t.Fatal("updated RoundState = nil, want merged state")
+	}
+	if updated.RoundState.CurrentTaskID != "task-create-form-controller" {
+		t.Fatalf("CurrentTaskID = %q, want task-create-form-controller", updated.RoundState.CurrentTaskID)
+	}
+	if got := updated.RoundState.TaskStatuses["task-create-home-controller"]; got != BuilderRuntimeTaskStatusValidated {
+		t.Fatalf("home-controller status = %q, want validated", got)
+	}
+	if updated.RoundState.CurrentPhase != RoundPhaseEdit {
+		t.Fatalf("CurrentPhase = %q, want edit", updated.RoundState.CurrentPhase)
+	}
+	if updated.RoundState.NextAction != ControlActionNone {
+		t.Fatalf("NextAction = %q, want none", updated.RoundState.NextAction)
+	}
+	if !updated.RoundState.PreserveWorkspace {
+		t.Fatal("PreserveWorkspace = false, want true")
+	}
+	stored, err := store.GetRun(ctx, run.RunID)
+	if err != nil {
+		t.Fatalf("GetRun() error = %v", err)
+	}
+	if stored.RoundState == nil || stored.RoundState.CurrentTaskID != "task-create-form-controller" {
+		t.Fatalf("stored RoundState = %+v, want preserved resumable metadata", stored.RoundState)
+	}
+}
+
+func TestCreateRejectsUnsupportedBuildInputSchemaVersion(t *testing.T) {
+	ctx := context.Background()
+	root := filepath.Join(t.TempDir(), "appfactory")
+	store, err := NewFileStore(root)
+	if err != nil {
+		t.Fatalf("NewFileStore() error = %v", err)
+	}
+	input := sampleBuildInput()
+	input.SchemaVersion = "9.9.9"
+
+	_, err = store.CreateRun(ctx, "builder-a", "worker-a", "lease-1", input)
+	if err == nil {
+		t.Fatal("CreateRun() error = nil, want unsupported schema version rejection")
+	}
+	if !strings.Contains(err.Error(), "schema_version") {
+		t.Fatalf("CreateRun() error = %v, want schema_version validation failure", err)
+	}
+}
+
+func TestCreateNormalizesBuildInputSchemaVersion(t *testing.T) {
+	ctx := context.Background()
+	root := filepath.Join(t.TempDir(), "appfactory")
+	store, err := NewFileStore(root)
+	if err != nil {
+		t.Fatalf("NewFileStore() error = %v", err)
+	}
+	input := sampleBuildInput()
+	input.SchemaVersion = "  " + CurrentBuildInputSchemaVersion + "  "
+
+	run, err := store.CreateRun(ctx, "builder-a", "worker-a", "lease-1", input)
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	var persisted BuildInput
+	if err := readJSON(filepath.Join(root, filepath.FromSlash(run.InputPath)), &persisted); err != nil {
+		t.Fatalf("readJSON(input) error = %v", err)
+	}
+	if persisted.SchemaVersion != CurrentBuildInputSchemaVersion {
+		t.Fatalf("persisted.SchemaVersion = %q, want %q", persisted.SchemaVersion, CurrentBuildInputSchemaVersion)
+	}
+	if len(persisted.TaskBundle) != 1 || persisted.TaskBundle[0].AllocationTransition == nil {
+		t.Fatalf("persisted allocation_transition = %+v, want derived transition mapping", persisted.TaskBundle)
+	}
+	if persisted.TaskBundle[0].AllocationTransition.AllocationID != "task-1" {
+		t.Fatalf("persisted allocation_id = %q, want task-1", persisted.TaskBundle[0].AllocationTransition.AllocationID)
+	}
+	if run.PreparedInputDigest == "" {
+		t.Fatal("PreparedInputDigest should not be empty")
+	}
+}
+
+func TestCreateRejectsMissingPlanningPolicy(t *testing.T) {
+	ctx := context.Background()
+	root := filepath.Join(t.TempDir(), "appfactory")
+	store, err := NewFileStore(root)
+	if err != nil {
+		t.Fatalf("NewFileStore() error = %v", err)
+	}
+	input := sampleBuildInput()
+	input.PlanningPolicy = PlanningPolicySnapshot{}
+
+	_, err = store.CreateRun(ctx, "builder-a", "worker-a", "lease-1", input)
+	if err == nil {
+		t.Fatal("CreateRun() error = nil, want missing planning policy rejection")
+	}
+	if !strings.Contains(err.Error(), "planning policy") {
+		t.Fatalf("CreateRun() error = %v, want planning policy validation failure", err)
 	}
 }
 
@@ -402,8 +595,17 @@ func TestFileStoreSeedsContextAndTemplateIntoWorkspace(t *testing.T) {
 		}
 	}
 	templateDir := filepath.Join(root, "template")
-	if err := os.MkdirAll(filepath.Join(templateDir, "lib"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(templateDir, "lib", "models"), 0o755); err != nil {
 		t.Fatalf("MkdirAll(template) error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(templateDir, "lib", "views"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(template views) error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(templateDir, "test"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(template test) error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(templateDir, "assets"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(template assets) error = %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(templateDir, "pubspec.yaml"), []byte("name: seeded_template\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(pubspec) error = %v", err)
@@ -411,8 +613,21 @@ func TestFileStoreSeedsContextAndTemplateIntoWorkspace(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(templateDir, "lib", "main.dart"), []byte("void main() {}\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(main.dart) error = %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "models", "record.dart"), []byte("class AppRecord {}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(record.dart) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "lib", "views", "home_page.dart"), []byte("class HomePage {}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(home_page.dart) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "test", "widget_test.dart"), []byte("void main() {}\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(widget_test.dart) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "assets", "placeholder.txt"), []byte("asset\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(asset) error = %v", err)
+	}
 
 	input := sampleBuildInput()
+	input.TemplateID = "flutter-open-lite"
 	input.ContextSourceDir = contextDir
 	input.TemplateSourceDir = templateDir
 	run, err := service.Create(ctx, "builder-a", "builder-a", "lease-1", input)
@@ -431,10 +646,30 @@ func TestFileStoreSeedsContextAndTemplateIntoWorkspace(t *testing.T) {
 	for _, path := range []string{
 		filepath.Join(filepath.FromSlash(run.WorkspacePath), "pubspec.yaml"),
 		filepath.Join(filepath.FromSlash(run.WorkspacePath), "lib", "main.dart"),
+		filepath.Join(filepath.FromSlash(run.WorkspacePath), "assets", "placeholder.txt"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected workspace file %s to exist: %v", path, err)
 		}
+	}
+	for _, path := range []string{
+		filepath.Join(filepath.FromSlash(run.WorkspacePath), "lib", "models", "record.dart"),
+		filepath.Join(filepath.FromSlash(run.WorkspacePath), "lib", "views", "home_page.dart"),
+		filepath.Join(filepath.FromSlash(run.WorkspacePath), "test", "widget_test.dart"),
+	} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("expected business file %s to be skipped, stat err = %v", path, err)
+		}
+	}
+	mainContent, err := os.ReadFile(filepath.Join(filepath.FromSlash(run.WorkspacePath), "lib", "main.dart"))
+	if err != nil {
+		t.Fatalf("ReadFile(seed main) error = %v", err)
+	}
+	if strings.Contains(string(mainContent), "void main() {}") {
+		t.Fatalf("seed main.dart should be replaced with shell content, got %s", string(mainContent))
+	}
+	if got := run.TemplateReferenceFiles["lib/models/record.dart"]; filepath.ToSlash(got) != filepath.ToSlash(filepath.Join(templateDir, "lib", "models", "record.dart")) {
+		t.Fatalf("TemplateReferenceFiles[lib/models/record.dart] = %q", got)
 	}
 }
 
@@ -589,17 +824,27 @@ func sampleBuildInput() BuildInput {
 		"supporting_files":         []string{"requirement.md"},
 	})
 	return BuildInput{
-		SchemaVersion: "0.1.0",
+		SchemaVersion: CurrentBuildInputSchemaVersion,
 		JobID:         "job-1",
 		PRDID:         "prd-1",
 		TemplateID:    "template-1",
+		PlanningPolicy: PlanningPolicySnapshot{
+			PolicyVersion: "phase1-boundary-v1",
+			Stages: []PlanningStagePolicy{
+				{Stage: PlanningStageRequirementStructuring, Route: PlanningStageRoutePlanningModel},
+				{Stage: PlanningStageDomainModeling, Route: PlanningStageRoutePlanningModel},
+				{Stage: PlanningStageTaskAllocation, Route: PlanningStageRouteDecisionModel},
+				{Stage: PlanningStageAcceptancePlanning, Route: PlanningStageRouteDecisionModel},
+				{Stage: PlanningStageBuildInputProjection, Route: PlanningStageRouteDeterministic},
+			},
+		},
 		WorkspacePath: "/workspace/job-1",
 		ArtifactDir:   "/artifacts/job-1",
 		GoalSummary:   "build android app",
 		TaskBundle: []TaskBundleItem{{
 			TaskID:             "task-1",
 			Title:              "Implement UI",
-			Category:           "ui",
+			Category:           TaskCategoryScreen,
 			Objective:          "Create home screen",
 			TargetPaths:        []string{"lib/main.dart"},
 			CompletionCriteria: []string{"screen renders"},

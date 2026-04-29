@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.1.0",
+  "approval_id": "approval-template-flutter-open-lite",
+  "approval_type": "template",
+  "job_id": "job-weight-tracker-detail-without-delete-sample-001",
+  "prd_id": "prd-weight-tracker-detail-without-delete-sample-001",
+  "subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:98b892c5043151b1@sha256:e3e1f34b81eacaac",
+  "status": "approved",
+  "requested_by": {
+    "actor_type": "system",
+    "actor_id": "appfactory-prepare"
+  },
+  "decision": {
+    "decision": "approved",
+    "decided_by": {
+      "actor_type": "system",
+      "actor_id": "appfactory-prepare"
+    },
+    "decided_at": "2026-04-11T09:15:00Z",
+    "comment": "系统为当前最小编排链路生成已批准模板快照，用于 builder-input 接线。"
+  },
+  "summary": "当前模板选择已冻结到本次执行快照。",
+  "evidence_paths": [
+    "template-fit-report.md",
+    "PRD.json"
+  ],
+  "created_at": "2026-04-11T09:15:00Z"
+}

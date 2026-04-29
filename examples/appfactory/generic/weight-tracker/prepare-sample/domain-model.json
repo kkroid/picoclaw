@@ -1,0 +1,161 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-weight-tracker-sample-001",
+  "prd_id": "prd-weight-tracker-sample-001",
+  "template_id": "flutter-open-lite",
+  "domain_name": "体重记录 App",
+  "entities": [
+    {
+      "entity_id": "entity-weight-record",
+      "name": "体重记录",
+      "fields": [
+        {
+          "name": "record_id",
+          "type": "string",
+          "required": true,
+          "description": "记录唯一标识"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "required": true,
+          "description": "体重数值"
+        },
+        {
+          "name": "recorded_at",
+          "type": "date",
+          "required": true,
+          "description": "记录日期"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "description": "补充备注"
+        }
+      ],
+      "source": "local_storage"
+    },
+    {
+      "entity_id": "entity-weight-summary",
+      "name": "体重概览摘要",
+      "fields": [
+        {
+          "name": "latest_weight",
+          "type": "number",
+          "required": true,
+          "description": "最近一次记录的体重"
+        },
+        {
+          "name": "record_count",
+          "type": "int",
+          "required": true,
+          "description": "累计记录数量"
+        },
+        {
+          "name": "trend",
+          "type": "string",
+          "required": true,
+          "description": "最近趋势摘要"
+        }
+      ],
+      "source": "derived"
+    }
+  ],
+  "summary_metrics": [
+    "体重概览摘要"
+  ],
+  "domain_copy": {
+    "title": "体重记录 App",
+    "summary": "把体重记录需求整理成基于通用中性交互承载 Flutter 模板的 Android MVP 规格，并保留体重、日期、备注和趋势等核心语义。",
+    "problem_statement": "generic compile 在映射到 open-lite 骨架前，不能丢失体重、日期、备注和趋势等核心领域语义，否则最终生成物会退化成只有通用 record 壳子的伪成功样本。"
+  },
+  "critical_flows": [
+    "新增体重记录",
+    "编辑体重记录",
+    "删除体重记录",
+    "查看体重详情"
+  ],
+  "semantic_acceptance_rules": [
+    {
+      "rule_id": "ac-overview",
+      "label": "体重摘要完整",
+      "description": "概览承载单元必须展示最新体重、记录数量和最近趋势摘要。",
+      "field_refs": [
+        "latest_weight",
+        "record_count",
+        "trend"
+      ],
+      "evidence_pattern": "体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend"
+    },
+    {
+      "rule_id": "ac-list",
+      "label": "历史记录集合承载单元可浏览",
+      "description": "历史集合承载单元必须按日期展示体重记录，并允许进入结果检查入口。",
+      "field_refs": [
+        "record_id",
+        "weight",
+        "recorded_at",
+        "note"
+      ],
+      "evidence_pattern": "体重记录 App|record_id|recordId|weight|recorded_at|recordedAt|note"
+    },
+    {
+      "rule_id": "ac-form",
+      "label": "体重记录变更承载单元链路完整",
+      "description": "用户可以通过实体变更承载单元录入或编辑体重、日期和备注，并立即看到结果。",
+      "field_refs": [
+        "record_id",
+        "weight",
+        "recorded_at",
+        "note"
+      ],
+      "evidence_pattern": "体重记录 App|record_id|recordId|weight|recorded_at|recordedAt|note"
+    },
+    {
+      "rule_id": "ac-detail",
+      "label": "结果检查入口可达",
+      "description": "从概览或集合浏览入口至少存在一条进入结果检查入口的路径。",
+      "field_refs": [
+        "latest_weight",
+        "record_count",
+        "trend"
+      ],
+      "evidence_pattern": "体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend"
+    },
+    {
+      "rule_id": "ac-delete",
+      "label": "删除链路完整",
+      "description": "删除体重记录后，概览摘要和历史集合内容必须同步刷新。",
+      "field_refs": [
+        "latest_weight",
+        "record_count",
+        "trend"
+      ],
+      "evidence_pattern": "体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend"
+    },
+    {
+      "rule_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "description": "应用重启后仍能读取本地记录数据。",
+      "field_refs": [
+        "record_id",
+        "weight",
+        "recorded_at",
+        "note"
+      ],
+      "evidence_pattern": "体重记录 App|record_id|recordId|weight|recorded_at|recordedAt|note"
+    },
+    {
+      "rule_id": "ac-navigation",
+      "label": "核心承载单元可导航",
+      "description": "概览、历史集合、实体变更和结果检查入口之间路径明确且可达。",
+      "field_refs": [
+        "latest_weight",
+        "record_count",
+        "trend"
+      ],
+      "evidence_pattern": "体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend"
+    }
+  ]
+}

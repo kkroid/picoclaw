@@ -4,7 +4,9 @@
 >
 > 本文档是主设计文档的接口层补充，目标是把控制平面、审批流、Builder Adapter、Worker 之间的交互收敛为可实现的接口协议。
 
-运行时状态、审批、Worker、存储和事件规则统一以主设计文档 [demand-to-android-app-platform.zh.md](demand-to-android-app-platform.zh.md) 为准。本文件只保留接口契约，不再重复运行时语义细节。
+运行时状态、审批、Worker、存储和事件规则统一以主设计文档 [demand-to-android-app-platform.zh.md](demand-to-android-app-platform.zh.md) 为准。需求拆解、任务分配和 `builder-input` 生成的对象模型统一以 [appfactory-architecture-evolution.zh.md](appfactory-architecture-evolution.zh.md) 为准。本文件只保留接口契约，不再重复运行时语义细节。
+
+当前 active execution contract 已收口为 binding / surface-first 语义：`binding_id`、`surface_ref`、`surface_refs`、`target_paths` 是运行时唯一有效主语义。历史 `screen_list`、`screen_ref`、`screen_refs`、`legacy_screen_ref` 只允许在离线归一化或历史产物迁移里被一次性吸收，不再作为新的 public / internal request 与 prepare artifact 的合法字段。
 
 ## 1. 文档目标
 
@@ -131,9 +133,18 @@ jobs 运维页与 header 的 watcher 状态展示必须共用同一套 `watch_ru
 }
 ```
 
+对于 `/jobs` 页面触发的 compile 请求，当前额外约定如下：
+
+- 当 `requirement_source=jobs-ui` 且 `real_checks=true` 时，如果 compile 结果已经具备结构化页面、结构化实体和真实 Flutter structural checks，则允许 generic domain 直接进入 `flutter-open-lite` 主链。
+- 不再要求 generic requirement 必须包含 bookkeeping / finance 关键词；待办、体重记录、习惯打卡这类单任务工具类需求都应能进入同一 generic 模板链路。
+- `weight-tracker` 只作为 generic fixture，不再作为 public compile / start / resume 契约的公共语义来源；bookkeeping 与 relation-rich completed 样本只做 guardrail，不再覆盖 generic 主结论。
+- 新的 public / internal prepare artifact 与 runtime contract 不得再以单个样本文件名、实体名或样本拓扑推导公共规则。
+- 如果 compile 结果未来再次退化成只包含 prepare-level smoke probes 的占位包，则才应拒绝 `real_checks=true` 的 public 入口。
+
 接口约束：
 
 - `POST /api/v1/prds:compile` 负责生成 `prepare/` 目录下的 `PRD.md`、`PRD.json`、审批快照、`template-fit-report.md`、`builder-input.json`，不创建 run，也不占用 Builder。
+- `POST /api/v1/prds:compile` 生成的 active prepare / execution artifacts 必须使用 binding / surface-first 语义；新产物不得继续输出 `screen_list`、`screen_ref`、`screen_refs`、`legacy_screen_ref` 作为执行主语义。
 - `GET /api/v1/prds/{prd_id}` 返回冻结后的 `PRD.json` 内容，并可通过 `?version=` 约束版本。
 - `POST /api/v1/prds/{prd_id}:submit-approval` 负责创建 PRD approval record，并镜像回对应的 `prepare/prd-approval.json`。
 - `POST /api/v1/jobs/{job_id}:compile-prepare` 负责基于当前 Job 的 `prepare/requirement.md`、`PRD.json` 与模板选择重新编译 `prepare/` 目录；这是 `status_context.suggested_action=compile_prepare_bundle` 的正式 public action，不要求 UI 重新上传 `requirement_text`。
@@ -170,6 +181,8 @@ jobs 运维页与 header 的 watcher 状态展示必须共用同一套 `watch_ru
   ]
 }
 ```
+
+对于 generic domain，`template_id` 当前允许显式传 `flutter-open-lite`，也允许省略后由 compile + registry 自动解析到 `flutter-open-lite`。
 
 ### 4.3 Job 与执行控制
 

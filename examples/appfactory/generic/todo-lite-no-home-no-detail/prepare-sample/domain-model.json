@@ -1,0 +1,101 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-todo-lite-no-home-no-detail-sample-001",
+  "prd_id": "prd-todo-lite-no-home-no-detail-sample-001",
+  "template_id": "flutter-open-lite",
+  "domain_name": "待办事项 App（无首页无详情）",
+  "entities": [
+    {
+      "entity_id": "entity-todo-item",
+      "name": "待办事项",
+      "fields": [
+        {
+          "name": "task_id",
+          "type": "string",
+          "required": true,
+          "description": "待办唯一标识"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": "待办标题"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "required": true,
+          "description": "待办分类"
+        },
+        {
+          "name": "status",
+          "type": "enum[inbox,inProgress,done]",
+          "required": true,
+          "description": "待办状态"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "description": "补充备注"
+        }
+      ],
+      "source": "local_storage"
+    }
+  ],
+  "domain_copy": {
+    "title": "待办事项 App（无首页无详情）",
+    "summary": "把待办事项需求整理成基于通用中性交互承载 Flutter 模板的 Android MVP 规格，并保留待办状态分布与任务字段语义。",
+    "problem_statement": "generic compile 在映射到 open-lite 骨架前，不能把待办的状态分布、标题、分类和备注等语义压平成无差别 record。"
+  },
+  "critical_flows": [
+    "创建待办"
+  ],
+  "semantic_acceptance_rules": [
+    {
+      "rule_id": "ac-list",
+      "label": "待办集合浏览承载单元可浏览",
+      "description": "集合浏览承载单元必须展示完整待办、支持按状态筛选，并允许进入结果检查入口。",
+      "field_refs": [
+        "task_id",
+        "title",
+        "category",
+        "status",
+        "note"
+      ],
+      "evidence_pattern": "待办事项 App（无首页无详情）|task_id|taskId|title|category|status|note"
+    },
+    {
+      "rule_id": "ac-form",
+      "label": "待办变更承载单元链路完整",
+      "description": "用户可以通过实体变更承载单元创建或编辑一条待办并立即看到结果。",
+      "field_refs": [
+        "task_id",
+        "title",
+        "category",
+        "status",
+        "note"
+      ],
+      "evidence_pattern": "待办事项 App（无首页无详情）|task_id|taskId|title|category|status|note"
+    },
+    {
+      "rule_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "description": "应用重启后仍能读取本地记录数据。",
+      "field_refs": [
+        "task_id",
+        "title",
+        "category",
+        "status",
+        "note"
+      ],
+      "evidence_pattern": "待办事项 App（无首页无详情）|task_id|taskId|title|category|status|note"
+    },
+    {
+      "rule_id": "ac-navigation",
+      "label": "核心承载单元可导航",
+      "description": "当前需求声明的集合浏览和实体变更承载单元之间路径明确且可达。",
+      "evidence_pattern": "待办事项 App（无首页无详情）"
+    }
+  ]
+}

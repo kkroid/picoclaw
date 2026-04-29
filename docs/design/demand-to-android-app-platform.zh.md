@@ -13,14 +13,15 @@
 
 ### 1.1 开发阅读顺序
 
-为了避免后续开发在多份设计稿之间来回跳转，V1 文档集收敛为三层主文档加一层 Schema：
+为了避免后续开发在多份设计稿之间来回跳转，V1 文档集收敛为主设计、核心子模块设计、接口文档与 Schema：
 
 - 本文档：看产品边界、模块职责、实施任务和总体路线。
+- [appfactory-architecture-evolution.zh.md](appfactory-architecture-evolution.zh.md)：看规划层对象模型、分解流水线、模型分层策略和演进路线（M0-M5）。
+- [appfactory-architecture-evolution-todo.zh.md](appfactory-architecture-evolution-todo.zh.md)：看细化实施任务与执行清单。
 - [demand-to-android-app-platform-interfaces.zh.md](demand-to-android-app-platform-interfaces.zh.md)：看公共 API、内部接口、错误模型和 Schema 映射。
-- [demand-to-android-app-platform-todo.zh.md](demand-to-android-app-platform-todo.zh.md)：看后续待办清单与推进顺序。
 - `docs/design/schemas/`：看机器可校验的结构化契约。
 
-建议阅读顺序：主设计 -> 接口设计 -> TODO 清单 -> Schema。
+建议阅读顺序：主设计 -> 架构演进方案 -> 演进实施清单 -> 接口设计 -> Schema。
 
 ## 2. 产品定位
 
@@ -122,6 +123,7 @@ PicoClaw 在本方案中的定位是：
 
 - 长期策略：模板应拆成多份，每份模板覆盖一类相对稳定的功能包络，而不是试图用一个超级模板承接所有需求。
 - 第一阶段策略：只启用一个最小化 MVP 模板，先验证 `PRD -> task bundle -> builder-runtime -> analyze/test/build` 这条主链是否稳定。
+- generic strict gate 当前允许用 `weight-tracker` 这类样本证明公共主链可跑，但它只是一条 fixture，不再反向定义公共 binding、surface 或 repair 语义；bookkeeping 与 relation-rich completed 样本也只做防回退护栏。
 
 这里说的“多份模板”，指的是未来按能力边界拆分，例如：
 
@@ -141,6 +143,7 @@ PicoClaw 在本方案中的定位是：
 - 模板类型：最小化 MVP 模板
 - 架构口径：MVP 友好的固定分层模板
 - 模板产品限制：无自建服务器前提、无广告、功能专精、可选能力默认删除
+- 模板语义约束：允许复用固定骨架，但不允许以牺牲领域字段、领域文案和领域摘要为代价换取模板统一
 
 #### 5.1.3 暂不选择其他技术栈的原因
 
@@ -214,6 +217,8 @@ thin executor 内核 **不负责**以下事项：
 
 - `lib/picoclaw_executor_probe.dart` 这类 probe 产物只用于默认 thin executor fallback 证明链，证明受控工作区、allowed paths 和最小 inspect/edit/validate 闭环仍可执行。
 - 真实 builder-runtime 成功路径不应再以 probe 文件作为完成信号，而应以 `WorkspacePatch`、Flutter validate 结果、构建产物和交付报告为主证据。
+- `planning-engine` / `prepare` 输出的执行主语义已经切到 binding / surface-first：`binding_id`、`surface_ref`、`surface_refs`、`target_paths` 是运行时唯一有效契约；历史 `screen_list`、`screen_ref`、`screen_refs`、`legacy_screen_ref` 只允许在一次性归一化或历史产物迁移里被吸收，不再继续向 runtime 下游投影。
+- builder-runtime 的成功路径职责也应收口：已知 UI 表面知识应继续下沉到 deterministic emitter、stack profile 与后续 policy registry；`builder_runtime_open_lite_private.go` 一类 runtime private normalize / canonicalize 逻辑只允许作为 fallback repair 存在，不应继续扩张成 generic 主路径知识库。
 
 #### 5.2.4 技术栈 profile 的职责边界
 
@@ -260,24 +265,30 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 
 当前结论如下：
 
-- builder-runtime 首轮验证以后端可替换为前提，不把 `Ollama`、`vLLM`、`LiteLLM` 或任一云 Provider 写死成架构前提。
-- 近阶段先以 `Ollama + qwen2.5-coder:14b` 作为本地验证后端，优先证明高频窄任务是否能稳定完成；`qwen2.5-coder:32b` 作为复杂修复升级层参与后续 A/B 对比。
-- 中长期建议把 builder-runtime 接到统一模型路由层，允许本地模型承担单文件实现、双文件接线、低风险 analyze/test 修复，让高质量云模型只处理规划、复杂 repair 和多文件高风险修改。
-- 模型路由必须按任务形态和失败状态决定，不能只按“当前默认模型”一把梭。至少应区分：规划类任务、窄编码任务、低风险收口任务、高风险升级任务。
+- 后端保持可替换，不把 `Ollama`、`vLLM`、`LiteLLM` 或任一云 Provider 写死成架构前提。
+- planning-engine 合并完成后，默认采用“规划层强模型、执行层本地模型、失败升级层兜底”的分层用模策略。
+- requirement 理解、领域建模、任务拆解、验收计划、复杂重规划这类高不确定性任务，默认优先使用当前最强模型，例如 `GPT-5.4`。
+- 单文件修改、双文件接线、低风险 analyze/test repair、受限 closure repair 这类高频小任务，默认优先使用本地模型。
+- 纯投影、schema 归一化、文档渲染、输入包打包这类 deterministic 环节，默认不再调用自由生成模型，避免重新引入随机性。
+- 模型升级必须按失败信号触发，而不是按模块名称触发。至少要覆盖 parse fail、schema drift、无关改动率、多文件风险和语义冲突这类升级信号。
 - 任何本地模型验证都不改变现有平台主边界：PicoClaw 继续负责控制平面；skill 继续负责模板约束、任务编译和收口知识；builder-runtime 只在 `builder-input.json`、`task_bundle`、`WorkspacePatch` 和 acceptance checks 的受控边界内执行。
 
 因此，当前推荐路线是：
 
-- 先用 `Ollama` 快速验证本地模型是否足够承担 builder-runtime 的高频窄任务。
-- 评估稳定后，再决定是否保留 `Ollama` 作为本地开发后端，或升级到更适合统一服务化和并发执行的 `vLLM` / `LiteLLM` 路线。
-- 无论底层后端如何变化，builder-runtime 暴露给平台的都应是统一的任务路由、重试、升级和失败上报语义，而不是 Provider 特定逻辑。
+- 先把规划层与执行层的模型职责写死，再接路由配置和失败升级阈值。
+- 先让本地模型承担真正适合它的高频受限任务，再逐步扩可覆盖的 task type 边界，而不是一开始就让本地模型接管规划。
+- 无论底层后端如何变化，平台暴露给上层的都应是统一的任务路由、重试、升级和失败上报语义，而不是 Provider 特定逻辑。
 
 为避免这套策略继续停留在文档层，配置层先收敛为一套最小骨架：
 
+- `appfactory.planning_engine.planning_model`：需求理解、领域建模与任务拆解使用的强模型。
+- `appfactory.planning_engine.decision_model`：复杂裁决、冲突消解、重规划时使用的强模型；可以与 `planning_model` 相同。
 - `appfactory.builder_runtime.default_model`：默认高频窄任务模型，可直接复用 `model_list` 中的别名，并支持 fallback。
 - `appfactory.builder_runtime.upgrade_model`：复杂修复或失败升级时使用的更强模型，同样复用 `model_list`。
 - `appfactory.builder_runtime.task_routes[]`：按 `task_type` 指定任务级模型路由，近阶段至少覆盖 `single_file_edit`、`dual_file_wiring`、`analyze_repair`、`test_repair`、`closure_repair`。
-- `appfactory.builder_runtime.upgrade_threshold`：先显式配置升级阈值，至少包括 repair 次数上限、多文件风险阈值，以及 validation fail、patch parse fail、scope violation 这类强制升级信号。
+- `appfactory.builder_runtime.upgrade_threshold`：先显式配置升级阈值，至少包括 repair 次数上限、多文件风险阈值，以及 parse fail、schema drift、无关改动率、validation fail、scope violation 这类强制升级信号。
+
+当前默认落地建议是：高频写代码任务默认走 `gemma4-26b-local`（映射到本地 `openai/gemma4:26b`），复杂 repair 继续保留独立 upgrade 层，不把所有任务都压到同一个模型上。
 
 ### 5.3 默认交付物
 
@@ -370,11 +381,11 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 | `prd-engine` | 控制平面 | 生成 `PRD.md`、`PRD.json` 并做 schema 校验 | 归一化需求集合 | 结构化 PRD | PicoClaw Agent + skill + schema 校验器 |
 | `approval-gate` | 控制平面 | 管理人工审批、退回、版本切换、门禁状态 | PRD、模板建议、构建结果 | 审批记录与状态切换 | PicoClaw 内部状态模块 |
 | `template-registry` | 资产与治理平面 | 管理模板元数据、固定版本、许可、健康状态、能力标签 | 模板仓库信息、构建证明 | 候选模板集合、模板适配输入 | 独立仓库或独立服务 |
-| `planning-engine` | 控制平面 | 把 PRD 和模板差距报告转成实施计划与任务包 | 已批准 PRD、模板适配报告 | `implementation-plan.md`、`builder-input.json` | PicoClaw Agent + skill + 打包逻辑 |
+| `planning-engine` | 控制平面 | 把 PRD 和模板差距报告转成 surface-first 的实施计划、任务包与执行契约 | 已批准 PRD、模板适配报告 | `implementation-plan.md`、`task-allocation.json`、`acceptance-plan.json`、`builder-input.json` | PicoClaw Agent + skill + 打包逻辑 |
 | `job-orchestrator` | 控制平面 | 维护任务状态机、预算、重试、人工接管与恢复点 | 任务定义、审批结果、执行反馈 | Job 状态、调度动作 | PicoClaw 内部模块，不能只靠 skill |
 | `builder-adapter` | 控制平面与执行边界 | 调用 Builder、传递输入包、消费输出包、标准化返回结果 | Builder 输入包 | Builder 输出包、运行状态 | PicoClaw 内部模块，不能只靠 skill |
 | `worker-manager` | 执行平面 | 创建/销毁 worker、挂载工作区与缓存、应用网络与命令策略 | Job 配置、镜像配置 | 可执行 worker 实例 | 独立运行时模块 |
-| `builder-runtime` | 执行平面 | 在模板工程里按 task bundle 执行结构化编辑、命令链和收口 | Builder 输入包、源码工作区、stack profile | 代码改动、构建结果、失败摘要 | 技术栈无关 thin executor 内核 + stack profile |
+| `builder-runtime` | 执行平面 | 在模板工程里按 binding / surface-first task bundle 执行 deterministic emit、结构化编辑、命令链和 fallback repair 收口 | Builder 输入包、源码工作区、stack profile | 代码改动、构建结果、失败摘要 | 技术栈无关 thin executor 内核 + stack profile |
 | `android-validation` | 执行平面 | 执行 analyze、test、build、install、launch、smoke、截图、日志采集 | 工作区、APK、命令策略 | `build-report.md`、`smoke-test-report.md`、验证产物 | Worker 内系统模块 + 脚本 |
 | `review-handoff` | 控制平面 | 汇总变更、风险、阻塞项、人工测试清单和交接清单 | Builder 输出包、验证产物 | 审核包、交接包 | PicoClaw Agent + skill |
 | `governance-audit` | 资产与治理平面 | 许可证扫描、权限变化记录、敏感信息脱敏、审计链路、重放清单 | 模板信息、依赖信息、构建产物 | 合规报告、审计记录 | 系统模块 + 规则引擎 |
@@ -443,7 +454,7 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 当前更推荐的起步拆法是三段式：
 
 - `flutter-open-lite-template`：固定目录结构、依赖白名单、命名规则、依赖方向和可接受的页面组织方式。
-- `prd-to-task-bundle`：把已批准 PRD 编译成实体、页面、用户流程和 acceptance checks 对应的任务包。
+- `prd-to-task-bundle`：把已批准 PRD 编译成实体、页面、用户流程和 acceptance checks 对应的任务包，同时把领域字段、领域文案和摘要语义连续带进 builder-input。
 - `flutter-build-closure`：在工作区接近完成时执行 analyze、test、build，并只做低风险、可回放的收口修复。
 
 这样做的原因有三点：
@@ -456,6 +467,7 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 
 - 系统层负责状态机、输入输出契约、工作区和验证执行。
 - skill 层负责模板约束、PRD 到任务包的认知编译、以及验证前后的低自由度修复策略。
+- generic compile 的统一目标是“固定骨架 + 领域覆盖”，而不是“固定骨架 + 默认 record 文案原样交付”。
 - Builder 只在固定模板与固定任务包边界内执行代码生成和修改。
 
 ## 8. 端到端流程
@@ -743,8 +755,9 @@ flowchart LR
 	- 里程碑构建：`flutter build apk --debug`
 	- 安装与启动验证：`adb wait-for-device`、`adb install -r ...`、`adb shell monkey -p <applicationId> -c android.intent.category.LAUNCHER 1`、`adb logcat -d`
 - Builder 停止条件固定为四类：成功停止、立即失败、预算停止、人工升级。
+- `/jobs` 自动化 readiness 必须覆盖 public `compile -> create -> registerBuilder -> start` 全链，并显式区分 probe-only fallback 与真实手测等价结果；任何 `completed` 样本都不能直接替代 manual parity 判定。
 - 任何大模型请求失败都必须先自动重试；长时间无法连接大模型时，必须通知人工干预，不能让工作流静默卡死。
-- 详细接口见接口文档，详细待办见 TODO 文档，主文档只保留里程碑、边界和出口标准。
+- 详细接口见接口文档，具体收尾项与验证记录见 planning-engine TODO 与对应专题执行文档，主文档只保留里程碑、边界和出口标准。
 
 ## 12. 人工必须介入的事项
 
@@ -756,7 +769,7 @@ flowchart LR
 - 提供品牌资产、产品名称、文案口径、接口说明。
 - 审核高风险功能的实现方向。
 - 准备可用模拟器或真机，并完成 `adb install -r`、启动、`logcat` 和截图确认。
-- 做至少一轮人工体验验证。
+- 做至少一轮人工体验验证；自动化 completed 样本只能作为前置筛选，不能替代该步骤。
 - 对最终产物做可用性验收。
 
 ### 12.2 当前范围外，但必须在交接包中体现的人工事项

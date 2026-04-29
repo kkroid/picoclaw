@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://picoclaw.local/docs/design/schemas/planning-context.schema.json",
+  "title": "PicoClaw Planning Context",
+  "description": "planning-engine 输入上下文快照，用于冻结规划前提与重放依据。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "job_id",
+    "prd_id",
+    "template_id",
+    "prd_subject_version",
+    "template_subject_version",
+    "planning_policy"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prd_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "template_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prd_subject_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "template_subject_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "planning_policy_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "planning_model_snapshot": {
+      "$ref": "#/$defs/planningModelSnapshot"
+    },
+    "execution_route_snapshot": {
+      "$ref": "#/$defs/executionRouteSnapshot"
+    },
+    "planning_policy": {
+      "$ref": "./builder-input.schema.json#/$defs/planningPolicy"
+    },
+    "human_notes": {
+      "type": "array",
+      "items": {
+        "$ref": "./builder-input.schema.json#/$defs/manualNote"
+      }
+    },
+    "manual_constraints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "requirement_highlights": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "supporting_assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "planningModelSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requirement_structuring": {
+          "$ref": "./builder-input.schema.json#/$defs/planningStageRoute"
+        },
+        "domain_modeling": {
+          "$ref": "./builder-input.schema.json#/$defs/planningStageRoute"
+        },
+        "task_allocation": {
+          "$ref": "./builder-input.schema.json#/$defs/planningStageRoute"
+        },
+        "acceptance_planning": {
+          "$ref": "./builder-input.schema.json#/$defs/planningStageRoute"
+        },
+        "build_input_projection": {
+          "$ref": "./builder-input.schema.json#/$defs/planningStageRoute"
+        }
+      }
+    },
+    "executionTaskRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allocation_id"
+      ],
+      "properties": {
+        "allocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "$ref": "./builder-input.schema.json#/$defs/taskCategory"
+        },
+        "task_type": {
+          "$ref": "./builder-input.schema.json#/$defs/taskType"
+        },
+        "route_hint": {
+          "$ref": "./builder-input.schema.json#/$defs/taskRouteHint"
+        },
+        "risk_level": {
+          "$ref": "./builder-input.schema.json#/$defs/taskRiskLevel"
+        },
+        "target_paths": {
+          "$ref": "./builder-input.schema.json#/$defs/pathList"
+        }
+      }
+    },
+    "executionUpgradePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "max_attempts_before_upgrade": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_files_before_upgrade": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_schema_drift_before_upgrade": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_unrelated_operation_rate": {
+          "type": "number",
+          "minimum": 0
+        },
+        "upgrade_on_validation_fail": {
+          "type": "boolean"
+        },
+        "upgrade_on_patch_parse_fail": {
+          "type": "boolean"
+        },
+        "upgrade_on_scope_violation": {
+          "type": "boolean"
+        },
+        "upgrade_on_semantic_conflict": {
+          "type": "boolean"
+        },
+        "supported_retry_upgrade_signals": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "startUpgradeCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "current_attempt": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "concrete_target_file_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "would_upgrade_from_start": {
+          "type": "boolean"
+        },
+        "triggered_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "executionRouteSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default_route_hint": {
+          "$ref": "./builder-input.schema.json#/$defs/taskRouteHint"
+        },
+        "route_hint_counts": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "deterministic",
+              "default_model",
+              "upgrade_model",
+              "strong_model"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "task_routes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/executionTaskRoute"
+          }
+        },
+        "upgrade_policy": {
+          "$ref": "#/$defs/executionUpgradePolicy"
+        },
+        "start_upgrade_check": {
+          "$ref": "#/$defs/startUpgradeCheck"
+        },
+        "allowed_paths": {
+          "$ref": "./builder-input.schema.json#/$defs/pathList"
+        },
+        "protected_paths": {
+          "$ref": "./builder-input.schema.json#/$defs/pathList"
+        },
+        "command_profile_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

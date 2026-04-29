@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
 	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
 )
 
@@ -46,6 +48,7 @@ type RoundPlan struct {
 	Summary          string
 	RoundInput       appruns.RoundInput
 	EditStep         ExecutionStep
+	EditSteps        []ExecutionStep
 	ValidationSteps  []ExecutionStep
 	TaskBundle       []TaskExecutionPreview
 	AcceptanceChecks []CheckExecutionPreview
@@ -72,8 +75,10 @@ const (
 )
 
 func (plan RoundPlan) Steps() []ExecutionStep {
-	steps := make([]ExecutionStep, 0, 1+len(plan.ValidationSteps))
-	if plan.EditStep.StepID != "" || plan.EditStep.Command != nil {
+	steps := make([]ExecutionStep, 0, len(plan.EditSteps)+1+len(plan.ValidationSteps))
+	if len(plan.EditSteps) > 0 {
+		steps = append(steps, plan.EditSteps...)
+	} else if plan.EditStep.StepID != "" || plan.EditStep.Command != nil {
 		steps = append(steps, plan.EditStep)
 	}
 	steps = append(steps, plan.ValidationSteps...)
@@ -99,6 +104,7 @@ func (StagedThinExecutor) Prepare(ctx context.Context, run runRecord) (RoundPlan
 		Summary: editSummary,
 		Command: prepareCmd,
 	}
+	editSteps := builderRuntimeEditSteps(run, editStep)
 	for _, check := range plannedRun.AcceptanceChecks {
 		preview := CheckExecutionPreview{
 			CheckID:      check.CheckID,
@@ -132,10 +138,46 @@ func (StagedThinExecutor) Prepare(ctx context.Context, run runRecord) (RoundPlan
 		Summary:          buildExecutionSummary(plannedRun),
 		RoundInput:       buildRoundInput(plannedRun),
 		EditStep:         editStep,
+		EditSteps:        editSteps,
 		ValidationSteps:  validationSteps,
 		TaskBundle:       previewTasks(plannedRun.TaskBundle),
 		AcceptanceChecks: previewChecks(plannedRun.AcceptanceChecks),
 	}, nil
+}
+
+func builderRuntimeEditSteps(run runRecord, fallback ExecutionStep) []ExecutionStep {
+	if run.BuilderRuntime == nil || !run.BuilderRuntime.Enabled {
+		return nil
+	}
+	tasks := append([]appruns.TaskBundleItem(nil), run.TaskBundle...)
+	if len(tasks) == 0 {
+		return nil
+	}
+	steps := make([]ExecutionStep, 0, len(tasks))
+	for _, task := range tasks {
+		normalized := appruns.NormalizeTaskBundleItem(task)
+		taskID := strings.TrimSpace(normalized.TaskID)
+		if taskID == "" {
+			continue
+		}
+		summary := strings.TrimSpace(normalized.Title)
+		if summary == "" {
+			summary = strings.TrimSpace(normalized.Objective)
+		}
+		if summary == "" {
+			summary = taskID
+		}
+		steps = append(steps, ExecutionStep{
+			StepID:  taskID,
+			Stage:   appruns.StageThinPrepare,
+			Summary: fmt.Sprintf("builder-runtime task %s: %s", taskID, summary),
+			Command: fallback.Command,
+		})
+	}
+	if len(steps) == 0 {
+		return nil
+	}
+	return steps
 }
 
 func plannedExecutionRun(run runRecord) runRecord {
@@ -165,6 +207,15 @@ func buildDefaultEditPlan(run runRecord) (defaultEditPlan, error) {
 	if err != nil {
 		return defaultEditPlan{}, err
 	}
+	files, err := buildGenericBrandingDefaultEdits(run)
+	if err != nil {
+		return defaultEditPlan{}, err
+	}
+	files = append(files, defaultEditFile{
+		Path:    outputPath,
+		Content: renderDefaultEditContent(run, outputPath),
+		Mode:    defaultEditOverwrite,
+	})
 	summary := buildExecutionSummary(run) + " | output=" + outputPath
 	if run.BuilderRuntime != nil && run.BuilderRuntime.Enabled {
 		if route, upgraded := selectBuilderRuntimeRoute(run); route.Model.Primary != "" {
@@ -179,12 +230,173 @@ func buildDefaultEditPlan(run runRecord) (defaultEditPlan, error) {
 	}
 	return defaultEditPlan{
 		Summary: summary,
-		Files: []defaultEditFile{{
-			Path:    outputPath,
-			Content: renderDefaultEditContent(run, outputPath),
-			Mode:    defaultEditOverwrite,
-		}},
+		Files:   files,
 	}, nil
+}
+
+// fallback-only: 当 BrandEmitter (emitter.EmitBrand) 可用时不走此路径，M3.4 集成后移除。
+func buildGenericBrandingDefaultEdits(run runRecord) ([]defaultEditFile, error) {
+	const copyPath = "lib/template/open_lite_copy.dart"
+	const androidStringsPath = "android/app/src/main/res/values/strings.xml"
+	if len(run.TemplateReferenceFiles) > 0 {
+		return nil, nil
+	}
+	if !taskBundleContainsTargetPath(run.TaskBundle, copyPath) || !taskBundleContainsTargetPath(run.TaskBundle, androidStringsPath) {
+		return nil, nil
+	}
+	title := inferGenericDomainBrandingTitle(run)
+	if title == "" {
+		return nil, nil
+	}
+	files := make([]defaultEditFile, 0, 2)
+	copyContent, err := replaceWorkspaceSeedBranding(run.WorkspacePath, copyPath, title, escapeDartSingleQuotedString)
+	if err != nil {
+		return nil, err
+	}
+	if copyContent != "" {
+		files = append(files, defaultEditFile{
+			Path:    copyPath,
+			Content: copyContent,
+			Mode:    defaultEditOverwrite,
+		})
+	}
+	androidContent, err := replaceWorkspaceSeedBranding(run.WorkspacePath, androidStringsPath, title, escapeXMLText)
+	if err != nil {
+		return nil, err
+	}
+	if androidContent != "" {
+		files = append(files, defaultEditFile{
+			Path:    androidStringsPath,
+			Content: androidContent,
+			Mode:    defaultEditOverwrite,
+		})
+	}
+	return files, nil
+}
+
+// fallback-only: 当 BrandEmitter (emitter.EmitBrand) 可用时不走此路径，M3.4 集成后移除。
+func buildGenericBrandingWorkspacePatch(run runRecord, patchID string) (*appruns.WorkspacePatch, error) {
+	files, err := buildGenericBrandingDefaultEdits(run)
+	if err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, nil
+	}
+	patch := &appruns.WorkspacePatch{
+		PatchID: patchID,
+		Status:  "generated",
+	}
+	for _, file := range files {
+		patch.Operations = append(patch.Operations, appruns.WorkspacePatchOperation{
+			Type:    "write_file",
+			Path:    file.Path,
+			Content: file.Content,
+		})
+		patch.ModifiedFiles = append(patch.ModifiedFiles, file.Path)
+	}
+	return patch, nil
+}
+
+func taskBundleContainsTargetPath(tasks []appruns.TaskBundleItem, target string) bool {
+	target = filepath.ToSlash(strings.TrimSpace(target))
+	if target == "" {
+		return false
+	}
+	for _, task := range tasks {
+		for _, path := range task.TargetPaths {
+			if filepath.ToSlash(strings.TrimSpace(path)) == target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// fallback-only: 当 BrandEmitter (emitter.EmitBrand) 可用时不走此路径，M3.4 集成后移除。
+func replaceWorkspaceSeedBranding(workspaceRoot, relPath, title string, escape func(string) string) (string, error) {
+	fullPath := filepath.Join(workspaceRoot, filepath.FromSlash(relPath))
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("read workspace branding file %s: %w", relPath, err)
+	}
+	updated := strings.ReplaceAll(string(content), "Open Lite Seed", escape(title))
+	if updated == string(content) {
+		return "", nil
+	}
+	return updated, nil
+}
+
+func inferGenericDomainBrandingTitle(run runRecord) string {
+	titleCorpus := []string{strings.TrimSpace(run.GoalSummary)}
+	for _, note := range parseHumanNotes(run.HumanNotes) {
+		titleCorpus = append(titleCorpus, strings.TrimSpace(note.NoteID), strings.TrimSpace(note.Summary))
+	}
+	joined := strings.ToLower(strings.Join(titleCorpus, "\n"))
+	var title string
+	switch {
+	case strings.Contains(joined, "体重") || strings.Contains(joined, "weight"):
+		title = "体重记录"
+	case strings.Contains(joined, "待办") || strings.Contains(joined, "todo"):
+		title = "待办事项"
+	case strings.Contains(joined, "习惯") || strings.Contains(joined, "打卡") || strings.Contains(joined, "habit"):
+		title = "习惯打卡"
+	}
+	if title == "" {
+		goal := strings.TrimSpace(run.GoalSummary)
+		if strings.HasPrefix(goal, "将") {
+			if index := strings.Index(goal, "需求整理成"); index > len("将") {
+				title = strings.TrimSpace(goal[len("将"):index])
+			}
+		}
+	}
+	if title == "" {
+		return ""
+	}
+	lowerTitle := strings.ToLower(title)
+	if strings.Contains(lowerTitle, " app") || strings.HasSuffix(lowerTitle, "app") {
+		return title
+	}
+	return title + " App"
+}
+
+type humanNoteSummary struct {
+	NoteID  string `json:"note_id"`
+	Summary string `json:"summary"`
+}
+
+func parseHumanNotes(raw json.RawMessage) []humanNoteSummary {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return nil
+	}
+	var notes []humanNoteSummary
+	if err := json.Unmarshal(raw, &notes); err != nil {
+		return nil
+	}
+	return notes
+}
+
+func escapeDartSingleQuotedString(value string) string {
+	replacer := strings.NewReplacer(
+		`\\`, `\\\\`,
+		`'`, `\\'`,
+	)
+	return replacer.Replace(value)
+}
+
+func escapeXMLText(value string) string {
+	replacer := strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+		`"`, "&quot;",
+		"'", "&apos;",
+	)
+	return replacer.Replace(value)
 }
 
 func defaultExecutorOutputPath(run runRecord) (string, error) {
@@ -385,8 +597,19 @@ func localExecutionEnv(run runRecord) ([]string, error) {
 	if err := ensureBuilderGradleUserHome(gradleUserHome); err != nil {
 		return nil, fmt.Errorf("create builder gradle user home: %w", err)
 	}
+	builderHome := resolveBuilderHome(root)
+	if err := ensureBuilderHome(builderHome); err != nil {
+		return nil, fmt.Errorf("create builder home: %w", err)
+	}
+	builderTempDir := resolveBuilderTempDir(root)
+	if err := ensureBuilderTempDir(builderTempDir); err != nil {
+		return nil, fmt.Errorf("create builder temp dir: %w", err)
+	}
 	env = append(env, "PUB_CACHE="+pubCacheDir)
 	env = append(env, "GRADLE_USER_HOME="+gradleUserHome)
+	env = append(env, "HOME="+builderHome)
+	env = append(env, "TMPDIR="+builderTempDir)
+	env = append(env, "XDG_CACHE_HOME="+resolveBuilderXDGCacheHome(root))
 	return env, nil
 }
 
@@ -513,6 +736,14 @@ func orderedKnowledgePack(skills []appruns.ProfileSkill) []appruns.ProfileSkill 
 }
 
 func plannedTaskBundle(run runRecord) []appruns.TaskBundleItem {
+	if hasKnowledgeSkill(run, "artifact-sourced-plan") {
+		if items, err := loadTaskBundleFromArtifact(run); err == nil && len(items) > 0 {
+			if hasKnowledgeSkill(run, "prd-to-task-bundle") {
+				return orderTaskBundle(items)
+			}
+			return items
+		}
+	}
 	tasks := append([]appruns.TaskBundleItem(nil), run.TaskBundle...)
 	if len(tasks) == 0 || !hasKnowledgeSkill(run, "prd-to-task-bundle") {
 		return tasks
@@ -608,23 +839,37 @@ func compareTaskNodes(left, right struct {
 }
 
 func taskCategoryRank(category appruns.TaskCategory) int {
-	switch category {
+	switch appruns.NormalizeTaskCategory(string(category)) {
 	case appruns.TaskCategoryDomain:
 		return 0
-	case appruns.TaskCategoryStorage:
+	case appruns.TaskCategoryContent:
 		return 1
-	case appruns.TaskCategoryScreen:
+	case appruns.TaskCategoryStorage:
 		return 2
-	case appruns.TaskCategoryFlow:
+	case appruns.TaskCategoryScreen:
 		return 3
-	case appruns.TaskCategoryValidation:
+	case appruns.TaskCategorySummary:
 		return 4
-	default:
+	case appruns.TaskCategoryFlow:
 		return 5
+	case appruns.TaskCategoryValidation:
+		return 6
+	default:
+		return 7
 	}
 }
 
 func plannedAcceptanceChecks(run runRecord) []appruns.AcceptanceCheck {
+	if hasKnowledgeSkill(run, "artifact-sourced-plan") {
+		if items, err := loadAcceptanceChecksFromArtifact(run); err == nil && len(items) > 0 {
+			if hasKnowledgeSkill(run, "flutter-build-closure") {
+				sort.SliceStable(items, func(left, right int) bool {
+					return acceptanceCheckStageRank(items[left].Stage) < acceptanceCheckStageRank(items[right].Stage)
+				})
+			}
+			return items
+		}
+	}
 	checks := append([]appruns.AcceptanceCheck(nil), run.AcceptanceChecks...)
 	if len(checks) == 0 || !hasKnowledgeSkill(run, "flutter-build-closure") {
 		return checks
@@ -711,4 +956,32 @@ func previewChecks(checks []appruns.AcceptanceCheck) []CheckExecutionPreview {
 		})
 	}
 	return result
+}
+
+// loadTaskBundleFromArtifact 从 prepare/task-allocation.json 读取并投影为 TaskBundleItem 列表。
+func loadTaskBundleFromArtifact(run runRecord) ([]appruns.TaskBundleItem, error) {
+	prepareRoot := filepath.Join(filepath.Dir(run.WorkspacePath), "prepare")
+	data, err := os.ReadFile(filepath.Join(prepareRoot, "task-allocation.json"))
+	if err != nil {
+		return nil, err
+	}
+	var ta appprepare.TaskAllocation
+	if err := json.Unmarshal(data, &ta); err != nil {
+		return nil, err
+	}
+	return appprepare.ProjectTaskBundle(ta), nil
+}
+
+// loadAcceptanceChecksFromArtifact 从 prepare/acceptance-plan.json 读取并投影为 AcceptanceCheck 列表。
+func loadAcceptanceChecksFromArtifact(run runRecord) ([]appruns.AcceptanceCheck, error) {
+	prepareRoot := filepath.Join(filepath.Dir(run.WorkspacePath), "prepare")
+	data, err := os.ReadFile(filepath.Join(prepareRoot, "acceptance-plan.json"))
+	if err != nil {
+		return nil, err
+	}
+	var ap appprepare.AcceptancePlan
+	if err := json.Unmarshal(data, &ap); err != nil {
+		return nil, err
+	}
+	return appprepare.ProjectAcceptanceChecks(ap), nil
 }

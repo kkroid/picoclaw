@@ -1,0 +1,121 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-demo-001",
+  "prd_id": "prd-demo-001",
+  "template_id": "flutter-template-demo",
+  "workspace_path": "/workspace/job-demo-001",
+  "artifact_dir": "/artifacts/job-demo-001",
+  "goal_summary": "生成一个可运行的 Android Debug App，并输出最小构建日志。",
+  "task_bundle": [
+    {
+      "task_id": "task-ui-001",
+      "title": "准备首页骨架",
+      "category": "ui",
+      "objective": "先验证 builder 可以消费输入包并执行最小命令链。",
+      "priority": "p0",
+      "target_paths": [
+        "lib/main.dart"
+      ],
+      "completion_criteria": [
+        "能成功执行命令链",
+        "能产出运行日志",
+        "能回传 complete 或 fail"
+      ]
+    }
+  ],
+  "acceptance_checks": [
+    {
+      "check_id": "check-baseline-001",
+      "label": "执行最小命令链",
+      "stage": "baseline",
+      "required": true,
+      "commands": [
+        "echo builder-run-started",
+        "echo workspace-ready"
+      ],
+      "success_criteria": "命令全部返回 0",
+      "timeout_seconds": 60,
+      "allow_failure": false
+    }
+  ],
+  "allowed_paths": [
+    "lib/**",
+    "pubspec.yaml"
+  ],
+  "protected_paths": [
+    "android/app/build.gradle.kts",
+    "ios/**"
+  ],
+  "knowledge_pack": [
+    {
+      "skill_id": "prd-to-task-bundle",
+      "role": "把 PRD 压成 Flutter profile 可执行任务包",
+      "usage_stage": "planning",
+      "scope": "flutter-android-p0"
+    },
+    {
+      "skill_id": "flutter-mvc-template",
+      "role": "固定 Flutter MVC 目录、依赖与页面落点",
+      "usage_stage": "layout",
+      "scope": "flutter-android-p0"
+    },
+    {
+      "skill_id": "builder-direct-edit",
+      "role": "约束 Builder 在 Flutter 工作区中直接改码",
+      "usage_stage": "edit",
+      "scope": "flutter-android-p0"
+    },
+    {
+      "skill_id": "flutter-build-closure",
+      "role": "在 Flutter 工作区接近完成时做低风险收口",
+      "usage_stage": "closure",
+      "scope": "flutter-android-p0"
+    }
+  ],
+  "command_profile": {
+    "profile_name": "manual-p0",
+    "allowed_stages": [
+      "baseline",
+      "cheap"
+    ],
+    "allowed_commands": [
+      "echo",
+      "flutter",
+      "dart"
+    ],
+    "denied_commands": [
+      "rm",
+      "sudo"
+    ],
+    "max_single_command_seconds": 300,
+    "max_parallel_commands": 1,
+    "network_policy": "disabled",
+    "writable_roots": [
+      "lib",
+      "."
+    ],
+    "env_allowlist": [
+      "PATH",
+      "HOME"
+    ]
+  },
+  "context_files": {
+    "prd_markdown_path": "PRD.md",
+    "prd_json_path": "PRD.json",
+    "template_fit_report_path": "template-fit-report.md",
+    "implementation_plan_path": "implementation-plan.md",
+    "manual_constraints_path": "manual-constraints.md",
+    "supporting_files": [
+      "notes.md"
+    ]
+  },
+  "iteration_budget": 3,
+  "token_budget": 2000,
+  "human_notes": [
+    {
+      "note_id": "note-001",
+      "summary": "当前阶段先验证 builder 链路，不追求真实 APK。",
+      "scope": "engineering"
+    }
+  ]
+}

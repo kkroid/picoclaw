@@ -159,6 +159,9 @@
         "$ref": "#/$defs/knownUnknown"
       }
     },
+    "execution_contract": {
+      "$ref": "#/$defs/executionContract"
+    },
     "source_refs": {
       "type": "array",
       "items": {
@@ -616,6 +619,511 @@
         "description": {
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "executionContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "domain_model",
+        "surface_contracts",
+        "key_flows",
+        "acceptance_matrix",
+        "task_projection"
+      ],
+      "properties": {
+        "contract_version": {
+          "type": "string",
+          "const": "0.1.0"
+        },
+        "domain_model": {
+          "$ref": "#/$defs/executionDomainModel"
+        },
+        "surface_contracts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/surfaceContract"
+          }
+        },
+        "key_flows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/keyFlow"
+          }
+        },
+        "acceptance_matrix": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/acceptanceMatrixItem"
+          }
+        },
+        "task_projection": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/taskProjectionItem"
+          }
+        }
+      }
+    },
+    "executionDomainModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain_name",
+        "entities",
+        "summary_metrics"
+      ],
+      "properties": {
+        "domain_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/dataEntity"
+          }
+        },
+        "summary_metrics": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "critical_flow_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "semantic_acceptance_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "surfaceContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_id",
+        "surface_ref",
+        "purpose"
+      ],
+      "properties": {
+        "contract_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "surface_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "template_binding_ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "prepare 从 template-slot-map.json.slots[].binding_id 选中的公共绑定引用；不再回退到模板私有 slot_id。"
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "primary_feature_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "primary_entity_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "target_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/surfaceContractAction"
+          }
+        },
+        "required_states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/surfaceContractState"
+          }
+        },
+        "acceptance_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "surfaceContractAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_id",
+        "label",
+        "outcome"
+      ],
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trigger": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "surfaceContractState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state_id",
+        "label",
+        "evidence"
+      ],
+      "properties": {
+        "state_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "when": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "keyFlow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "flow_id",
+        "title",
+        "entry_surface_ref",
+        "steps",
+        "success_signals"
+      ],
+      "properties": {
+        "flow_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry_surface_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/keyFlowStep"
+          }
+        },
+        "write_entity_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "read_entity_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "success_signals": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "acceptance_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "keyFlowStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step_id",
+        "surface_ref",
+        "action",
+        "expected_result"
+      ],
+      "properties": {
+        "step_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "surface_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_result": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "acceptanceMatrixItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "matrix_id",
+        "acceptance_ref",
+        "layer",
+        "required"
+      ],
+      "properties": {
+        "matrix_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acceptance_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "layer": {
+          "type": "string",
+          "enum": [
+            "structure",
+            "semantic",
+            "behavior",
+            "delivery"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "slot_refs": {
+          "description": "当前仍沿用旧字段名，但内部值必须是公共 binding_id，而不是 template-slot-map 里的 slot_id。",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "field_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "check_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence_pattern": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "taskProjectionItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "title",
+        "wave",
+        "lane",
+        "task_type",
+        "target_paths"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "wave": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lane": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "task_type": {
+          "type": "string",
+          "enum": [
+            "single_file_edit",
+            "dual_file_wiring",
+            "analyze_repair",
+            "test_repair",
+            "closure_repair"
+          ]
+        },
+        "route_hint": {
+          "type": "string",
+          "enum": [
+            "deterministic",
+            "default_model",
+            "upgrade_model",
+            "strong_model"
+          ]
+        },
+        "risk_level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "entity_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "relation_group_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "shared_ownership_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "acceptance_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "semantic_intent_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "slot_refs": {
+          "description": "当前仍沿用旧字段名，但内部值必须是公共 binding_id，而不是 template-slot-map 里的 slot_id。",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "target_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "owned_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "success_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },

@@ -1,0 +1,168 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-habit-checkin-drawer-entry-sample-001",
+  "prd_id": "prd-habit-checkin-drawer-entry-sample-001",
+  "template_id": "flutter-open-lite",
+  "domain_name": "习惯打卡 App（抽屉录入）",
+  "entities": [
+    {
+      "entity_id": "entity-habit-record",
+      "name": "习惯记录",
+      "fields": [
+        {
+          "name": "habit_record_id",
+          "type": "string",
+          "required": true,
+          "description": "习惯记录唯一标识"
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "description": "习惯标题"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "required": true,
+          "description": "习惯分类"
+        },
+        {
+          "name": "status",
+          "type": "enum[pending,done]",
+          "required": true,
+          "description": "完成状态"
+        },
+        {
+          "name": "checked_at",
+          "type": "date",
+          "required": true,
+          "description": "打卡时间"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "description": "补充备注"
+        }
+      ],
+      "source": "local_storage"
+    },
+    {
+      "entity_id": "entity-habit-summary",
+      "name": "习惯概览摘要",
+      "fields": [
+        {
+          "name": "total_count",
+          "type": "int",
+          "required": true,
+          "description": "习惯记录总数"
+        },
+        {
+          "name": "pending_count",
+          "type": "int",
+          "required": true,
+          "description": "未完成记录数"
+        },
+        {
+          "name": "done_count",
+          "type": "int",
+          "required": true,
+          "description": "已完成记录数"
+        }
+      ],
+      "source": "derived"
+    }
+  ],
+  "summary_metrics": [
+    "习惯概览摘要"
+  ],
+  "domain_copy": {
+    "title": "习惯打卡 App（抽屉录入）",
+    "summary": "把习惯打卡需求整理成基于通用中性交互承载 Flutter 模板的 Android MVP 规格，并保留完成状态分布与打卡记录语义。",
+    "problem_statement": "generic compile 在映射到 open-lite 骨架前，不能把习惯打卡的完成状态分布、打卡记录和时间信息压平成无差别 record。"
+  },
+  "critical_flows": [
+    "创建习惯记录",
+    "编辑习惯记录",
+    "查看习惯详情",
+    "按状态查看习惯记录"
+  ],
+  "semantic_acceptance_rules": [
+    {
+      "rule_id": "ac-overview",
+      "label": "习惯摘要完整",
+      "description": "概览承载单元必须展示总记录数和完成状态分布。",
+      "field_refs": [
+        "total_count",
+        "pending_count",
+        "done_count"
+      ],
+      "evidence_pattern": "习惯打卡 App（抽屉录入）|total_count|totalCount|pending_count|pendingCount|done_count|doneCount"
+    },
+    {
+      "rule_id": "ac-list",
+      "label": "习惯记录集合承载单元可浏览",
+      "description": "集合浏览承载单元必须按时间展示最近习惯记录，支持查看完成状态，并允许进入结果检查入口。",
+      "field_refs": [
+        "habit_record_id",
+        "title",
+        "category",
+        "status",
+        "checked_at",
+        "note"
+      ],
+      "evidence_pattern": "习惯打卡 App（抽屉录入）|habit_record_id|habitRecordId|title|category|status|checked_at|checkedAt|note"
+    },
+    {
+      "rule_id": "ac-form",
+      "label": "习惯记录变更承载单元链路完整",
+      "description": "用户可以通过实体变更承载单元创建或编辑一条习惯记录并立即看到结果。",
+      "field_refs": [
+        "habit_record_id",
+        "title",
+        "category",
+        "status",
+        "checked_at",
+        "note"
+      ],
+      "evidence_pattern": "习惯打卡 App（抽屉录入）|habit_record_id|habitRecordId|title|category|status|checked_at|checkedAt|note"
+    },
+    {
+      "rule_id": "ac-detail",
+      "label": "结果检查入口可达",
+      "description": "从概览或集合浏览入口至少存在一条进入结果检查入口的路径。",
+      "field_refs": [
+        "total_count",
+        "pending_count",
+        "done_count"
+      ],
+      "evidence_pattern": "习惯打卡 App（抽屉录入）|total_count|totalCount|pending_count|pendingCount|done_count|doneCount"
+    },
+    {
+      "rule_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "description": "应用重启后仍能读取本地记录数据。",
+      "field_refs": [
+        "habit_record_id",
+        "title",
+        "category",
+        "status",
+        "checked_at",
+        "note"
+      ],
+      "evidence_pattern": "习惯打卡 App（抽屉录入）|habit_record_id|habitRecordId|title|category|status|checked_at|checkedAt|note"
+    },
+    {
+      "rule_id": "ac-navigation",
+      "label": "核心承载单元可导航",
+      "description": "当前需求声明的概览、集合浏览、实体变更和结果检查承载单元之间路径明确且可达。",
+      "field_refs": [
+        "total_count",
+        "pending_count",
+        "done_count"
+      ],
+      "evidence_pattern": "习惯打卡 App（抽屉录入）|total_count|totalCount|pending_count|pendingCount|done_count|doneCount"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -75,13 +76,27 @@ func (store *FileStore) CreateRun(_ context.Context, builderID, workerID, leaseI
 	if err := ensureJobLayout(jobRoot); err != nil {
 		return RunRecord{}, err
 	}
+	templateDir := resolveTemplateSourceDir(input)
+	templateReferences, err := resolveTemplateReferenceFiles(input)
+	if err != nil {
+		return RunRecord{}, err
+	}
 	workspaceEvents, err := prepareWorkspace(store.root, input, runID, jobRoot, workspacePath)
 	if err != nil {
 		return RunRecord{}, err
 	}
+	input.SchemaVersion = NormalizeBuildInputSchemaVersion(input.SchemaVersion)
+	input.PlanningPolicy = NormalizePlanningPolicySnapshot(input.PlanningPolicy)
 	input.WorkspacePath = workspacePath
 	input.ArtifactDir = artifactDir
 	input.ContextFiles = canonicalizeContextFiles(jobRoot, input.ContextFiles)
+	if len(input.TaskBundle) > 0 {
+		normalizedTasks := make([]TaskBundleItem, 0, len(input.TaskBundle))
+		for _, task := range input.TaskBundle {
+			normalizedTasks = append(normalizedTasks, NormalizeTaskBundleItem(task))
+		}
+		input.TaskBundle = normalizedTasks
+	}
 	runnerScriptPath := filepath.Join(jobRoot, "runs", runID, "runner.sh")
 	logPath := filepath.Join(jobRoot, "logs", "builder-run-"+runID+".log")
 	launchCommand := ""
@@ -104,12 +119,15 @@ func (store *FileStore) CreateRun(_ context.Context, builderID, workerID, leaseI
 		Status:              StatusRunning,
 		ExecutorImage:       input.ExecutorImage,
 		GoalSummary:         input.GoalSummary,
+		PlanningPolicy:      input.PlanningPolicy,
 		HumanNotes:          append(json.RawMessage(nil), input.HumanNotes...),
 		TaskBundle:          append([]TaskBundleItem(nil), input.TaskBundle...),
 		AcceptanceChecks:    append([]AcceptanceCheck(nil), input.AcceptanceChecks...),
 		AllowedPaths:        append([]string(nil), input.AllowedPaths...),
 		ProtectedPaths:      append([]string(nil), input.ProtectedPaths...),
 		KnowledgePack:       append([]ProfileSkill(nil), input.KnowledgePack...),
+		TemplateSourceDir:   filepath.ToSlash(templateDir),
+		TemplateReferenceFiles: templateReferences,
 		PreparedInputDigest: PreparedInputDigest(input, input.ContextSourceDir),
 		InputPath:           filepath.ToSlash(filepath.Join("jobs", input.JobID, "prepare", "builder-input.json")),
 		WorkspacePath:       filepath.ToSlash(workspacePath),
@@ -119,6 +137,7 @@ func (store *FileStore) CreateRun(_ context.Context, builderID, workerID, leaseI
 		LaunchArgs:          launchArgs,
 		LogPath:             relToRoot(store.root, logPath),
 		EventsPath:          filepath.ToSlash(filepath.Join("jobs", input.JobID, "runs", runID, "events.jsonl")),
+		RoundState:          cloneRoundState(input.InitialRoundState),
 		CreatedAt:           now,
 		UpdatedAt:           now,
 		StartedAt:           now,
@@ -169,7 +188,7 @@ func (store *FileStore) UpdateHeartbeat(_ context.Context, runID string, heartbe
 	record.TotalTokens = heartbeat.TotalTokens
 	record.FailureSignatures = append([]string(nil), heartbeat.FailureSignatures...)
 	if heartbeat.RoundState != nil {
-		record.RoundState = cloneRoundState(heartbeat.RoundState)
+		record.RoundState = mergeHeartbeatRoundState(record.RoundState, heartbeat.RoundState)
 	}
 	roundChanged := eventType == "run_heartbeat" && hasHeartbeatRoundTransition(record, heartbeat)
 	if heartbeat.RoundState != nil || strings.TrimSpace(heartbeat.RoundID) != "" || heartbeat.Attempt > 0 || len(heartbeat.TargetPaths) > 0 || strings.TrimSpace(heartbeat.CheckpointKey) != "" {
@@ -307,7 +326,39 @@ func cloneRoundState(state *RoundState) *RoundState {
 	}
 	cloned := *state
 	cloned.PhaseTrace = append([]RoundPhase(nil), state.PhaseTrace...)
+	if len(state.TaskStatuses) > 0 {
+		cloned.TaskStatuses = maps.Clone(state.TaskStatuses)
+	}
 	return &cloned
+}
+
+func mergeHeartbeatRoundState(existing, next *RoundState) *RoundState {
+	merged := cloneRoundState(next)
+	if merged == nil {
+		return cloneRoundState(existing)
+	}
+	if existing == nil {
+		return merged
+	}
+	if strings.TrimSpace(merged.CurrentTaskID) == "" {
+		merged.CurrentTaskID = strings.TrimSpace(existing.CurrentTaskID)
+	}
+	if len(existing.TaskStatuses) > 0 {
+		if merged.TaskStatuses == nil {
+			merged.TaskStatuses = map[string]BuilderRuntimeTaskStatus{}
+		}
+		for taskID, status := range existing.TaskStatuses {
+			normalizedTaskID := strings.TrimSpace(taskID)
+			if normalizedTaskID == "" {
+				continue
+			}
+			if _, exists := merged.TaskStatuses[normalizedTaskID]; exists {
+				continue
+			}
+			merged.TaskStatuses[normalizedTaskID] = status
+		}
+	}
+	return merged
 }
 
 func cloneRepairContext(context *RepairContext) *RepairContext {
@@ -509,7 +560,7 @@ func buildRoundTerminalEvents(record RunRecord, output BuildOutput, completedAt 
 			Type:          "run_patch_applied",
 			RunID:         record.RunID,
 			JobID:         record.JobID,
-			Summary:       buildPatchAppliedSummary(roundID, len(affectedPaths)),
+			Summary:       buildPatchAppliedSummary(roundID, affectedPaths),
 			RoundID:       roundID,
 			Attempt:       roundInput.Attempt,
 			TargetPaths:   collectRoundInputTargetPaths(roundInput),
@@ -560,18 +611,53 @@ func (store *FileStore) existingPatchEventRoundIDs(record RunRecord) (map[string
 	return seen, nil
 }
 
-func buildPatchAppliedSummary(roundID string, affectedPathCount int) string {
+func buildPatchAppliedSummary(roundID string, affectedPaths []string) string {
 	roundID = strings.TrimSpace(roundID)
+	pathSummary := buildPatchPathSummary(affectedPaths)
 	if roundID == "" {
-		if affectedPathCount == 1 {
-			return "applied patch to 1 file"
+		if pathSummary == "" {
+			return "applied patch"
 		}
-		return fmt.Sprintf("applied patch to %d files", affectedPathCount)
+		return fmt.Sprintf("applied patch to %s", pathSummary)
 	}
-	if affectedPathCount == 1 {
-		return fmt.Sprintf("round %s applied patch to 1 file", roundID)
+	if pathSummary == "" {
+		return fmt.Sprintf("round %s applied patch", roundID)
 	}
-	return fmt.Sprintf("round %s applied patch to %d files", roundID, affectedPathCount)
+	return fmt.Sprintf("round %s applied patch to %s", roundID, pathSummary)
+}
+
+func buildPatchPathSummary(paths []string) string {
+	normalized := normalizePatchSummaryPaths(paths)
+	if len(normalized) == 0 {
+		return ""
+	}
+	if len(normalized) == 1 {
+		return normalized[0]
+	}
+	const previewLimit = 3
+	preview := normalized
+	if len(preview) > previewLimit {
+		preview = preview[:previewLimit]
+		return fmt.Sprintf("%d files: %s, +%d more", len(normalized), strings.Join(preview, ", "), len(normalized)-len(preview))
+	}
+	return fmt.Sprintf("%d files: %s", len(normalized), strings.Join(preview, ", "))
+}
+
+func normalizePatchSummaryPaths(paths []string) []string {
+	normalized := make([]string, 0, len(paths))
+	seen := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		trimmed := filepath.ToSlash(strings.TrimSpace(path))
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
 }
 
 func collectRoundInputTargetPaths(input RoundInput) []string {
@@ -651,6 +737,12 @@ func validateBuildInput(input BuildInput) error {
 	if input.SchemaVersion == "" || input.JobID == "" || input.PRDID == "" || input.TemplateID == "" {
 		return fmt.Errorf("build input ids: %w", ErrInvalidRequest)
 	}
+	if !IsSupportedBuildInputSchemaVersion(input.SchemaVersion) {
+		return fmt.Errorf("build input schema_version %q: %w", input.SchemaVersion, ErrInvalidRequest)
+	}
+	if err := validatePlanningPolicy(input.PlanningPolicy); err != nil {
+		return err
+	}
 	if input.WorkspacePath == "" || input.ArtifactDir == "" || input.GoalSummary == "" {
 		return fmt.Errorf("build input paths: %w", ErrInvalidRequest)
 	}
@@ -659,6 +751,23 @@ func validateBuildInput(input BuildInput) error {
 	}
 	if len(input.CommandProfile) == 0 || len(input.ContextFiles) == 0 || input.IterationBudget <= 0 || input.TokenBudget <= 0 {
 		return fmt.Errorf("build input control: %w", ErrInvalidRequest)
+	}
+	for _, task := range input.TaskBundle {
+		if NormalizeTaskCategory(string(task.Category)) == "" {
+			return fmt.Errorf("task bundle category %q: %w", task.Category, ErrInvalidRequest)
+		}
+		if task.TaskType != "" && task.EffectiveTaskType() == "" {
+			return fmt.Errorf("task bundle task_type %q: %w", task.TaskType, ErrInvalidRequest)
+		}
+		if task.RiskLevel != "" && NormalizeTaskRiskLevel(string(task.RiskLevel)) == "" {
+			return fmt.Errorf("task bundle risk_level %q: %w", task.RiskLevel, ErrInvalidRequest)
+		}
+		if task.RouteHint != "" && NormalizeTaskRouteHint(string(task.RouteHint)) == "" {
+			return fmt.Errorf("task bundle route_hint %q: %w", task.RouteHint, ErrInvalidRequest)
+		}
+		if transition := normalizeTaskAllocationTransition(task.AllocationTransition, task); transition == nil || transition.AllocationID == "" {
+			return fmt.Errorf("task bundle allocation_transition %q: %w", task.TaskID, ErrInvalidRequest)
+		}
 	}
 	var profile CommandProfile
 	if err := json.Unmarshal(input.CommandProfile, &profile); err != nil {
@@ -673,6 +782,30 @@ func validateBuildInput(input BuildInput) error {
 	}
 	if contextFiles.PRDMarkdownPath == "" || contextFiles.PRDJSONPath == "" || contextFiles.TemplateFitReportPath == "" || contextFiles.ImplementationPlanPath == "" {
 		return fmt.Errorf("context files required fields: %w", ErrInvalidRequest)
+	}
+	return nil
+}
+
+func validatePlanningPolicy(policy PlanningPolicySnapshot) error {
+	normalized := NormalizePlanningPolicySnapshot(policy)
+	if normalized.PolicyVersion == "" {
+		return fmt.Errorf("planning policy version: %w", ErrInvalidRequest)
+	}
+	if len(normalized.Stages) == 0 {
+		return fmt.Errorf("planning policy stages: %w", ErrInvalidRequest)
+	}
+	seen := make(map[PlanningStage]struct{}, len(normalized.Stages))
+	for _, stage := range normalized.Stages {
+		if stage.Stage == "" {
+			return fmt.Errorf("planning policy stage: %w", ErrInvalidRequest)
+		}
+		if stage.Route == "" {
+			return fmt.Errorf("planning policy route: %w", ErrInvalidRequest)
+		}
+		if _, ok := seen[stage.Stage]; ok {
+			return fmt.Errorf("planning policy duplicate stage %q: %w", stage.Stage, ErrInvalidRequest)
+		}
+		seen[stage.Stage] = struct{}{}
 	}
 	return nil
 }
@@ -745,12 +878,16 @@ func buildRunnerScript(input BuildInput, workspacePath, artifactDir, logPath str
 			if trimmed == "" {
 				continue
 			}
-			name := firstToken(trimmed)
-			if len(profile.AllowedCommands) > 0 && !slices.Contains(profile.AllowedCommands, name) {
-				return "", fmt.Errorf("command %q not allowed: %w", name, ErrInvalidRequest)
+			if isShellSnippet(trimmed) {
+				continue
 			}
-			if slices.Contains(profile.DeniedCommands, name) {
-				return "", fmt.Errorf("command %q denied: %w", name, ErrInvalidRequest)
+			for _, name := range executableTokens(trimmed) {
+				if len(profile.AllowedCommands) > 0 && !slices.Contains(profile.AllowedCommands, name) {
+					return "", fmt.Errorf("command %q not allowed: %w", name, ErrInvalidRequest)
+				}
+				if slices.Contains(profile.DeniedCommands, name) {
+					return "", fmt.Errorf("command %q denied: %w", name, ErrInvalidRequest)
+				}
 			}
 		}
 	}
@@ -990,7 +1127,66 @@ func seedWorkspace(input BuildInput, jobRoot, workspacePath string) error {
 		}
 		return fmt.Errorf("stat template dir: %w", err)
 	}
+	if shouldUseReferenceTemplateSeed(input) {
+		return seedReferenceTemplateWorkspace(templateDir, workspacePath)
+	}
 	return copyDir(templateDir, workspacePath)
+}
+
+func shouldUseReferenceTemplateSeed(input BuildInput) bool {
+	return strings.TrimSpace(input.TemplateID) == "flutter-open-lite"
+}
+
+func resolveTemplateReferenceFiles(input BuildInput) (map[string]string, error) {
+	if !shouldUseReferenceTemplateSeed(input) {
+		return nil, nil
+	}
+	templateDir := resolveTemplateSourceDir(input)
+	if strings.TrimSpace(templateDir) == "" {
+		return nil, nil
+	}
+	references := make(map[string]string)
+	err := filepath.WalkDir(templateDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(templateDir, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if entry.IsDir() {
+			if shouldSkipSeedWorkspaceDir(entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if shouldSkipSeedWorkspaceFile(entry.Name()) || !entry.Type().IsRegular() {
+			return nil
+		}
+		if !shouldTrackReferenceTemplateFile(rel) {
+			return nil
+		}
+		references[rel] = filepath.ToSlash(path)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk template reference files: %w", err)
+	}
+	if len(references) == 0 {
+		return nil, nil
+	}
+	return references, nil
+}
+
+func seedReferenceTemplateWorkspace(templateDir, workspacePath string) error {
+	if err := copyDirFiltered(templateDir, workspacePath, shouldCopyReferenceSeedPath); err != nil {
+		return err
+	}
+	return writeFlutterOpenLiteSeedMain(filepath.Join(workspacePath, "lib", "main.dart"))
 }
 
 func copyContextFiles(input BuildInput, jobRoot string) error {
@@ -1025,6 +1221,12 @@ func copyContextFiles(input BuildInput, jobRoot string) error {
 }
 
 func copyDir(src, dst string) error {
+	return copyDirFiltered(src, dst, func(relPath string, entry os.DirEntry) bool {
+		return true
+	})
+}
+
+func copyDirFiltered(src, dst string, allow func(relPath string, entry os.DirEntry) bool) error {
 	return filepath.WalkDir(src, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -1036,25 +1238,195 @@ func copyDir(src, dst string) error {
 		if rel == "." {
 			return nil
 		}
+		rel = filepath.ToSlash(rel)
 		if entry.IsDir() {
 			if shouldSkipSeedWorkspaceDir(entry.Name()) {
 				return filepath.SkipDir
 			}
-			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
+			if !allow(rel, entry) {
+				return filepath.SkipDir
+			}
+			return os.MkdirAll(filepath.Join(dst, filepath.FromSlash(rel)), 0o755)
 		}
-		if shouldSkipSeedWorkspaceFile(entry.Name()) {
+		if shouldSkipSeedWorkspaceFile(entry.Name()) || !entry.Type().IsRegular() {
 			return nil
 		}
-		return fileutil.CopyFile(path, filepath.Join(dst, rel), 0o644)
+		if !allow(rel, entry) {
+			return nil
+		}
+		return fileutil.CopyFile(path, filepath.Join(dst, filepath.FromSlash(rel)), 0o644)
 	})
 }
 
-func firstToken(command string) string {
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
+func shouldCopyReferenceSeedPath(relPath string, entry os.DirEntry) bool {
+	if entry.IsDir() {
+		return !shouldSkipReferenceTemplateDir(relPath)
+	}
+	if relPath == "lib/main.dart" {
+		return false
+	}
+	return !shouldSkipReferenceTemplateFile(relPath)
+}
+
+func shouldSkipReferenceTemplateDir(relPath string) bool {
+	for _, prefix := range []string{
+		"lib/models",
+		"lib/controllers",
+		"lib/views",
+		"lib/repositories",
+		"lib/template",
+	} {
+		if relPath == prefix || strings.HasPrefix(relPath, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldSkipReferenceTemplateFile(relPath string) bool {
+	if relPath == "test/widget_test.dart" {
+		return true
+	}
+	return shouldSkipReferenceTemplateDir(filepath.ToSlash(filepath.Dir(relPath)))
+}
+
+func shouldTrackReferenceTemplateFile(relPath string) bool {
+	if relPath == "lib/main.dart" {
+		return true
+	}
+	return shouldSkipReferenceTemplateFile(relPath)
+}
+
+func writeFlutterOpenLiteSeedMain(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create seed main dir: %w", err)
+	}
+	const content = `import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  runApp(const AppFactorySeedApp());
+}
+
+class AppFactorySeedApp extends StatelessWidget {
+  const AppFactorySeedApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'AppFactory Seed',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
+        useMaterial3: true,
+      ),
+      home: const AppFactorySeedHomePage(),
+    );
+  }
+}
+
+class AppFactorySeedHomePage extends StatelessWidget {
+  const AppFactorySeedHomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Text('Seed workspace ready'),
+      ),
+    );
+  }
+}
+`
+	return fileutil.WriteFileAtomic(path, []byte(content), 0o644)
+}
+
+func isShellSnippet(command string) bool {
+	return strings.Contains(command, "\n") || strings.Contains(command, "$((") || strings.Contains(command, "$(") || strings.Contains(command, "`")
+}
+
+func executableTokens(command string) []string {
+	replacer := strings.NewReplacer("&&", "\n", "||", "\n", ";", "\n")
+	segments := strings.Split(replacer.Replace(command), "\n")
+	tokens := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		name := firstExecutableToken(segment)
+		if name == "" {
+			continue
+		}
+		tokens = append(tokens, name)
+	}
+	return tokens
+}
+
+func firstExecutableToken(command string) string {
+	fields := strings.Fields(strings.TrimSpace(command))
+	if len(fields) == 0 {
 		return ""
 	}
-	return parts[0]
+	for len(fields) > 0 {
+		token := fields[0]
+		switch {
+		case strings.HasPrefix(token, "#"):
+			return ""
+		case strings.HasPrefix(token, "-"):
+			return ""
+		case strings.HasSuffix(token, "()"):
+			return ""
+		case isShellAssignmentToken(token):
+			fields = fields[1:]
+			continue
+		case isShellControlToken(token):
+			fields = fields[1:]
+			continue
+		case isShellBuiltinToken(token):
+			return ""
+		default:
+			return token
+		}
+	}
+	return ""
+}
+
+func isShellAssignmentToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	separator := strings.Index(token, "=")
+	if separator <= 0 {
+		return false
+	}
+	for index, char := range token[:separator] {
+		if index == 0 {
+			if !(char == '_' || (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z')) {
+				return false
+			}
+			continue
+		}
+		if !(char == '_' || (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
+			return false
+		}
+	}
+	return true
+}
+
+func isShellControlToken(token string) bool {
+	switch token {
+	case "{", "}", "(", ")", "if", "then", "else", "elif", "fi", "do", "done", "while", "for", "case", "esac", "in", "!":
+		return true
+	default:
+		return false
+	}
+}
+
+func isShellBuiltinToken(token string) bool {
+	switch token {
+	case "[", "test", "command", "echo", "printf", "export", "local", "readonly", "return", "exit", "true", "false", ":":
+		return true
+	default:
+		return false
+	}
 }
 
 func shellQuote(value string) string {

@@ -1,0 +1,29 @@
+{
+  "schema_version": "0.1.0",
+  "approval_id": "approval-prd-prd-habit-checkin-drawer-entry-sample-001",
+  "approval_type": "prd",
+  "job_id": "job-habit-checkin-drawer-entry-sample-001",
+  "prd_id": "prd-habit-checkin-drawer-entry-sample-001",
+  "subject_version": "prd-habit-checkin-drawer-entry-sample-001@0.1.0@sha256:d07c62618e18a800@sha256:80bc4edec903a021",
+  "status": "approved",
+  "requested_by": {
+    "actor_type": "system",
+    "actor_id": "appfactory-prepare"
+  },
+  "decision": {
+    "decision": "approved",
+    "decided_by": {
+      "actor_type": "system",
+      "actor_id": "appfactory-prepare"
+    },
+    "decided_at": "2026-04-11T09:30:00Z",
+    "comment": "系统为当前最小编排链路生成已批准 PRD 快照，用于后续执行接线。"
+  },
+  "summary": "当前需求已整理为可执行 PRD 快照。",
+  "evidence_paths": [
+    "PRD.md",
+    "PRD.json",
+    "requirement.md"
+  ],
+  "created_at": "2026-04-11T09:30:00Z"
+}

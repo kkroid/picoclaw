@@ -30,6 +30,9 @@ fi
 cd "$repo_root"
 bash scripts/run-appfactory-jobs-regression.sh \
 	--api-base "$api_base" \
+	--requirement-file "$repo_root/examples/appfactory/bookkeeping/requirement.md" \
+	--title "/jobs live auto-repair bookkeeping canary" \
 	--goal-summary "$goal_summary" \
 	--human-notes-json "$human_notes_json" \
+	--allow-non-manual-equivalent \
 	--output-root "$output_root"

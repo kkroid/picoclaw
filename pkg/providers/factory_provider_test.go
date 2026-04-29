@@ -106,6 +106,46 @@ func TestCreateProviderFromConfig_OpenAI(t *testing.T) {
 	}
 }
 
+func TestCreateProviderFromConfig_PreservesNamespacedModelIDForNVIDIAIntegrate(t *testing.T) {
+	cfg := &config.ModelConfig{
+		ModelName: "qwen3-coder-480b",
+		Model:     "qwen/qwen3-coder-480b-a35b-instruct",
+		APIBase:   "https://integrate.api.nvidia.com/v1",
+	}
+	cfg.SetAPIKey("test-key")
+
+	provider, modelID, err := CreateProviderFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("CreateProviderFromConfig() error = %v", err)
+	}
+	if provider == nil {
+		t.Fatal("CreateProviderFromConfig() returned nil provider")
+	}
+	if modelID != "qwen/qwen3-coder-480b-a35b-instruct" {
+		t.Fatalf("modelID = %q, want %q", modelID, "qwen/qwen3-coder-480b-a35b-instruct")
+	}
+	if _, ok := provider.(*HTTPProvider); !ok {
+		t.Fatalf("expected *HTTPProvider, got %T", provider)
+	}
+}
+
+func TestCreateProviderFromConfig_StripsSingleSlashModelIDOutsideNVIDIAIntegrate(t *testing.T) {
+	cfg := &config.ModelConfig{
+		ModelName: "qwen-plus",
+		Model:     "qwen/qwen-plus",
+		APIBase:   "https://dashscope.aliyuncs.com/compatible-mode/v1",
+	}
+	cfg.SetAPIKey("test-key")
+
+	_, modelID, err := CreateProviderFromConfig(cfg)
+	if err != nil {
+		t.Fatalf("CreateProviderFromConfig() error = %v", err)
+	}
+	if modelID != "qwen-plus" {
+		t.Fatalf("modelID = %q, want %q", modelID, "qwen-plus")
+	}
+}
+
 func TestCreateProviderFromConfig_DefaultAPIBase(t *testing.T) {
 	tests := []struct {
 		name     string

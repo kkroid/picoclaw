@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
-MODEL_NAME="${MODEL_NAME:-qwen2.5-coder:14b}"
+OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://10.12.11.159:11434}"
+MODEL_NAME="${MODEL_NAME:-gemma4:26b}"
 OUTPUT_DIR="${OUTPUT_DIR:-.runtime/builder-model-validation}"
 MAX_REPAIR_ROUNDS="${MAX_REPAIR_ROUNDS:-2}"
 

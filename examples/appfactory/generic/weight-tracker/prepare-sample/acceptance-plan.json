@@ -1,0 +1,390 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-weight-tracker-sample-001",
+  "prd_id": "prd-weight-tracker-sample-001",
+  "template_id": "flutter-open-lite",
+  "structure_checks": [
+    {
+      "check_id": "check-flutter-pub-get",
+      "label": "安装 Flutter 依赖",
+      "description": "Flutter 依赖安装成功。",
+      "stage": "baseline",
+      "commands": [
+        "flutter pub get"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-flutter-pub-get",
+      "timeout_seconds": 300
+    },
+    {
+      "check_id": "check-open-lite-counter-demo-removed",
+      "label": "阻断 open-lite 默认 counter 模板",
+      "description": "工作区中不再保留 Flutter 默认 counter demo 文案、状态字段、页面类名或 smoke test。",
+      "stage": "cheap",
+      "commands": [
+        "grep -q . lib/main.dart lib/models/record.dart lib/models/dashboard_summary.dart lib/views/home_page.dart lib/controllers/home_controller.dart lib/views/record_form_page.dart lib/controllers/record_form_controller.dart lib/views/record_list_page.dart lib/controllers/record_list_controller.dart lib/views/record_detail_page.dart lib/repositories/record_repository.dart \u0026\u0026 ! grep -E 'Flutter Demo Home Page|You have pushed the button this many times|Counter increments smoke test|_counter|_incrementCounter|MyHomePage' lib/main.dart test/widget_test.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-open-lite-counter-demo-removed",
+      "slot_refs": [
+        "widget-test"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-open-lite-record-flow-wiring",
+      "label": "确认 open-lite CRUD 页面与控制器已接线",
+      "description": "代码中存在真实的新建、编辑、删除和详情接线，而不是只有静态按钮或单屏占位。",
+      "stage": "cheap",
+      "commands": [
+        "grep -E 'TextEditingController|TextFormField|DropdownButtonFormField|showDatePicker|RecordStatus|categoryController' lib/views/record_form_page.dart lib/controllers/record_form_controller.dart \u003e/dev/null 2\u003e\u00261 \u0026\u0026 grep -E 'HomePage' lib/main.dart \u003e/dev/null 2\u003e\u00261 \u0026\u0026 grep -E 'RecordListPage' lib/views/record_list_page.dart \u003e/dev/null 2\u003e\u00261 \u0026\u0026 grep -E 'RecordDetailPage' lib/main.dart lib/views/record_detail_page.dart lib/views/record_list_page.dart \u003e/dev/null 2\u003e\u00261 \u0026\u0026 grep -E 'deleteRecord' lib/main.dart lib/views/record_detail_page.dart lib/views/record_list_page.dart lib/controllers/home_controller.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-open-lite-record-flow-wiring",
+      "slot_refs": [
+        "flow-controller",
+        "widget-test"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-open-lite-local-persistence-wiring",
+      "label": "确认 open-lite 本地持久化已接线",
+      "description": "代码或依赖中出现明确的 Hive 本地持久化实现，而不是只展示静态记录。",
+      "stage": "cheap",
+      "commands": [
+        "grep -E 'hive_flutter|Hive' pubspec.yaml lib/repositories/record_repository.dart lib/main.dart \u003e/dev/null 2\u003e\u00261 \u0026\u0026 ! grep -E 'shared_preferences|SharedPreferences' pubspec.yaml lib/repositories/record_repository.dart lib/main.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-open-lite-local-persistence-wiring",
+      "slot_refs": [
+        "storage-boundary"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-profile-open-lite-domain-branding",
+      "label": "阻断 open-lite 默认 seed branding",
+      "description": "非空领域需求下，默认 seed branding 已从 Flutter 标题、首页标题和 Android 启动器名称中移除。",
+      "stage": "cheap",
+      "commands": [
+        "! grep -ER 'Open Lite Seed|open_lite_seed' lib android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/strings.xml \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-profile-open-lite-domain-branding",
+      "slot_refs": [
+        "domain-copy",
+        "android-branding"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-profile-open-lite-domain-language",
+      "label": "确认领域字段与文案已进入 open-lite 工作区",
+      "description": "生成代码或配置中必须出现体重领域词、记录日期字段或趋势摘要字段。",
+      "stage": "cheap",
+      "commands": [
+        "grep -ER '体重|weight|recorded_at|latest_weight|trend' lib test android/app/src/main/res/values/strings.xml \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-profile-open-lite-domain-language",
+      "slot_refs": [
+        "domain-model",
+        "flow-controller",
+        "domain-copy",
+        "widget-test"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-flutter-analyze",
+      "label": "执行静态检查",
+      "description": "Flutter analyze 无错误。",
+      "stage": "cheap",
+      "commands": [
+        "flutter analyze"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-flutter-analyze",
+      "timeout_seconds": 300
+    },
+    {
+      "check_id": "check-flutter-test",
+      "label": "执行模板测试",
+      "description": "Widget test 全部通过。",
+      "stage": "cheap",
+      "commands": [
+        "flutter test"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-flutter-test",
+      "timeout_seconds": 300
+    }
+  ],
+  "semantic_checks": [
+    {
+      "check_id": "ac-overview",
+      "label": "体重摘要完整",
+      "description": "概览承载单元必须展示最新体重、记录数量和最近趋势摘要。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-overview",
+      "slot_refs": [
+        "surface-overview"
+      ],
+      "field_refs": [
+        "latest_weight",
+        "record_count",
+        "trend"
+      ],
+      "evidence_pattern": "体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend"
+    },
+    {
+      "check_id": "ac-list",
+      "label": "历史记录集合承载单元可浏览",
+      "description": "历史集合承载单元必须按日期展示体重记录，并允许进入结果检查入口。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '体重记录 App|record_id|recordId|weight|recorded_at|recordedAt|note' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-list",
+      "slot_refs": [
+        "surface-collection",
+        "surface-inspection"
+      ],
+      "field_refs": [
+        "record_id",
+        "weight",
+        "recorded_at",
+        "note"
+      ],
+      "evidence_pattern": "体重记录 App|record_id|recordId|weight|recorded_at|recordedAt|note"
+    },
+    {
+      "check_id": "ac-form",
+      "label": "体重记录变更承载单元链路完整",
+      "description": "用户可以通过实体变更承载单元录入或编辑体重、日期和备注，并立即看到结果。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '体重记录 App|record_id|recordId|weight|recorded_at|recordedAt|note' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-form",
+      "slot_refs": [
+        "surface-mutation"
+      ],
+      "field_refs": [
+        "record_id",
+        "weight",
+        "recorded_at",
+        "note"
+      ],
+      "evidence_pattern": "体重记录 App|record_id|recordId|weight|recorded_at|recordedAt|note"
+    },
+    {
+      "check_id": "ac-detail",
+      "label": "结果检查入口可达",
+      "description": "从概览或集合浏览入口至少存在一条进入结果检查入口的路径。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-detail",
+      "slot_refs": [
+        "surface-collection",
+        "surface-inspection"
+      ],
+      "field_refs": [
+        "latest_weight",
+        "record_count",
+        "trend"
+      ],
+      "evidence_pattern": "体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend"
+    },
+    {
+      "check_id": "ac-delete",
+      "label": "删除链路完整",
+      "description": "删除体重记录后，概览摘要和历史集合内容必须同步刷新。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-delete",
+      "slot_refs": [
+        "surface-inspection",
+        "surface-collection"
+      ],
+      "field_refs": [
+        "latest_weight",
+        "record_count",
+        "trend"
+      ],
+      "evidence_pattern": "体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend"
+    },
+    {
+      "check_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "description": "应用重启后仍能读取本地记录数据。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '体重记录 App|record_id|recordId|weight|recorded_at|recordedAt|note' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-persistence",
+      "slot_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-inspection"
+      ],
+      "field_refs": [
+        "record_id",
+        "weight",
+        "recorded_at",
+        "note"
+      ],
+      "evidence_pattern": "体重记录 App|record_id|recordId|weight|recorded_at|recordedAt|note"
+    },
+    {
+      "check_id": "ac-navigation",
+      "label": "核心承载单元可导航",
+      "description": "概览、历史集合、实体变更和结果检查入口之间路径明确且可达。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-navigation",
+      "slot_refs": [
+        "surface-overview"
+      ],
+      "field_refs": [
+        "latest_weight",
+        "record_count",
+        "trend"
+      ],
+      "evidence_pattern": "体重记录 App|latest_weight|latestWeight|record_count|recordCount|trend"
+    },
+    {
+      "check_id": "mrp-domain-wording",
+      "label": "检查体重领域语义是否完整进入 PRD",
+      "description": "体重、日期、备注和趋势不能在 compile 阶段被压平成通用 record 话术。",
+      "required": true,
+      "source_type": "manual_review_point",
+      "source_ref": "mrp-domain-wording",
+      "slot_refs": [
+        "domain-copy",
+        "android-branding",
+        "surface-overview",
+        "surface-mutation",
+        "surface-inspection"
+      ]
+    },
+    {
+      "check_id": "mrp-entity-fit",
+      "label": "确认领域实体能映射到 open-lite 中性交互承载骨架",
+      "description": "compile 后必须在复用概览、集合浏览、实体变更、结果检查承载单元的同时保留领域字段。",
+      "required": true,
+      "source_type": "manual_review_point",
+      "source_ref": "mrp-entity-fit",
+      "slot_refs": [
+        "domain-model"
+      ]
+    },
+    {
+      "check_id": "mrp-summary-fit",
+      "label": "确认首页摘要仍然承接体重趋势语义",
+      "description": "首页摘要不能退化为只有通用计数字段的中性概览。",
+      "required": true,
+      "source_type": "manual_review_point",
+      "source_ref": "mrp-summary-fit",
+      "slot_refs": [
+        "domain-model"
+      ]
+    }
+  ],
+  "behavior_checks": [
+    {
+      "check_id": "flow-create-record",
+      "label": "新增体重记录",
+      "description": "从概览入口进入新建动作 -\u003e 填写表单并保存 -\u003e 返回概览入口查看最新摘要",
+      "required": true,
+      "source_type": "user_flow",
+      "source_ref": "flow-create-record",
+      "slot_refs": [
+        "surface-overview",
+        "surface-mutation"
+      ]
+    },
+    {
+      "check_id": "flow-update-record",
+      "label": "编辑体重记录",
+      "description": "从概览或集合浏览入口进入结果检查入口 -\u003e 进入实体变更入口并修改字段 -\u003e 保存后返回结果检查入口",
+      "required": true,
+      "source_type": "user_flow",
+      "source_ref": "flow-update-record",
+      "slot_refs": [
+        "surface-inspection",
+        "surface-mutation"
+      ]
+    },
+    {
+      "check_id": "flow-delete-record",
+      "label": "删除体重记录",
+      "description": "在结果检查入口触发删除动作 -\u003e 确认删除并返回上一层",
+      "required": true,
+      "source_type": "user_flow",
+      "source_ref": "flow-delete-record",
+      "slot_refs": [
+        "surface-inspection"
+      ]
+    },
+    {
+      "check_id": "flow-inspect-record",
+      "label": "查看体重详情",
+      "description": "从概览入口进入集合浏览入口 -\u003e 点击一条记录进入结果检查入口",
+      "required": true,
+      "source_type": "user_flow",
+      "source_ref": "flow-inspect-record",
+      "slot_refs": [
+        "surface-overview",
+        "surface-collection"
+      ]
+    }
+  ],
+  "delivery_checks": [
+    {
+      "check_id": "check-flutter-build-apk",
+      "label": "构建 Debug APK",
+      "description": "产出 app-debug.apk。",
+      "stage": "milestone",
+      "commands": [
+        "flutter build apk --debug --no-pub"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-flutter-build-apk",
+      "timeout_seconds": 1800
+    }
+  ]
+}

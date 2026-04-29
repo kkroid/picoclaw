@@ -1,0 +1,9 @@
+{
+  "requirement_text": "做一个习惯打卡 app，需要概览和记录列表，新增与补录都通过底部抽屉完成，不要独立编辑页，详情页仅用于查看，不做删除，优先保证本地可用。",
+  "requirement_source": "jobs-ui",
+  "title": "习惯打卡 App（抽屉录入）",
+  "job_id": "job-habit-checkin-drawer-entry-sample-001",
+  "prd_id": "prd-habit-checkin-drawer-entry-sample-001",
+  "real_checks": true,
+  "executor_image": "picoclaw/appfactory-builder:local"
+}

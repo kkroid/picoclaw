@@ -2,25 +2,68 @@
 
 set -euo pipefail
 
-template_dir="${1:-examples/appfactory/templates/flutter-finance-lite}"
+template_ref="${1:-flutter-finance-lite}"
 builder_image="${APPFACTORY_BUILDER_IMAGE:-picoclaw/appfactory-builder:local}"
 cache_root="${APPFACTORY_BUILDER_CACHE_ROOT:-$PWD/workspace/appfactory/builder-cache/template-verify}"
 include_apk="${APPFACTORY_TEMPLATE_VERIFY_INCLUDE_APK:-1}"
 android_verbose="${APPFACTORY_TEMPLATE_VERIFY_ANDROID_VERBOSE:-0}"
 android_gradle_log_level="${APPFACTORY_TEMPLATE_VERIFY_ANDROID_GRADLE_LOG_LEVEL:-info}"
 persist_workdir="${APPFACTORY_TEMPLATE_VERIFY_PERSIST_WORKDIR:-1}"
+template_source_mode="${APPFACTORY_TEMPLATE_VERIFY_SOURCE:-image}"
+template_root_in_image="${APPFACTORY_TEMPLATE_ROOT_IN_IMAGE:-/opt/appfactory/templates}"
 
-if [ ! -d "$template_dir" ]; then
-  echo "template directory not found: $template_dir" >&2
-  exit 1
-fi
+resolve_host_template_dir() {
+  local ref="$1"
+  if [ -d "$ref" ]; then
+    printf '%s\n' "$ref"
+    return
+  fi
+  if [ -d "$PWD/$ref" ]; then
+    printf '%s\n' "$PWD/$ref"
+    return
+  fi
+  if [ -d "$PWD/examples/appfactory/templates/$ref" ]; then
+    printf '%s\n' "$PWD/examples/appfactory/templates/$ref"
+    return
+  fi
+  return 1
+}
 
-for rel_path in pubspec.yaml lib/main.dart test/widget_test.dart android/app/build.gradle.kts; do
-  if [ ! -s "$template_dir/$rel_path" ]; then
-    echo "required template file missing or empty: $template_dir/$rel_path" >&2
+resolve_image_template_dir() {
+  local ref="$1"
+  if [ -z "$ref" ]; then
+    return 1
+  fi
+  if [[ "$ref" = /* ]]; then
+    printf '%s\n' "$ref"
+    return
+  fi
+  ref="${ref#./}"
+  ref="${ref#examples/appfactory/templates/}"
+  printf '%s\n' "$template_root_in_image/$ref"
+}
+
+case "$template_source_mode" in
+  image|host)
+    ;;
+  *)
+    echo "unsupported template verify source: $template_source_mode" >&2
+    echo "expected one of: image, host" >&2
+    exit 1
+    ;;
+esac
+
+template_dir=""
+container_template_dir=""
+
+if [ "$template_source_mode" = "host" ]; then
+  if ! template_dir="$(resolve_host_template_dir "$template_ref")"; then
+    echo "template directory not found on host: $template_ref" >&2
     exit 1
   fi
-done
+else
+  container_template_dir="$(resolve_image_template_dir "$template_ref")"
+fi
 
 case "$android_gradle_log_level" in
   quiet|warn|lifecycle|info|debug)
@@ -33,7 +76,7 @@ case "$android_gradle_log_level" in
 esac
 
 logs_dir="$cache_root/logs"
-template_key="$(printf '%s' "$template_dir" | tr '/ ' '__')"
+template_key="$(printf '%s' "$template_ref" | tr '/ ' '__')"
 work_root="$cache_root/workdirs/$template_key"
 mkdir -p "$cache_root/pub-cache" "$cache_root/gradle" "$cache_root/android" "$logs_dir"
 
@@ -67,6 +110,11 @@ else
 fi
 
 echo "template_dir=$template_dir"
+echo "template_ref=$template_ref"
+echo "template_source_mode=$template_source_mode"
+if [ -n "$container_template_dir" ]; then
+  echo "container_template_dir=$container_template_dir"
+fi
 echo "builder_image=$builder_image"
 echo "builder_cache_root=$cache_root"
 echo "persist_workdir=$persist_workdir"
@@ -78,6 +126,20 @@ fi
 container_script=$(cat <<EOF
 set -euo pipefail
 workdir=/tmp/app
+src_dir=/workspace/src
+if [ "$template_source_mode" = "image" ]; then
+  src_dir="$container_template_dir"
+fi
+if [ ! -d "\$src_dir" ]; then
+  echo "template directory not found: \$src_dir" >&2
+  exit 1
+fi
+for rel_path in pubspec.yaml lib/main.dart test/widget_test.dart android/app/build.gradle.kts; do
+  if [ ! -s "\$src_dir/\$rel_path" ]; then
+    echo "required template file missing or empty: \$src_dir/\$rel_path" >&2
+    exit 1
+  fi
+done
 if [ "$persist_workdir" = "1" ]; then
   workdir=/workspace/work
   mkdir -p "\$workdir"
@@ -91,7 +153,7 @@ rsync -a --delete \
   --exclude android/.gradle/ \
   --exclude android/app/.cxx/ \
   --exclude android/local.properties \
-  /workspace/src/ "\$workdir/"
+  "\$src_dir/" "\$workdir/"
 cd "\$workdir"
 if ! grep -q '^org.gradle.caching=' android/gradle.properties; then
   printf '\norg.gradle.caching=true\n' >> android/gradle.properties
@@ -109,12 +171,22 @@ if ! docker image inspect "$builder_image" >/dev/null 2>&1; then
   exit 1
 fi
 
-docker run --rm \
-  -v "$PWD/$template_dir:/workspace/src:ro" \
-  -v "$cache_root/pub-cache:/opt/pub-cache" \
-  -v "$cache_root/gradle:/root/.gradle" \
-  -v "$cache_root/android:/root/.android" \
-  -v "$logs_dir:/workspace/logs" \
-  "${work_mount_args[@]}" \
+docker_args=(
+  --rm
+  -v "$cache_root/pub-cache:/opt/pub-cache"
+  -v "$cache_root/gradle:/root/.gradle"
+  -v "$cache_root/android:/root/.android"
+  -v "$logs_dir:/workspace/logs"
+)
+
+if [ "$template_source_mode" = "host" ]; then
+  docker_args+=( -v "$template_dir:/workspace/src:ro" )
+fi
+
+if [ "${#work_mount_args[@]}" -gt 0 ]; then
+  docker_args+=( "${work_mount_args[@]}" )
+fi
+
+docker run "${docker_args[@]}" \
   "$builder_image" \
   exec bash -lc "$container_script"

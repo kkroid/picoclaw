@@ -49,10 +49,14 @@ func TestRunnerExecuteRunCompletesAndReleasesBuilder(t *testing.T) {
 	})
 	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
 	leaseID, _ := allocate["lease_id"].(string)
+	builderInput := sampleBuildRunInput()
+	taskBundle := builderInput["task_bundle"].([]map[string]any)
+	taskBundle[0]["title"] = "Closure repair"
+	taskBundle[0]["task_type"] = string(appruns.BuilderRuntimeTaskTypeClosureRepair)
 	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
 		"worker_id":     "builder-a",
 		"lease_id":      leaseID,
-		"builder_input": sampleBuildRunInput(),
+		"builder_input": builderInput,
 	})
 	runID, _ := create["run_id"].(string)
 
@@ -106,12 +110,29 @@ func TestExecutionEnvUsesWorkspaceGradleUserHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LocalExecutionEnvForTest() error = %v", err)
 	}
+	builderHome := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(run.WorkspacePath))), ".runtime", "home")
+	builderTempDir := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(run.WorkspacePath))), ".runtime", "tmp")
 	gradleUserHome := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(run.WorkspacePath))), ".runtime", "gradle-user-home")
 	if !containsString(env, "GRADLE_USER_HOME="+gradleUserHome) {
 		t.Fatalf("env missing GRADLE_USER_HOME, env=%v", env)
 	}
+	if !containsString(env, "HOME="+builderHome) {
+		t.Fatalf("env missing HOME, env=%v", env)
+	}
+	if !containsString(env, "TMPDIR="+builderTempDir) {
+		t.Fatalf("env missing TMPDIR, env=%v", env)
+	}
+	if !containsString(env, "XDG_CACHE_HOME="+filepath.Join(builderHome, ".cache")) {
+		t.Fatalf("env missing XDG_CACHE_HOME, env=%v", env)
+	}
 	if _, err := os.Stat(filepath.Join(gradleUserHome, "wrapper", "dists")); err != nil {
 		t.Fatalf("expected gradle wrapper dists dir: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(builderHome, ".kotlin", "daemon")); err != nil {
+		t.Fatalf("expected builder home kotlin daemon dir: %v", err)
+	}
+	if _, err := os.Stat(builderTempDir); err != nil {
+		t.Fatalf("expected builder temp dir: %v", err)
 	}
 
 	cmd, err := adapter.DockerPrepareCommandForTest(context.Background(), run)
@@ -122,6 +143,15 @@ func TestExecutionEnvUsesWorkspaceGradleUserHome(t *testing.T) {
 	if !containsString(args, "GRADLE_USER_HOME="+gradleUserHome) {
 		t.Fatalf("docker args missing GRADLE_USER_HOME, args=%v", args)
 	}
+	if !containsString(args, "HOME="+builderHome) {
+		t.Fatalf("docker args missing HOME, args=%v", args)
+	}
+	if !containsString(args, "TMPDIR="+builderTempDir) {
+		t.Fatalf("docker args missing TMPDIR, args=%v", args)
+	}
+	if !containsString(args, "XDG_CACHE_HOME="+filepath.Join(builderHome, ".cache")) {
+		t.Fatalf("docker args missing XDG_CACHE_HOME, args=%v", args)
+	}
 }
 
 func containsString(items []string, want string) bool {
@@ -131,186 +161,6 @@ func containsString(items []string, want string) bool {
 		}
 	}
 	return false
-}
-
-func TestRunnerExecuteRunUsesInjectedThinExecutor(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
-	t.Setenv("HTTP_PROXY", "")
-	t.Setenv("HTTPS_PROXY", "")
-	t.Setenv("ALL_PROXY", "")
-	t.Setenv("NO_PROXY", "")
-
-	configPath := filepath.Join(t.TempDir(), "config.json")
-	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
-	if err := config.SaveConfig(configPath, cfg); err != nil {
-		t.Fatalf("SaveConfig() error = %v", err)
-	}
-
-	h := api.NewHandler(configPath)
-	mux := http.NewServeMux()
-	h.RegisterRoutes(mux)
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
-		"builder_id":        "builder-a",
-		"display_name":      "Builder A",
-		"capability_tags":   []string{"flutter"},
-		"max_parallel_runs": 1,
-		"worker_profile":    map[string]any{"image": "builder:latest"},
-	})
-	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
-	leaseID, _ := allocate["lease_id"].(string)
-	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
-		"worker_id":     "builder-a",
-		"lease_id":      leaseID,
-		"builder_input": sampleBuildRunInput(),
-	})
-	runID, _ := create["run_id"].(string)
-
-	fake := &stubThinExecutor{workspace: t.TempDir()}
-	runner := adapter.NewRunner(server.URL)
-	runner.Executor = fake
-	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
-		t.Fatalf("ExecuteRun() error = %v", err)
-	}
-	if fake.called != 1 {
-		t.Fatalf("executor called = %d, want 1", fake.called)
-	}
-	if fake.lastRunID != runID {
-		t.Fatalf("executor run id = %q, want %q", fake.lastRunID, runID)
-	}
-	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
-	if run["status"] != "completed" {
-		t.Fatalf("run status = %v, want completed", run["status"])
-	}
-	if run["last_stage"] != "thin-prepare" {
-		t.Fatalf("last_stage = %v, want thin-prepare", run["last_stage"])
-	}
-	if run["failure_summary"] != nil && run["failure_summary"] != "" {
-		t.Fatalf("failure_summary = %v, want empty", run["failure_summary"])
-	}
-	if len(fake.lastEnv) == 0 {
-		t.Fatalf("executor command env should be set")
-	}
-	if fake.lastTaskCount != 1 {
-		t.Fatalf("executor task count = %d, want 1", fake.lastTaskCount)
-	}
-	if fake.lastCheckCount != 1 {
-		t.Fatalf("executor check count = %d, want 1", fake.lastCheckCount)
-	}
-	if fake.lastGoalSummary != "build android app" {
-		t.Fatalf("executor goal summary = %q, want build android app", fake.lastGoalSummary)
-	}
-	if len(fake.lastKnowledgePack) != 4 || fake.lastKnowledgePack[0].SkillID != "prd-to-task-bundle" {
-		t.Fatalf("executor knowledge pack = %+v, want Flutter skill pack", fake.lastKnowledgePack)
-	}
-	if fake.lastDir != fake.workspace {
-		t.Fatalf("executor command dir = %q, want %q", fake.lastDir, fake.workspace)
-	}
-}
-
-func TestRunnerExecuteRunCapturesWorkspacePatchFromEditStep(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
-	t.Setenv("HTTP_PROXY", "")
-	t.Setenv("HTTPS_PROXY", "")
-	t.Setenv("ALL_PROXY", "")
-	t.Setenv("NO_PROXY", "")
-
-	configPath := filepath.Join(t.TempDir(), "config.json")
-	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
-	if err := config.SaveConfig(configPath, cfg); err != nil {
-		t.Fatalf("SaveConfig() error = %v", err)
-	}
-
-	h := api.NewHandler(configPath)
-	mux := http.NewServeMux()
-	h.RegisterRoutes(mux)
-	server := httptest.NewServer(mux)
-	defer server.Close()
-
-	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
-		"builder_id":        "builder-a",
-		"display_name":      "Builder A",
-		"capability_tags":   []string{"flutter"},
-		"max_parallel_runs": 1,
-		"worker_profile":    map[string]any{"image": "builder:latest"},
-	})
-	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
-	leaseID, _ := allocate["lease_id"].(string)
-	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
-		"worker_id":     "builder-a",
-		"lease_id":      leaseID,
-		"builder_input": sampleBuildRunInput(),
-	})
-	runID, _ := create["run_id"].(string)
-
-	runner := adapter.NewRunner(server.URL)
-	runner.Executor = &patchWritingExecutor{}
-	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
-		t.Fatalf("ExecuteRun() error = %v", err)
-	}
-
-	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
-	builderOutput := readBuilderOutput(t, run)
-	modifiedFiles, ok := builderOutput["modified_files"].([]any)
-	if !ok || len(modifiedFiles) != 1 {
-		t.Fatalf("modified_files = %T %#v, want one file change", builderOutput["modified_files"], builderOutput["modified_files"])
-	}
-	firstFile, ok := modifiedFiles[0].(map[string]any)
-	if !ok || firstFile["path"] != "lib/generated.dart" || firstFile["change_type"] != "added" {
-		t.Fatalf("modified_file = %#v, want lib/generated.dart added", modifiedFiles[0])
-	}
-	roundOutputs, ok := builderOutput["round_outputs"].([]any)
-	if !ok || len(roundOutputs) != 1 {
-		t.Fatalf("round_outputs = %T %#v, want one round output", builderOutput["round_outputs"], builderOutput["round_outputs"])
-	}
-	firstRound, ok := roundOutputs[0].(map[string]any)
-	if !ok {
-		t.Fatalf("round_output[0] = %T, want object", roundOutputs[0])
-	}
-	workspacePatch, ok := firstRound["workspace_patch"].(map[string]any)
-	if !ok {
-		t.Fatalf("workspace_patch = %T, want object", firstRound["workspace_patch"])
-	}
-	if workspacePatch["status"] != "applied" {
-		t.Fatalf("workspace_patch.status = %v, want applied", workspacePatch["status"])
-	}
-	operations, ok := workspacePatch["operations"].([]any)
-	if !ok || len(operations) != 1 {
-		t.Fatalf("workspace_patch.operations = %v, want one operation", workspacePatch["operations"])
-	}
-	generatedPath := filepath.Join(filepath.FromSlash(run["workspace_path"].(string)), "lib", "generated.dart")
-	data, err := os.ReadFile(generatedPath)
-	if err != nil {
-		t.Fatalf("ReadFile(generated.dart) error = %v", err)
-	}
-	if string(data) != "const generated = true;\n" {
-		t.Fatalf("generated.dart = %q, want applied generated content", string(data))
-	}
-	eventsPath, _ := run["events_path"].(string)
-	if strings.TrimSpace(eventsPath) == "" {
-		t.Fatal("events_path should not be empty")
-	}
-	storeRoot := filepath.Clean(filepath.Join(filepath.FromSlash(run["workspace_path"].(string)), "..", "..", ".."))
-	eventsData, err := os.ReadFile(filepath.Join(storeRoot, filepath.FromSlash(eventsPath)))
-	if err != nil {
-		t.Fatalf("ReadFile(events_path) error = %v", err)
-	}
-	eventsText := string(eventsData)
-	if !strings.Contains(eventsText, "run_patch_generation_started") {
-		t.Fatalf("events missing run_patch_generation_started: %s", eventsText)
-	}
-	if !strings.Contains(eventsText, "run_patch_generated") {
-		t.Fatalf("events missing run_patch_generated: %s", eventsText)
-	}
-	if !strings.Contains(eventsText, "run_patch_applied") {
-		t.Fatalf("events missing run_patch_applied: %s", eventsText)
-	}
 }
 
 func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnParseFailure(t *testing.T) {
@@ -397,6 +247,368 @@ func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnParseFailure(t *testing.T)
 	}
 }
 
+func TestRunnerExecuteRunRepairsBuilderRuntimeSchemaAfterUpgradeParseFailure(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInput(),
+	})
+	runID, _ := create["run_id"].(string)
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		UpgradeModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-32b-local"},
+	}
+	runner.PatchGenerator = &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-32b-local": {
+			{Content: `{"patch_id":"round-1-patch","operations":[{"replace_block":{"path":"lib/main.dart","old_content":"const title = 'Old Title';\n"}}]}`},
+			{Content: `{"patch_id":"round-1-patch-repaired","operations":[{"write_file":{"path":"lib/main.dart","content":"const title = 'Budget Flow';\n"}}]}`},
+		},
+	}}
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	if run["status"] != "completed" {
+		t.Fatalf("run status = %v, want completed", run["status"])
+	}
+	builderOutput := readBuilderOutput(t, run)
+	roundOutputs, _ := builderOutput["round_outputs"].([]any)
+	firstRound, _ := roundOutputs[0].(map[string]any)
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["selected_model"] != "qwen2.5-coder-32b-local" {
+		t.Fatalf("selected_model = %v, want qwen2.5-coder-32b-local", builderRuntime["selected_model"])
+	}
+	if builderRuntime["upgrade_applied"] != true {
+		t.Fatalf("upgrade_applied = %v, want true", builderRuntime["upgrade_applied"])
+	}
+	if builderRuntime["attempts"] != float64(2) {
+		t.Fatalf("attempts = %v, want 2", builderRuntime["attempts"])
+	}
+	if builderRuntime["parse_failure_count"] != float64(1) {
+		t.Fatalf("parse_failure_count = %v, want 1", builderRuntime["parse_failure_count"])
+	}
+	workspacePatch, _ := firstRound["workspace_patch"].(map[string]any)
+	if workspacePatch["status"] != "applied" {
+		t.Fatalf("workspace_patch.status = %v, want applied", workspacePatch["status"])
+	}
+	mainDartPath := filepath.Join(filepath.Dir(configPath), "workspace", "appfactory", "jobs", "job-1", "workspace", "lib", "main.dart")
+	content, err := os.ReadFile(mainDartPath)
+	if err != nil {
+		t.Fatalf("ReadFile(lib/main.dart) error = %v", err)
+	}
+	if string(content) != "const title = 'Budget Flow';\n" {
+		t.Fatalf("lib/main.dart = %q, want repaired content", string(content))
+	}
+}
+
+func TestRunnerExecuteRunStopsOnTaskCreateLocalValidationFailure(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	builderInput := sampleBuildRunInputWithAcceptanceCheck("check-flutter-analyze", "flutter analyze", "cheap", []string{"echo analyze"})
+	builderInput["task_bundle"] = []map[string]any{
+		{
+			"task_id":             "task-create-home-controller",
+			"title":               "Create controller",
+			"category":            "summary",
+			"objective":           "Create home controller",
+			"task_type":           string(appruns.BuilderRuntimeTaskTypeSingleFileEdit),
+			"target_paths":        []string{"lib/controllers/home_controller.dart"},
+			"completion_criteria": []string{"controller file exists"},
+		},
+		{
+			"task_id":             "task-create-home-page",
+			"title":               "Create page",
+			"category":            "screen",
+			"objective":           "Create home page",
+			"task_type":           string(appruns.BuilderRuntimeTaskTypeSingleFileEdit),
+			"dependencies":        []string{"task-create-home-controller"},
+			"target_paths":        []string{"lib/views/home_page.dart"},
+			"completion_criteria": []string{"home page file exists"},
+		},
+	}
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": builderInput,
+	})
+	runID, _ := create["run_id"].(string)
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-32b-local"},
+	}
+	patchGenerator := &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-32b-local": {
+			{Content: `{"patch_id":"task-create-home-controller","operations":[{"type":"write_file","path":"lib/controllers/home_controller.dart","content":"import '../repositories/record_repository.dart';\nclass HomeController {}\n"}]}`},
+			{Content: `{"patch_id":"task-create-home-page","operations":[{"type":"write_file","path":"lib/views/home_page.dart","content":"class HomePage {}\n"}]}`},
+		},
+	}}
+	runner.PatchGenerator = patchGenerator
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	if run["status"] != "failed" {
+		t.Fatalf("run status = %v, want failed", run["status"])
+	}
+	failureSummary, _ := run["failure_summary"].(string)
+	if !strings.Contains(failureSummary, "builder runtime task output validation failed") || !strings.Contains(failureSummary, "unresolved local import/export/part") {
+		t.Fatalf("failure_summary = %q, want local validation failure detail", failureSummary)
+	}
+	failureSignatures, ok := run["failure_signatures"].([]any)
+	if !ok || len(failureSignatures) != 1 || failureSignatures[0] != "builder_runtime_task_output_invalid" {
+		t.Fatalf("failure_signatures = %#v, want [builder_runtime_task_output_invalid]", run["failure_signatures"])
+	}
+	if len(patchGenerator.requests) != 1 {
+		t.Fatalf("patch requests = %d, want 1 and stop before next task", len(patchGenerator.requests))
+	}
+	if patchGenerator.requests[0].Route.TaskID != "task-create-home-controller" {
+		t.Fatalf("first request task = %q, want task-create-home-controller", patchGenerator.requests[0].Route.TaskID)
+	}
+	roundState, ok := run["round_state"].(map[string]any)
+	if !ok {
+		t.Fatalf("round_state = %T, want object", run["round_state"])
+	}
+	if roundState["current_task_id"] != "task-create-home-controller" {
+		t.Fatalf("round_state.current_task_id = %v, want task-create-home-controller", roundState["current_task_id"])
+	}
+	taskStatuses, ok := roundState["task_statuses"].(map[string]any)
+	if !ok {
+		t.Fatalf("round_state.task_statuses = %T, want object", roundState["task_statuses"])
+	}
+	if taskStatuses["task-create-home-controller"] != string(appruns.BuilderRuntimeTaskStatusCreated) {
+		t.Fatalf("task-create-home-controller status = %v, want created", taskStatuses["task-create-home-controller"])
+	}
+	if _, exists := taskStatuses["task-create-home-page"]; exists {
+		t.Fatalf("task-create-home-page status = %v, want omitted because execution stopped before next task", taskStatuses["task-create-home-page"])
+	}
+	workspacePath, _ := run["workspace_path"].(string)
+	homePagePath := filepath.Join(filepath.FromSlash(workspacePath), "lib", "views", "home_page.dart")
+	if _, err := os.Stat(homePagePath); !os.IsNotExist(err) {
+		t.Fatalf("home page path stat error = %v, want next task output absent", err)
+	}
+}
+
+func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnSchemaDriftThreshold(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInput(),
+	})
+	runID, _ := create["run_id"].(string)
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		UpgradeModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-32b-local"},
+		UpgradeThreshold: config.BuilderRuntimeUpgradeThresholdConfig{
+			MaxSchemaDriftBeforeUpgrade: 1,
+		},
+	}
+	patchGenerator := &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-14b-local": {{Content: `{"patch_id":"round-1-patch","operations":[{"write_file":{"path":"lib/main.dart","content":"const title = 'Budget Flow';\n"}}]}`}},
+		"qwen2.5-coder-32b-local": {{Content: `{"patch_id":"round-1-patch","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Budget Flow';\n"}]}`}},
+	}}
+	runner.PatchGenerator = patchGenerator
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+	if got := strings.Join(patchGenerator.models, ","); got != "qwen2.5-coder-14b-local,qwen2.5-coder-32b-local" {
+		t.Fatalf("models = %q, want 14b then 32b", got)
+	}
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	builderOutput := readBuilderOutput(t, run)
+	roundOutputs, _ := builderOutput["round_outputs"].([]any)
+	firstRound, _ := roundOutputs[0].(map[string]any)
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["selected_model"] != "qwen2.5-coder-32b-local" {
+		t.Fatalf("selected_model = %v, want 32b", builderRuntime["selected_model"])
+	}
+	if builderRuntime["upgrade_applied"] != true {
+		t.Fatalf("upgrade_applied = %v, want true", builderRuntime["upgrade_applied"])
+	}
+	if builderRuntime["schema_drift_count"] == nil || builderRuntime["schema_drift_count"].(float64) < 1 {
+		t.Fatalf("schema_drift_count = %v, want >= 1", builderRuntime["schema_drift_count"])
+	}
+}
+
+func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnUnrelatedOperationRate(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInput(),
+	})
+	runID, _ := create["run_id"].(string)
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		UpgradeModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-32b-local"},
+		UpgradeThreshold: config.BuilderRuntimeUpgradeThresholdConfig{
+			MaxUnrelatedOperationRate: 0.4,
+			UpgradeOnScopeViolation:   true,
+		},
+	}
+	patchGenerator := &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-14b-local": {{Content: `{"patch_id":"round-1-patch","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Budget Flow';\n"},{"type":"write_file","path":"lib/extra.dart","content":"const note = 'noise';\n"}]}`}},
+		"qwen2.5-coder-32b-local": {{Content: `{"patch_id":"round-1-patch","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Budget Flow';\n"}]}`}},
+	}}
+	runner.PatchGenerator = patchGenerator
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+	if got := strings.Join(patchGenerator.models, ","); got != "qwen2.5-coder-14b-local,qwen2.5-coder-32b-local" {
+		t.Fatalf("models = %q, want 14b then 32b", got)
+	}
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	builderOutput := readBuilderOutput(t, run)
+	roundOutputs, _ := builderOutput["round_outputs"].([]any)
+	firstRound, _ := roundOutputs[0].(map[string]any)
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["selected_model"] != "qwen2.5-coder-32b-local" {
+		t.Fatalf("selected_model = %v, want 32b", builderRuntime["selected_model"])
+	}
+	if builderRuntime["upgrade_applied"] != true {
+		t.Fatalf("upgrade_applied = %v, want true", builderRuntime["upgrade_applied"])
+	}
+	if builderRuntime["scope_violation_count"] != float64(1) {
+		t.Fatalf("scope_violation_count = %v, want 1", builderRuntime["scope_violation_count"])
+	}
+}
+
 func TestRunnerExecuteRunNormalizesBuilderRuntimeSchemaAndTracksUnrelatedEdits(t *testing.T) {
 	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
 	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
@@ -440,7 +652,7 @@ func TestRunnerExecuteRunNormalizesBuilderRuntimeSchemaAndTracksUnrelatedEdits(t
 		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
 	}
 	runner.PatchGenerator = &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
-		"qwen2.5-coder-14b-local": {{Content: "```json\n{\"patch_id\":\"round-1-patch\",\"operations\":[{\"action\":\"write\",\"file_path\":\"lib/main.dart\",\"file_content\":\"const title = 'Budget Flow';\\n\"},{\"action\":\"write\",\"file_path\":\"lib/extra.dart\",\"file_content\":\"const extra = true;\\n\"}]}\n```"}},
+		"qwen2.5-coder-14b-local": {{Content: "```json\n{\"patch_id\":\"round-1-patch\",\"operations\":[{\"action\":\"write\",\"file_path\":\"lib/main.dart\",\"file_content\":\"const title = 'Budget Flow';\\n\"}]}\n```"}},
 	}}
 
 	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
@@ -460,14 +672,14 @@ func TestRunnerExecuteRunNormalizesBuilderRuntimeSchemaAndTracksUnrelatedEdits(t
 	if builderRuntime["schema_drift_count"] == nil || builderRuntime["schema_drift_count"].(float64) < 1 {
 		t.Fatalf("schema_drift_count = %v, want >= 1", builderRuntime["schema_drift_count"])
 	}
-	if builderRuntime["unrelated_operation_count"] != float64(1) {
-		t.Fatalf("unrelated_operation_count = %v, want 1", builderRuntime["unrelated_operation_count"])
-	}
 	if builderRuntime["targeted_operation_count"] != float64(1) {
 		t.Fatalf("targeted_operation_count = %v, want 1", builderRuntime["targeted_operation_count"])
 	}
-	if builderRuntime["unrelated_operation_rate"] != 0.5 {
-		t.Fatalf("unrelated_operation_rate = %v, want 0.5", builderRuntime["unrelated_operation_rate"])
+	if value, ok := builderRuntime["unrelated_operation_count"]; ok {
+		t.Fatalf("unrelated_operation_count = %v, want omitted zero value", value)
+	}
+	if value, ok := builderRuntime["unrelated_operation_rate"]; ok {
+		t.Fatalf("unrelated_operation_rate = %v, want omitted zero value", value)
 	}
 }
 
@@ -505,17 +717,18 @@ func TestRunnerExecuteRunClassifiesWorkspacePatchApplyFailure(t *testing.T) {
 		"worker_id": "builder-a",
 		"lease_id":  leaseID,
 		"builder_input": map[string]any{
-			"schema_version": "0.1.0",
-			"job_id":         "job-1",
-			"prd_id":         "prd-1",
-			"template_id":    "template-1",
-			"workspace_path": "/workspace/job-1",
-			"artifact_dir":   "/artifacts/job-1",
-			"goal_summary":   "build android app",
+			"schema_version":  "0.1.0",
+			"job_id":          "job-1",
+			"prd_id":          "prd-1",
+			"template_id":     "template-1",
+			"planning_policy": samplePlanningPolicyMap(),
+			"workspace_path":  "/workspace/job-1",
+			"artifact_dir":    "/artifacts/job-1",
+			"goal_summary":    "build android app",
 			"task_bundle": []map[string]any{{
 				"task_id":             "task-1",
 				"title":               "Touch android config",
-				"category":            "runtime",
+				"category":            "validation",
 				"objective":           "attempt protected path write",
 				"target_paths":        []string{"android/app/build.gradle.kts"},
 				"completion_criteria": []string{"protected path write blocked"},
@@ -971,10 +1184,15 @@ func TestRunnerExecuteRunClassifiesEnvironmentClosureCheckFailure(t *testing.T) 
 	})
 	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
 	leaseID, _ := allocate["lease_id"].(string)
+	builderInput := sampleBuildRunInputWithAcceptanceCheck("check-flutter-analyze", "flutter analyze", "cheap", []string{"flutter analyze"})
+	builderInput["allowed_paths"] = []string{"lib/**", "test/**"}
+	taskBundle, _ := builderInput["task_bundle"].([]map[string]any)
+	taskBundle[0]["target_paths"] = []string{"lib/main.dart", "test/widget_test.dart"}
+	builderInput["task_bundle"] = taskBundle
 	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
 		"worker_id":     "builder-a",
 		"lease_id":      leaseID,
-		"builder_input": sampleBuildRunInputWithAcceptanceCheck("check-flutter-analyze", "flutter analyze", "cheap", []string{"flutter analyze"}),
+		"builder_input": builderInput,
 	})
 	runID, _ := create["run_id"].(string)
 
@@ -1136,6 +1354,925 @@ func TestRunnerExecuteRunAutoRepairsFlutterAnalyzeFailure(t *testing.T) {
 	}
 	if metrics["model_request_retries"] != float64(1) {
 		t.Fatalf("model_request_retries = %v, want 1", metrics["model_request_retries"])
+	}
+	events := readRunEvents(t, run)
+	var lastAppliedEvent map[string]any
+	for _, event := range events {
+		if event["type"] == "run_patch_applied" {
+			lastAppliedEvent = event
+		}
+	}
+	if lastAppliedEvent == nil {
+		t.Fatalf("events missing run_patch_applied: %#v", events)
+	}
+	if lastAppliedEvent["attempt"] != float64(2) {
+		t.Fatalf("last run_patch_applied attempt = %v, want 2", lastAppliedEvent["attempt"])
+	}
+}
+
+func TestRunnerExecuteRunUpgradesValidationRepairAfterAnalyzeStillFails(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputWithAcceptanceCheck("check-flutter-analyze", "flutter analyze", "cheap", []string{"flutter analyze"}),
+	})
+	runID, _ := create["run_id"].(string)
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		UpgradeModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-32b-local"},
+		UpgradeThreshold: config.BuilderRuntimeUpgradeThresholdConfig{
+			UpgradeOnValidationFail: true,
+		},
+		TaskRoutes: []config.BuilderRuntimeTaskRouteConfig{{
+			TaskType: "analyze_repair",
+			Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		}},
+	}
+	runner.PatchGenerator = &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-14b-local": {
+			{Content: `{"patch_id":"initial-edit","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Old Title';\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-local","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Almost Fixed';\n"}]}`},
+		},
+		"qwen2.5-coder-32b-local": {
+			{Content: `{"patch_id":"analyze-repair-upgrade","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Budget Flow';\n"}]}`},
+		},
+	}}
+	runner.Executor = failingValidationExecutor{
+		checkID:  "check-flutter-analyze",
+		label:    "flutter analyze",
+		stage:    appruns.StageCheap,
+		commands: []string{"flutter analyze"},
+		script:   "grep -q 'Budget Flow' lib/main.dart || { echo flutter analyze still failing >&2; exit 1; }",
+	}
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	if run["status"] != "completed" {
+		t.Fatalf("run status = %v, want completed", run["status"])
+	}
+	builderOutput := readBuilderOutput(t, run)
+	roundOutputs, _ := builderOutput["round_outputs"].([]any)
+	firstRound, _ := roundOutputs[0].(map[string]any)
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["selected_model"] != "qwen2.5-coder-32b-local" {
+		t.Fatalf("selected_model = %v, want qwen2.5-coder-32b-local", builderRuntime["selected_model"])
+	}
+	if builderRuntime["upgrade_applied"] != true {
+		t.Fatalf("upgrade_applied = %v, want true", builderRuntime["upgrade_applied"])
+	}
+	if builderRuntime["task_type"] != "analyze_repair" {
+		t.Fatalf("task_type = %v, want analyze_repair", builderRuntime["task_type"])
+	}
+	if builderRuntime["attempts"] != float64(3) {
+		t.Fatalf("attempts = %v, want 3", builderRuntime["attempts"])
+	}
+}
+
+func TestRunnerExecuteRunRepeatsValidationRepairWithLatestAnalyzeFailureContext(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputWithAcceptanceCheck("check-flutter-analyze", "flutter analyze", "cheap", []string{"flutter analyze"}),
+	})
+	runID, _ := create["run_id"].(string)
+
+	generator := &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-14b-local": {
+			{Content: `{"patch_id":"initial-edit","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Old Title';\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-1","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'First Fix';\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-2","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Second Fix';\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-3","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Third Fix';\n"}]}`},
+		},
+	}}
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		TaskRoutes: []config.BuilderRuntimeTaskRouteConfig{{
+			TaskType: "analyze_repair",
+			Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		}},
+	}
+	runner.PatchGenerator = generator
+	runner.Executor = failingValidationExecutor{
+		checkID:  "check-flutter-analyze",
+		label:    "flutter analyze",
+		stage:    appruns.StageCheap,
+		commands: []string{"flutter analyze"},
+		script: strings.Join([]string{
+			"if grep -q \"Third Fix\" lib/main.dart; then",
+			"  exit 0",
+			"fi",
+			"if grep -q \"Second Fix\" lib/main.dart; then",
+			"  echo 'Analyzing workspace...'",
+			"  echo \"warning • Unused import: 'package:bookkeeping_lite/models/entry.dart' • test/widget_test.dart:6:8 • unused_import\"",
+			"  echo '1 issue found. (ran in 1.7s)'",
+			"  exit 1",
+			"fi",
+			"if grep -q \"First Fix\" lib/main.dart; then",
+			"  echo 'Analyzing workspace...'",
+			"  echo \"  error • The function 'InMemoryEntryRepository' isn't defined • test/widget_test.dart:11:34 • undefined_function\"",
+			"  echo '1 issue found. (ran in 1.7s)'",
+			"  exit 1",
+			"fi",
+			"echo 'Analyzing workspace...'",
+			"echo \"  error • The getter 'entryCount' isn't defined for the type 'Summary' • lib/views/home_page.dart:107:38 • undefined_getter\"",
+			"echo \"  error • The function 'InMemoryEntryRepository' isn't defined • test/widget_test.dart:11:34 • undefined_function\"",
+			"echo '2 issues found. (ran in 1.7s)'",
+			"exit 1",
+		}, "\n"),
+	}
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	if run["status"] != "completed" {
+		t.Fatalf("run status = %v, want completed", run["status"])
+	}
+	builderOutput := readBuilderOutput(t, run)
+	roundOutputs, _ := builderOutput["round_outputs"].([]any)
+	firstRound, _ := roundOutputs[0].(map[string]any)
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["attempts"] != float64(4) {
+		t.Fatalf("attempts = %v, want 4", builderRuntime["attempts"])
+	}
+	if len(generator.requests) != 4 {
+		t.Fatalf("len(generator.requests) = %d, want 4", len(generator.requests))
+	}
+	if generator.requests[3].RoundInput.Attempt != 4 {
+		t.Fatalf("third repair attempt = %d, want 4", generator.requests[3].RoundInput.Attempt)
+	}
+}
+
+func TestRunnerExecuteRunAllowsFourthValidationRepairRoundWithLatestAnalyzeFailureContext(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputWithAcceptanceCheck("check-flutter-analyze", "flutter analyze", "cheap", []string{"flutter analyze"}),
+	})
+	runID, _ := create["run_id"].(string)
+
+	generator := &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-14b-local": {
+			{Content: `{"patch_id":"initial-edit","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Old Title';\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-1","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'First Fix';\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-2","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Second Fix';\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-3","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Third Fix';\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-4","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Fourth Fix';\n"}]}`},
+		},
+	}}
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		TaskRoutes: []config.BuilderRuntimeTaskRouteConfig{{
+			TaskType: "analyze_repair",
+			Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		}},
+	}
+	runner.PatchGenerator = generator
+	runner.Executor = failingValidationExecutor{
+		checkID:  "check-flutter-analyze",
+		label:    "flutter analyze",
+		stage:    appruns.StageCheap,
+		commands: []string{"flutter analyze"},
+		script: strings.Join([]string{
+			"if grep -q \"Fourth Fix\" lib/main.dart; then",
+			"  exit 0",
+			"fi",
+			"if grep -q \"Third Fix\" lib/main.dart; then",
+			"  echo 'Analyzing workspace...'",
+			"  echo \"  error • Undefined name 'openLite0Copy' • lib/views/home_page.dart:180:16 • undefined_identifier\"",
+			"  echo '1 issue found. (ran in 1.4s)'",
+			"  exit 1",
+			"fi",
+			"if grep -q \"Second Fix\" lib/main.dart; then",
+			"  echo 'Analyzing workspace...'",
+			"  echo \"warning • Unused import: 'package:bookkeeping_lite/models/entry.dart' • test/widget_test.dart:6:8 • unused_import\"",
+			"  echo '1 issue found. (ran in 1.7s)'",
+			"  exit 1",
+			"fi",
+			"if grep -q \"First Fix\" lib/main.dart; then",
+			"  echo 'Analyzing workspace...'",
+			"  echo \"  error • The function 'InMemoryEntryRepository' isn't defined • test/widget_test.dart:11:34 • undefined_function\"",
+			"  echo '1 issue found. (ran in 1.7s)'",
+			"  exit 1",
+			"fi",
+			"echo 'Analyzing workspace...'",
+			"echo \"  error • The getter 'entryCount' isn't defined for the type 'Summary' • lib/views/home_page.dart:107:38 • undefined_getter\"",
+			"echo \"  error • The function 'InMemoryEntryRepository' isn't defined • test/widget_test.dart:11:34 • undefined_function\"",
+			"echo '2 issues found. (ran in 1.7s)'",
+			"exit 1",
+		}, "\n"),
+	}
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	if run["status"] != "completed" {
+		t.Fatalf("run status = %v, want completed", run["status"])
+	}
+	builderOutput := readBuilderOutput(t, run)
+	roundOutputs, _ := builderOutput["round_outputs"].([]any)
+	firstRound, _ := roundOutputs[0].(map[string]any)
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["attempts"] != float64(5) {
+		t.Fatalf("attempts = %v, want 5", builderRuntime["attempts"])
+	}
+	if len(generator.requests) != 5 {
+		t.Fatalf("len(generator.requests) = %d, want 5", len(generator.requests))
+	}
+	if generator.requests[4].RoundInput.Attempt != 5 {
+		t.Fatalf("fourth repair attempt = %d, want 5", generator.requests[4].RoundInput.Attempt)
+	}
+	if strings.TrimSpace(generator.requests[4].FailureContext) == "" {
+		t.Fatalf("fourth repair FailureContext = %q, want non-empty context", generator.requests[4].FailureContext)
+	}
+}
+
+func TestRunnerExecuteRunAnalyzeRepairCarriesFailureSliceIntoCoverageRepair(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	builderInput := sampleBuildRunInputWithAcceptanceCheck("check-flutter-analyze", "flutter analyze", "cheap", []string{"flutter analyze"})
+	builderInput["allowed_paths"] = []string{"lib/**", "test/**"}
+	builderInput["task_bundle"] = []map[string]any{
+		{
+			"task_id":             "task-bootstrap",
+			"title":               "bootstrap repair fixture",
+			"category":            "screen",
+			"task_type":           "dual_file_wiring",
+			"objective":           "seed analyze repair fixture files",
+			"target_paths":        []string{"lib/views/home_page.dart", "lib/controllers/home_controller.dart", "lib/models/entry.dart"},
+			"completion_criteria": []string{"repair fixture files exist"},
+		},
+		{
+			"task_id":             "task-domain-entry",
+			"title":               "entry domain model",
+			"category":            "domain",
+			"task_type":           "dual_file_wiring",
+			"objective":           "define the entry domain model",
+			"target_paths":        []string{"lib/models/entry.dart"},
+			"completion_criteria": []string{"entry model exists"},
+		},
+		{
+			"task_id":             "task-home-controller",
+			"title":               "home controller",
+			"category":            "flow",
+			"task_type":           "dual_file_wiring",
+			"objective":           "wire the home controller",
+			"dependencies":        []string{"task-domain-entry"},
+			"target_paths":        []string{"lib/controllers/home_controller.dart"},
+			"completion_criteria": []string{"home controller exists"},
+		},
+		{
+			"task_id":             "task-home-page",
+			"title":               "home page",
+			"category":            "screen",
+			"task_type":           "dual_file_wiring",
+			"objective":           "wire the home page",
+			"dependencies":        []string{"task-home-controller"},
+			"target_paths":        []string{"lib/views/home_page.dart"},
+			"completion_criteria": []string{"home page exists"},
+		},
+	}
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": builderInput,
+	})
+	runID, _ := create["run_id"].(string)
+
+	generator := &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-14b-local": {
+			{Content: strings.Join([]string{
+				`{"patch_id":"initial-edit","operations":[`,
+				`{"type":"write_file","path":"lib/models/entry.dart","content":"class Entry {}\n"},`,
+				`{"type":"write_file","path":"lib/controllers/home_controller.dart","content":"import '../models/entry.dart';\nclass HomeController {\n  final Entry? latestEntry = null;\n}\n"},`,
+				`{"type":"write_file","path":"lib/views/home_page.dart","content":"import '../controllers/home_controller.dart';\nfinal controller = HomeController();\nString buildHeadline() => controller.displayTitle;\n"}`,
+				`]}`,
+			}, "")},
+			{Content: `{"patch_id":"analyze-repair-controller-only","operations":[{"type":"write_file","path":"lib/controllers/home_controller.dart","content":"import '../models/entry.dart';\nclass HomeController {\n  final Entry? latestEntry = null;\n  String get displayTitle => 'Budget Flow';\n}\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-home-page","operations":[{"type":"write_file","path":"lib/views/home_page.dart","content":"import '../controllers/home_controller.dart';\nfinal controller = HomeController();\nString buildHeadline() => 'Budget Flow';\n"}]}`},
+			{Content: `{"patch_id":"analyze-repair-model","operations":[{"type":"write_file","path":"lib/models/entry.dart","content":"class Entry {\n  const Entry();\n}\n"}]}`},
+		},
+	}}
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		TaskRoutes: []config.BuilderRuntimeTaskRouteConfig{{
+			TaskType: "analyze_repair",
+			Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		}},
+	}
+	runner.PatchGenerator = generator
+	runner.Executor = failingValidationExecutor{
+		checkID:  "check-flutter-analyze",
+		label:    "flutter analyze",
+		stage:    appruns.StageCheap,
+		commands: []string{"flutter analyze"},
+		script: strings.Join([]string{
+			"if grep -q 'Budget Flow' lib/views/home_page.dart; then",
+			"  exit 0",
+			"fi",
+			"echo '{\"patch_id\":\"noise\",\"operations\":[{\"type\":\"write_file\",\"path\":\"lib/noise.dart\",\"content\":\"noise\"}]}'",
+			"echo 'Analyzing workspace...'",
+			"echo \"error • current failure • lib/views/home_page.dart:3:36 • undefined_getter\"",
+			"echo '1 issue found. (ran in 1.2s)'",
+			"exit 1",
+		}, "\n"),
+	}
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	if run["status"] != "completed" {
+		t.Fatalf("run status = %v, want completed (failure_summary=%v, requests=%s)", run["status"], run["failure_summary"], summarizePatchRequests(generator.requests))
+	}
+	if len(generator.requests) != 4 {
+		t.Fatalf("len(generator.requests) = %d, want 4", len(generator.requests))
+	}
+	repairRequest := generator.requests[1]
+	if repairRequest.Route.TaskType != appruns.BuilderRuntimeTaskTypeAnalyzeRepair {
+		t.Fatalf("repair task type = %v, want analyze_repair", repairRequest.Route.TaskType)
+	}
+	if repairRequest.RoundInput.Attempt != 2 {
+		t.Fatalf("repair attempt = %d, want 2", repairRequest.RoundInput.Attempt)
+	}
+	if !strings.Contains(repairRequest.FailureContext, "check=check-flutter-analyze") {
+		t.Fatalf("failure context should keep the current analyze check id: %q", repairRequest.FailureContext)
+	}
+	repairTask := mustFindTaskBundleItem(t, repairRequest.Run.TaskBundle, "repair-check-flutter-analyze")
+	assertExactTargetPaths(t, repairTask.TargetPaths, []string{"lib/controllers/home_controller.dart", "lib/models/entry.dart", "lib/views/home_page.dart"})
+	if !hasTaskBundleItem(repairRequest.Run.TaskBundle, "task-domain-entry") {
+		t.Fatalf("repair context should keep the dependent domain task")
+	}
+	if !hasTaskBundleItem(repairRequest.Run.TaskBundle, "task-home-controller") {
+		t.Fatalf("repair context should keep the imported controller task")
+	}
+	coverageRepairRequest := generator.requests[2]
+	if coverageRepairRequest.RepairOnly != true {
+		t.Fatalf("coverage repair should be repair-only")
+	}
+	if !strings.Contains(coverageRepairRequest.PreviousErr, "lib/models/entry.dart") || !strings.Contains(coverageRepairRequest.PreviousErr, "lib/views/home_page.dart") {
+		t.Fatalf("coverage repair should name the remaining missing targets: %q", coverageRepairRequest.PreviousErr)
+	}
+	coverageRepairTask := mustFindTaskBundleItem(t, coverageRepairRequest.Run.TaskBundle, "repair-check-flutter-analyze")
+	assertExactTargetPaths(t, coverageRepairTask.TargetPaths, []string{"lib/models/entry.dart", "lib/views/home_page.dart"})
+	finalCoverageRequest := generator.requests[3]
+	if finalCoverageRequest.RepairOnly != true {
+		t.Fatalf("final coverage repair should be repair-only")
+	}
+	if !strings.Contains(finalCoverageRequest.PreviousErr, "lib/models/entry.dart") {
+		t.Fatalf("final coverage repair should narrow to the last missing model target: %q", finalCoverageRequest.PreviousErr)
+	}
+	finalCoverageTask := mustFindTaskBundleItem(t, finalCoverageRequest.Run.TaskBundle, "repair-check-flutter-analyze")
+	assertExactTargetPaths(t, finalCoverageTask.TargetPaths, []string{"lib/models/entry.dart"})
+	builderOutput := readBuilderOutput(t, run)
+	roundOutputs, _ := builderOutput["round_outputs"].([]any)
+	firstRound, _ := roundOutputs[0].(map[string]any)
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["attempts"] != float64(4) {
+		t.Fatalf("attempts = %v, want 4", builderRuntime["attempts"])
+	}
+}
+
+func TestRunnerExecuteRunFlutterTestRepairUsesLastFailureBlockAndCoverageRetry(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	builderInput := sampleBuildRunInputWithAcceptanceCheck("check-flutter-test", "flutter test", "cheap", []string{"flutter test"})
+	builderInput["allowed_paths"] = []string{"lib/**", "test/**"}
+	builderInput["task_bundle"] = []map[string]any{
+		{
+			"task_id":             "task-bootstrap",
+			"title":               "bootstrap test repair fixture",
+			"category":            "screen",
+			"task_type":           "dual_file_wiring",
+			"objective":           "seed flutter test repair fixture files",
+			"target_paths":        []string{"test/widget_test.dart", "lib/controllers/home_controller.dart", "lib/models/entry.dart"},
+			"completion_criteria": []string{"test repair fixture files exist"},
+		},
+		{
+			"task_id":             "task-domain-entry",
+			"title":               "entry domain model",
+			"category":            "domain",
+			"task_type":           "dual_file_wiring",
+			"objective":           "define the entry domain model",
+			"target_paths":        []string{"lib/models/entry.dart"},
+			"completion_criteria": []string{"entry model exists"},
+		},
+		{
+			"task_id":             "task-home-controller",
+			"title":               "home controller",
+			"category":            "flow",
+			"task_type":           "dual_file_wiring",
+			"objective":           "wire the home controller",
+			"dependencies":        []string{"task-domain-entry"},
+			"target_paths":        []string{"lib/controllers/home_controller.dart"},
+			"completion_criteria": []string{"home controller exists"},
+		},
+		{
+			"task_id":             "task-widget-test",
+			"title":               "widget smoke test",
+			"category":            "validation",
+			"task_type":           "dual_file_wiring",
+			"objective":           "wire the widget smoke test",
+			"dependencies":        []string{"task-home-controller"},
+			"target_paths":        []string{"test/widget_test.dart"},
+			"completion_criteria": []string{"widget test exists"},
+		},
+	}
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": builderInput,
+	})
+	runID, _ := create["run_id"].(string)
+
+	generator := &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-14b-local": {
+			{Content: strings.Join([]string{
+				`{"patch_id":"initial-edit","operations":[`,
+				`{"type":"write_file","path":"lib/models/entry.dart","content":"class Entry {}\n"},`,
+				`{"type":"write_file","path":"lib/controllers/home_controller.dart","content":"import '../models/entry.dart';\nclass HomeController {\n  final Entry? latestEntry = null;\n}\n"},`,
+				`{"type":"write_file","path":"test/widget_test.dart","content":"import '../lib/controllers/home_controller.dart';\nfinal controller = HomeController();\nString smokeTest() => controller.displayTitle;\n"}`,
+				`]}`,
+			}, "")},
+			{Content: `{"patch_id":"test-repair-controller-only","operations":[{"type":"write_file","path":"lib/controllers/home_controller.dart","content":"import '../models/entry.dart';\nclass HomeController {\n  final Entry? latestEntry = null;\n  String get displayTitle => 'repair done';\n}\n"}]}`},
+			{Content: `{"patch_id":"test-repair-widget-test","operations":[{"type":"write_file","path":"test/widget_test.dart","content":"import '../lib/controllers/home_controller.dart';\nfinal controller = HomeController();\nString smokeTest() => 'repair done';\n"}]}`},
+			{Content: `{"patch_id":"test-repair-model","operations":[{"type":"write_file","path":"lib/models/entry.dart","content":"class Entry {\n  const Entry();\n}\n"}]}`},
+		},
+	}}
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		TaskRoutes: []config.BuilderRuntimeTaskRouteConfig{{
+			TaskType: "test_repair",
+			Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		}},
+	}
+	runner.PatchGenerator = generator
+	runner.Executor = failingValidationExecutor{
+		checkID:  "check-flutter-test",
+		label:    "flutter test",
+		stage:    appruns.StageCheap,
+		commands: []string{"flutter test"},
+		script: strings.Join([]string{
+			"if grep -q 'repair done' test/widget_test.dart; then",
+			"  exit 0",
+			"fi",
+			"workspace=$(pwd)",
+			"echo '{\"patch_id\":\"noise\",\"operations\":[{\"type\":\"write_file\",\"path\":\"test/noise_test.dart\",\"content\":\"noise\"}]}'",
+			"echo '00:00 +0: loading /tmp/other/test/old_widget_test.dart'",
+			"echo '00:01 +0: old test passes'",
+			"echo \"00:02 +0: loading $workspace/test/widget_test.dart\"",
+			"echo \"#2      main.<anonymous closure> (file://$workspace/test/widget_test.dart:3:23)\"",
+			"echo '00:03 +0 -1: Home screen smoke test [E]'",
+			"echo 'Some tests failed.'",
+			"exit 1",
+		}, "\n"),
+	}
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	if run["status"] != "completed" {
+		t.Fatalf("run status = %v, want completed (failure_summary=%v, requests=%s)", run["status"], run["failure_summary"], summarizePatchRequests(generator.requests))
+	}
+	if len(generator.requests) != 4 {
+		t.Fatalf("len(generator.requests) = %d, want 4", len(generator.requests))
+	}
+	repairRequest := generator.requests[1]
+	if repairRequest.Route.TaskType != appruns.BuilderRuntimeTaskTypeTestRepair {
+		t.Fatalf("repair task type = %v, want test_repair", repairRequest.Route.TaskType)
+	}
+	if repairRequest.RoundInput.Attempt != 2 {
+		t.Fatalf("repair attempt = %d, want 2", repairRequest.RoundInput.Attempt)
+	}
+	if !strings.Contains(repairRequest.FailureContext, "check=check-flutter-test") {
+		t.Fatalf("failure context should keep the current flutter test check id: %q", repairRequest.FailureContext)
+	}
+	repairTask := mustFindTaskBundleItem(t, repairRequest.Run.TaskBundle, "repair-check-flutter-test")
+	assertExactTargetPaths(t, repairTask.TargetPaths, []string{"lib/controllers/home_controller.dart", "lib/models/entry.dart", "test/widget_test.dart"})
+	if !hasTaskBundleItem(repairRequest.Run.TaskBundle, "task-domain-entry") {
+		t.Fatalf("repair context should keep the dependent domain task")
+	}
+	if !hasTaskBundleItem(repairRequest.Run.TaskBundle, "task-home-controller") {
+		t.Fatalf("repair context should keep the imported controller task")
+	}
+	coverageRepairRequest := generator.requests[2]
+	if coverageRepairRequest.RepairOnly != true {
+		t.Fatalf("coverage repair should be repair-only")
+	}
+	if !strings.Contains(coverageRepairRequest.PreviousErr, "lib/models/entry.dart") || !strings.Contains(coverageRepairRequest.PreviousErr, "test/widget_test.dart") {
+		t.Fatalf("coverage repair should name the remaining missing targets: %q", coverageRepairRequest.PreviousErr)
+	}
+	coverageRepairTask := mustFindTaskBundleItem(t, coverageRepairRequest.Run.TaskBundle, "repair-check-flutter-test")
+	assertExactTargetPaths(t, coverageRepairTask.TargetPaths, []string{"lib/models/entry.dart", "test/widget_test.dart"})
+	finalCoverageRequest := generator.requests[3]
+	if finalCoverageRequest.RepairOnly != true {
+		t.Fatalf("final coverage repair should be repair-only")
+	}
+	if !strings.Contains(finalCoverageRequest.PreviousErr, "lib/models/entry.dart") {
+		t.Fatalf("final coverage repair should narrow to the last missing model target: %q", finalCoverageRequest.PreviousErr)
+	}
+	finalCoverageTask := mustFindTaskBundleItem(t, finalCoverageRequest.Run.TaskBundle, "repair-check-flutter-test")
+	assertExactTargetPaths(t, finalCoverageTask.TargetPaths, []string{"lib/models/entry.dart"})
+	builderOutput := readBuilderOutput(t, run)
+	roundOutputs, _ := builderOutput["round_outputs"].([]any)
+	firstRound, _ := roundOutputs[0].(map[string]any)
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["attempts"] != float64(4) {
+		t.Fatalf("attempts = %v, want 4", builderRuntime["attempts"])
+	}
+}
+
+func TestRunnerExecuteRunUpgradesSemanticConflictRepair(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-1"})
+	leaseID, _ := allocate["lease_id"].(string)
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": sampleBuildRunInputWithAcceptanceCheck("check-profile-open-lite-domain-branding", "domain branding", "cheap", []string{"grep Weight Tracker lib/main.dart"}),
+	})
+	runID, _ := create["run_id"].(string)
+
+	runner := adapter.NewRunner(server.URL)
+	runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+		Enabled:      true,
+		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		UpgradeModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-32b-local"},
+		UpgradeThreshold: config.BuilderRuntimeUpgradeThresholdConfig{
+			UpgradeOnSemanticConflict: true,
+		},
+		TaskRoutes: []config.BuilderRuntimeTaskRouteConfig{{
+			TaskType: "dual_file_wiring",
+			Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		}},
+	}
+	runner.PatchGenerator = &stubBuilderRuntimePatchGenerator{responses: map[string][]adapter.BuilderRuntimePatchResponse{
+		"qwen2.5-coder-14b-local": {
+			{Content: `{"patch_id":"initial-edit","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Open Lite Seed';\n"}]}`},
+			{Content: `{"patch_id":"semantic-repair-local","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Generic Tracker';\n"}]}`},
+		},
+		"qwen2.5-coder-32b-local": {
+			{Content: `{"patch_id":"semantic-repair-upgrade","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Weight Tracker';\n"}]}`},
+		},
+	}}
+	runner.Executor = failingValidationExecutor{
+		checkID:  "check-profile-open-lite-domain-branding",
+		label:    "domain branding",
+		stage:    appruns.StageCheap,
+		commands: []string{"grep Weight Tracker lib/main.dart"},
+		script:   "grep -q 'Weight Tracker' lib/main.dart || { echo semantic conflict remains >&2; exit 1; }",
+	}
+
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	if run["status"] != "completed" {
+		t.Fatalf("run status = %v, want completed", run["status"])
+	}
+	builderOutput := readBuilderOutput(t, run)
+	roundOutputs, _ := builderOutput["round_outputs"].([]any)
+	firstRound, _ := roundOutputs[0].(map[string]any)
+	builderRuntime, ok := firstRound["builder_runtime_execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("builder_runtime_execution = %T, want object", firstRound["builder_runtime_execution"])
+	}
+	if builderRuntime["selected_model"] != "qwen2.5-coder-32b-local" {
+		t.Fatalf("selected_model = %v, want qwen2.5-coder-32b-local", builderRuntime["selected_model"])
+	}
+	if builderRuntime["upgrade_applied"] != true {
+		t.Fatalf("upgrade_applied = %v, want true", builderRuntime["upgrade_applied"])
+	}
+	if builderRuntime["task_type"] != "dual_file_wiring" {
+		t.Fatalf("task_type = %v, want dual_file_wiring", builderRuntime["task_type"])
+	}
+	if builderRuntime["attempts"] != float64(3) {
+		t.Fatalf("attempts = %v, want 3", builderRuntime["attempts"])
+	}
+}
+
+func TestRunnerExecuteRunPassesGenericSemanticChecksFromCompileBundle(t *testing.T) {
+	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("HTTP_PROXY", "")
+	t.Setenv("HTTPS_PROXY", "")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("NO_PROXY", "")
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := api.NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	requirementPath := filepath.Join("..", "..", "..", "examples", "appfactory", "generic", "weight-tracker", "requirement.md")
+	requirementText, err := os.ReadFile(requirementPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", requirementPath, err)
+	}
+	compileResp := postJSON(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": string(requirementText),
+	})
+	bundleDir, _ := compileResp["bundle_dir"].(string)
+	if strings.TrimSpace(bundleDir) == "" {
+		t.Fatal("bundle_dir should not be empty")
+	}
+	builderInputData, err := os.ReadFile(filepath.Join(bundleDir, "builder-input.json"))
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
+	}
+	var builderInput map[string]any
+	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+
+	postJSON(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile":    map[string]any{"image": "builder:latest"},
+	})
+	allocate := postJSON(t, server.Client(), server.URL+"/internal/v1/workers:allocate", map[string]any{"job_id": "job-generic-open-lite"})
+	leaseID, _ := allocate["lease_id"].(string)
+	create := postJSON(t, server.Client(), server.URL+"/internal/v1/build-runs", map[string]any{
+		"worker_id":     "builder-a",
+		"lease_id":      leaseID,
+		"builder_input": builderInput,
+	})
+	runID, _ := create["run_id"].(string)
+	if strings.TrimSpace(runID) == "" {
+		t.Fatal("run_id should not be empty")
+	}
+	runBefore := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	workspacePath, _ := runBefore["workspace_path"].(string)
+	if strings.TrimSpace(workspacePath) == "" {
+		t.Fatalf("workspace_path = %v, want non-empty", runBefore["workspace_path"])
+	}
+	copyCompileBundleToRunPrepareDir(t, bundleDir, workspacePath)
+	seedGenericSemanticWorkspace(t, workspacePath)
+
+	runner := adapter.NewRunner(server.URL)
+	runner.Executor = semanticSuccessExecutor{}
+	if err := runner.ExecuteRun(context.Background(), runID); err != nil {
+		t.Fatalf("ExecuteRun() error = %v", err)
+	}
+
+	run := getJSON(t, server.Client(), server.URL+"/internal/v1/build-runs/"+runID)
+	if run["status"] != "completed" {
+		t.Fatalf("run status = %v, want completed", run["status"])
+	}
+	builderOutput := readBuilderOutput(t, run)
+	checksPassed, ok := builderOutput["checks_passed"].([]any)
+	if !ok {
+		t.Fatalf("checks_passed = %T, want []any", builderOutput["checks_passed"])
+	}
+	for _, checkID := range []string{"ac-overview", "ac-list", "ac-form", "ac-persistence"} {
+		result := findValidationResult(t, checksPassed, checkID)
+		if result["outcome"] != "passed" {
+			t.Fatalf("check result %s outcome = %v, want passed", checkID, result["outcome"])
+		}
+	}
+	nextHumanActions, ok := builderOutput["next_human_actions"].([]any)
+	if !ok {
+		t.Fatalf("next_human_actions = %T, want []any", builderOutput["next_human_actions"])
+	}
+	semanticReview := findHumanAction(t, nextHumanActions, "review-semantic-acceptance")
+	requiredInputs, ok := semanticReview["required_inputs"].([]any)
+	if !ok || len(requiredInputs) == 0 {
+		t.Fatalf("required_inputs = %v, want semantic review inputs", semanticReview["required_inputs"])
+	}
+	requiredInputStrings := anySliceToStrings(requiredInputs)
+	for _, want := range []string{"reports/build-report.md", "reports/smoke-test-report.md"} {
+		if !containsString(requiredInputStrings, want) {
+			t.Fatalf("required_inputs = %v, want include %q", requiredInputStrings, want)
+		}
+	}
+
+	jobRoot := filepath.Dir(filepath.FromSlash(workspacePath))
+	buildReportPath := filepath.Join(jobRoot, "reports", "build-report.md")
+	buildReport, err := os.ReadFile(buildReportPath)
+	if err != nil {
+		t.Fatalf("ReadFile(build-report.md) error = %v", err)
+	}
+	for _, want := range []string{"## 语义验收", "通过：体重摘要完整", "通过：历史记录集合承载单元可浏览"} {
+		if !strings.Contains(string(buildReport), want) {
+			t.Fatalf("build report missing %q: %s", want, string(buildReport))
+		}
 	}
 }
 
@@ -1309,19 +2446,81 @@ func readBuilderOutput(t *testing.T, run map[string]any) map[string]any {
 	return output
 }
 
+func readRunEvents(t *testing.T, run map[string]any) []map[string]any {
+	t.Helper()
+	workspacePath, _ := run["workspace_path"].(string)
+	eventsPath, _ := run["events_path"].(string)
+	if strings.TrimSpace(workspacePath) == "" || strings.TrimSpace(eventsPath) == "" {
+		t.Fatalf("workspace_path=%q events_path=%q, want non-empty values", workspacePath, eventsPath)
+	}
+	appFactoryRoot := filepath.Clean(filepath.Join(filepath.FromSlash(workspacePath), "..", "..", ".."))
+	eventsData, err := os.ReadFile(filepath.Join(appFactoryRoot, filepath.FromSlash(eventsPath)))
+	if err != nil {
+		t.Fatalf("ReadFile(events) error = %v", err)
+	}
+	events := make([]map[string]any, 0)
+	for _, line := range bytes.Split(eventsData, []byte{'\n'}) {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		var event map[string]any
+		if err := json.Unmarshal(line, &event); err != nil {
+			t.Fatalf("Unmarshal(event) error = %v, line=%q", err, string(line))
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+func findValidationResult(t *testing.T, results []any, checkID string) map[string]any {
+	t.Helper()
+	for _, item := range results {
+		result, ok := item.(map[string]any)
+		if ok && result["check_id"] == checkID {
+			return result
+		}
+	}
+	t.Fatalf("validation result %q not found", checkID)
+	return nil
+}
+
+func findHumanAction(t *testing.T, actions []any, actionID string) map[string]any {
+	t.Helper()
+	for _, item := range actions {
+		action, ok := item.(map[string]any)
+		if ok && action["action_id"] == actionID {
+			return action
+		}
+	}
+	t.Fatalf("human action %q not found", actionID)
+	return nil
+}
+
+func anySliceToStrings(items []any) []string {
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		if value, ok := item.(string); ok {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
 func sampleBuildRunInput() map[string]any {
 	return map[string]any{
-		"schema_version": "0.1.0",
-		"job_id":         "job-1",
-		"prd_id":         "prd-1",
-		"template_id":    "template-1",
-		"workspace_path": "/workspace/job-1",
-		"artifact_dir":   "/artifacts/job-1",
-		"goal_summary":   "build android app",
+		"schema_version":  "0.1.0",
+		"job_id":          "job-1",
+		"prd_id":          "prd-1",
+		"template_id":     "template-1",
+		"planning_policy": samplePlanningPolicyMap(),
+		"workspace_path":  "/workspace/job-1",
+		"artifact_dir":    "/artifacts/job-1",
+		"goal_summary":    "build android app",
 		"task_bundle": []map[string]any{{
 			"task_id":             "task-1",
 			"title":               "Implement UI",
-			"category":            "ui",
+			"category":            "screen",
 			"objective":           "Create home screen",
 			"target_paths":        []string{"lib/main.dart"},
 			"completion_criteria": []string{"screen renders"},
@@ -1355,6 +2554,19 @@ func sampleBuildRunInput() map[string]any {
 		},
 		"iteration_budget": 3,
 		"token_budget":     2000,
+	}
+}
+
+func samplePlanningPolicyMap() map[string]any {
+	return map[string]any{
+		"policy_version": "phase1-boundary-v1",
+		"stages": []map[string]any{
+			{"stage": "requirement_structuring", "route": "planning_model"},
+			{"stage": "domain_modeling", "route": "planning_model"},
+			{"stage": "task_allocation", "route": "decision_model"},
+			{"stage": "acceptance_planning", "route": "decision_model"},
+			{"stage": "build_input_projection", "route": "deterministic"},
+		},
 	}
 }
 
@@ -1400,13 +2612,14 @@ func uniqueStrings(values []string) []string {
 
 func sampleFlutterFallbackBuildRunInput() map[string]any {
 	return map[string]any{
-		"schema_version": "0.1.0",
-		"job_id":         "job-1",
-		"prd_id":         "prd-1",
-		"template_id":    "flutter-finance-lite",
-		"workspace_path": "/workspace/job-1",
-		"artifact_dir":   "/artifacts/job-1",
-		"goal_summary":   "deliver bookkeeping shell",
+		"schema_version":  "0.1.0",
+		"job_id":          "job-1",
+		"prd_id":          "prd-1",
+		"template_id":     "flutter-finance-lite",
+		"planning_policy": samplePlanningPolicyMap(),
+		"workspace_path":  "/workspace/job-1",
+		"artifact_dir":    "/artifacts/job-1",
+		"goal_summary":    "deliver bookkeeping shell",
 		"task_bundle": []map[string]any{
 			{
 				"task_id":             "screen-main",
@@ -1483,6 +2696,102 @@ type stubThinExecutor struct {
 	lastTaskCount     int
 	lastCheckCount    int
 	workspace         string
+}
+
+type semanticSuccessExecutor struct{}
+
+func (semanticSuccessExecutor) Prepare(ctx context.Context, run adapter.RunRecord) (adapter.RoundPlan, error) {
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", "mkdir -p lib && cat <<'EOF' > lib/picoclaw_executor_probe.dart\n// Generated by PicoClaw thin executor.\nconst probe = {\n  'goalSummary': 'semantic regression',\n  'taskCount': 7,\n  'acceptanceCheckCount': 16,\n};\nEOF")
+	cmd.Dir = run.WorkspacePath
+	cmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=semantic-success")
+	validationSteps := make([]adapter.ExecutionStep, 0, len(run.AcceptanceChecks))
+	acceptanceChecks := make([]adapter.CheckExecutionPreview, 0, len(run.AcceptanceChecks))
+	for _, check := range run.AcceptanceChecks {
+		preview := adapter.CheckExecutionPreview{
+			CheckID:      check.CheckID,
+			Label:        check.Label,
+			Stage:        check.Stage,
+			Required:     check.Required,
+			AllowFailure: check.AllowFailure,
+			Commands:     append([]string(nil), check.Commands...),
+		}
+		acceptanceChecks = append(acceptanceChecks, preview)
+		if len(check.Commands) == 0 {
+			continue
+		}
+		validationCmd := exec.CommandContext(ctx, "/bin/sh", "-lc", strings.Join(check.Commands, "\n"))
+		validationCmd.Dir = run.WorkspacePath
+		validationCmd.Env = append(os.Environ(),
+			"PICOCLAW_STUB_EXECUTOR=semantic-success",
+			"PICOCLAW_EXECUTION_STEP="+check.CheckID,
+			"PICOCLAW_EXECUTION_STAGE="+string(check.Stage),
+			"PICOCLAW_ACCEPTANCE_CHECK_ID="+check.CheckID,
+		)
+		validationSteps = append(validationSteps, adapter.ExecutionStep{
+			StepID:  check.CheckID,
+			Stage:   check.Stage,
+			Summary: check.Label,
+			Command: validationCmd,
+			Check:   &preview,
+		})
+	}
+	return adapter.RoundPlan{
+		Summary:          "semantic success executor",
+		RoundInput:       adapter.BuildRoundInputForTest(run),
+		ValidationSteps:  validationSteps,
+		AcceptanceChecks: acceptanceChecks,
+		EditStep: adapter.ExecutionStep{
+			StepID:  "thin-prepare",
+			Stage:   appruns.StageThinPrepare,
+			Summary: "write semantic regression probe",
+			Command: cmd,
+		},
+	}, nil
+}
+
+func seedGenericSemanticWorkspace(t *testing.T, workspacePath string) {
+	t.Helper()
+	files := map[string]string{
+		"pubspec.yaml":          "name: weight_tracker\n",
+		"lib/main.dart":         "const appTitle = '体重记录 App';\nconst summaryKeys = ['latest_weight', 'record_count', 'trend'];\nconst recordKeys = ['record_id', 'weight', 'recorded_at', 'note'];\n",
+		"test/widget_test.dart": "void main() {}\n",
+		"android/app/src/main/res/values/strings.xml": "<resources><string name=\"app_name\">体重记录 App</string></resources>\n",
+	}
+	for relativePath, content := range files {
+		path := filepath.Join(workspacePath, filepath.FromSlash(relativePath))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s) error = %v", path, err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", path, err)
+		}
+	}
+}
+
+func copyCompileBundleToRunPrepareDir(t *testing.T, bundleDir, workspacePath string) {
+	t.Helper()
+	prepareDir := filepath.Join(filepath.Dir(filepath.FromSlash(workspacePath)), "prepare")
+	entries, err := os.ReadDir(bundleDir)
+	if err != nil {
+		t.Fatalf("ReadDir(%s) error = %v", bundleDir, err)
+	}
+	if err := os.MkdirAll(prepareDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v", prepareDir, err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		sourcePath := filepath.Join(bundleDir, entry.Name())
+		targetPath := filepath.Join(prepareDir, entry.Name())
+		data, err := os.ReadFile(sourcePath)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", sourcePath, err)
+		}
+		if err := os.WriteFile(targetPath, data, 0o600); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", targetPath, err)
+		}
+	}
 }
 
 func (executor *stubThinExecutor) Prepare(ctx context.Context, run adapter.RunRecord) (adapter.RoundPlan, error) {
@@ -1576,9 +2885,11 @@ type failingValidationExecutor struct {
 type stubBuilderRuntimePatchGenerator struct {
 	responses map[string][]adapter.BuilderRuntimePatchResponse
 	models    []string
+	requests  []adapter.BuilderRuntimePatchRequest
 }
 
 func (generator *stubBuilderRuntimePatchGenerator) GeneratePatch(ctx context.Context, request adapter.BuilderRuntimePatchRequest) (adapter.BuilderRuntimePatchResponse, error) {
+	generator.requests = append(generator.requests, request)
 	for _, alias := range request.ModelAliases {
 		generator.models = append(generator.models, alias)
 		responses := generator.responses[alias]
@@ -1624,4 +2935,54 @@ func (executor failingValidationExecutor) Prepare(ctx context.Context, run adapt
 			},
 		}},
 	}, nil
+}
+
+func mustFindTaskBundleItem(t *testing.T, tasks []appruns.TaskBundleItem, taskID string) appruns.TaskBundleItem {
+	t.Helper()
+	for _, task := range tasks {
+		if strings.TrimSpace(task.TaskID) == strings.TrimSpace(taskID) {
+			return task
+		}
+	}
+	t.Fatalf("task %q not found in task bundle %#v", taskID, tasks)
+	return appruns.TaskBundleItem{}
+}
+
+func hasTaskBundleItem(tasks []appruns.TaskBundleItem, taskID string) bool {
+	for _, task := range tasks {
+		if strings.TrimSpace(task.TaskID) == strings.TrimSpace(taskID) {
+			return true
+		}
+	}
+	return false
+}
+
+func assertExactTargetPaths(t *testing.T, actual, expected []string) {
+	t.Helper()
+	if len(actual) != len(expected) {
+		t.Fatalf("target paths = %v, want %v", actual, expected)
+	}
+	for index := range expected {
+		if actual[index] != expected[index] {
+			t.Fatalf("target paths = %v, want %v", actual, expected)
+		}
+	}
+}
+
+func summarizePatchRequests(requests []adapter.BuilderRuntimePatchRequest) string {
+	parts := make([]string, 0, len(requests))
+	for index, request := range requests {
+		routeTask := mustFindTaskBundleItemByFallback(request.Run.TaskBundle, request.Route.TaskID)
+		parts = append(parts, fmt.Sprintf("%d:%s:%v:repair=%t:prev=%q", index+1, request.Route.TaskType, routeTask.TargetPaths, request.RepairOnly, request.PreviousErr))
+	}
+	return strings.Join(parts, " | ")
+}
+
+func mustFindTaskBundleItemByFallback(tasks []appruns.TaskBundleItem, taskID string) appruns.TaskBundleItem {
+	for _, task := range tasks {
+		if strings.TrimSpace(task.TaskID) == strings.TrimSpace(taskID) {
+			return task
+		}
+	}
+	return appruns.TaskBundleItem{TaskID: taskID}
 }

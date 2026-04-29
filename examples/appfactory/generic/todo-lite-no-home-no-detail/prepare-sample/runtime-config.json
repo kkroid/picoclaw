@@ -1,0 +1,94 @@
+{
+  "schema_version": "0.1.0",
+  "executor_image": "picoclaw/appfactory-builder:local",
+  "workspace_path": "/workspace/job-todo-lite-no-home-no-detail-sample-001",
+  "artifact_dir": "/artifacts/job-todo-lite-no-home-no-detail-sample-001",
+  "goal_summary": "将待办事项需求整理成基于 flutter-open-lite 的中性交互承载 Android MVP 输入包，围绕集合浏览、实体变更和本地持久化形成当前最小闭环。",
+  "knowledge_pack": [
+    {
+      "skill_id": "prd-to-task-bundle",
+      "role": "把 PRD 压成 Flutter profile 可执行任务包",
+      "usage_stage": "planning",
+      "scope": "flutter-android-p0",
+      "notes": "只服务 Flutter 首个 profile，不属于执行器内核。"
+    },
+    {
+      "skill_id": "flutter-mvc-template",
+      "role": "固定 Flutter MVC 目录、依赖与页面落点",
+      "usage_stage": "layout",
+      "scope": "flutter-android-p0",
+      "notes": "负责模板和目录规则，不负责状态机与调度。"
+    },
+    {
+      "skill_id": "builder-direct-edit",
+      "role": "约束 Builder 在 Flutter 工作区中直接改码",
+      "usage_stage": "edit",
+      "scope": "flutter-android-p0",
+      "notes": "负责单轮直接改码行为，不负责超时、重试和预算。"
+    },
+    {
+      "skill_id": "flutter-build-closure",
+      "role": "在 Flutter 工作区接近完成时做低风险收口",
+      "usage_stage": "closure",
+      "scope": "flutter-android-p0",
+      "notes": "只处理 analyze/test/build 收口，不重做功能实现。"
+    }
+  ],
+  "command_profile": {
+    "profile_name": "flutter-builder-p0",
+    "allowed_stages": [
+      "baseline",
+      "cheap",
+      "milestone"
+    ],
+    "allowed_commands": [
+      "flutter",
+      "grep"
+    ],
+    "denied_commands": [
+      "rm",
+      "sudo"
+    ],
+    "max_single_command_seconds": 1800,
+    "max_parallel_commands": 1,
+    "network_policy": "open",
+    "writable_roots": [
+      "."
+    ],
+    "env_allowlist": [
+      "PATH",
+      "HOME",
+      "JAVA_HOME",
+      "ANDROID_HOME",
+      "ANDROID_SDK_ROOT",
+      "PUB_CACHE",
+      "FLUTTER_ROOT"
+    ]
+  },
+  "context_files": {
+    "prd_markdown_path": "PRD.md",
+    "prd_json_path": "PRD.json",
+    "template_fit_report_path": "template-fit-report.md",
+    "implementation_plan_path": "implementation-plan.md",
+    "manual_constraints_path": "manual-constraints.md",
+    "supporting_files": [
+      "requirement.md",
+      "prd-approval.json",
+      "template-approval.json",
+      "planning-context.json",
+      "domain-model.json",
+      "template-slot-map.json",
+      "task-allocation.json",
+      "acceptance-plan.json"
+    ]
+  },
+  "iteration_budget": 3,
+  "token_budget": 4000,
+  "human_notes": [
+    {
+      "note_id": "note-generic-topology-scope",
+      "scope": "engineering",
+      "summary": "当前需求只围绕集合浏览和实体变更和本地持久化展开，未声明承载单元和流程不要自动补齐。"
+    }
+  ]
+}

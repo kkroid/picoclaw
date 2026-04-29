@@ -1,0 +1,17 @@
+{
+  "prd_id": "prd-weight-tracker-sample-001",
+  "template_id": "flutter-open-lite",
+  "goal_summary": "生成一个可运行的离线体重记录 Android Debug App，覆盖首页摘要、新增记录、历史列表、详情页和本地持久化。",
+  "human_notes": [
+    {
+      "note_id": "note-weight-sample-001",
+      "summary": "首页摘要必须保留最新体重、记录数量和趋势，不允许退化成通用计数卡。",
+      "scope": "product"
+    },
+    {
+      "note_id": "note-weight-sample-002",
+      "summary": "当前阶段默认离线单机运行，不接入登录、云同步和社区能力。",
+      "scope": "engineering"
+    }
+  ]
+}

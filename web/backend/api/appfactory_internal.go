@@ -1860,6 +1860,30 @@ func (h *Handler) loadPreparedPRD(prdID, prdVersion string) (appprepare.PRD, err
 	return bundle.PRD, nil
 }
 
+func decodePreparedPRD(data []byte) (appprepare.PRD, error) {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return appprepare.PRD{}, err
+	}
+	executionContractPayload := bytes.TrimSpace(payload["execution_contract"])
+	delete(payload, "execution_contract")
+	normalized, err := json.Marshal(payload)
+	if err != nil {
+		return appprepare.PRD{}, err
+	}
+	var prd appprepare.PRD
+	if err := json.Unmarshal(normalized, &prd); err != nil {
+		return appprepare.PRD{}, err
+	}
+	if len(executionContractPayload) > 0 && string(executionContractPayload) != "null" {
+		var contract appprepare.ExecutionContract
+		if err := json.Unmarshal(executionContractPayload, &contract); err == nil {
+			prd.ExecutionContract = &contract
+		}
+	}
+	return prd, nil
+}
+
 func (h *Handler) findPreparedBundleByPRD(prdID, prdVersion string) (preparedBundleRecord, error) {
 	workspace, err := h.appFactoryWorkspacePath()
 	if err != nil {
@@ -1875,8 +1899,8 @@ func (h *Handler) findPreparedBundleByPRD(prdID, prdVersion string) (preparedBun
 		if readErr != nil {
 			return preparedBundleRecord{}, fmt.Errorf("read prepared prd: %w", readErr)
 		}
-		var prd appprepare.PRD
-		if unmarshalErr := json.Unmarshal(data, &prd); unmarshalErr != nil {
+		prd, unmarshalErr := decodePreparedPRD(data)
+		if unmarshalErr != nil {
 			return preparedBundleRecord{}, fmt.Errorf("decode prepared prd: %w", unmarshalErr)
 		}
 		if prd.ID != strings.TrimSpace(prdID) {
@@ -1918,8 +1942,8 @@ func (h *Handler) loadPreparedBundleByJobID(jobID string) (preparedBundleRecord,
 		}
 		return preparedBundleRecord{}, fmt.Errorf("read prepared prd: %w", err)
 	}
-	var prd appprepare.PRD
-	if err := json.Unmarshal(prdData, &prd); err != nil {
+	prd, err := decodePreparedPRD(prdData)
+	if err != nil {
 		return preparedBundleRecord{}, fmt.Errorf("decode prepared prd: %w", err)
 	}
 	builderInputData, err := os.ReadFile(filepath.Join(prepareDir, "builder-input.json"))
@@ -4069,6 +4093,10 @@ func (h *Handler) resumePublicJob(parent context.Context, jobID string, req resu
 	}
 	preparedInput := bundle.BuilderInput
 	preparedInput.ContextSourceDir = bundle.PrepareDir
+	preparedInput.InitialRoundState = latestRun.RoundState
+	if preparedInput.InitialRoundState == nil && latestRun.RepairContext != nil {
+		preparedInput.InitialRoundState = latestRun.RepairContext.State
+	}
 	if resumeContext != nil {
 		if mode == "" {
 			mode = strings.TrimSpace(resumeContext.RecommendedResumeMode)
@@ -5044,8 +5072,8 @@ func (h *Handler) submitTemplateApproval(entry appprepare.TemplateRegistryEntry,
 	if err != nil {
 		return appruns.ApprovalRecord{}, fmt.Errorf("load prepared prd: %w", err)
 	}
-	var prd appprepare.PRD
-	if err := json.Unmarshal(data, &prd); err != nil {
+	prd, err := decodePreparedPRD(data)
+	if err != nil {
 		return appruns.ApprovalRecord{}, fmt.Errorf("decode prepared prd: %w", err)
 	}
 	if prd.ID != strings.TrimSpace(req.PRDID) {
@@ -5103,8 +5131,8 @@ func (h *Handler) submitPRDApproval(prdID string, req submitPRDApprovalRequest) 
 	if err != nil {
 		return appruns.ApprovalRecord{}, fmt.Errorf("load prepared prd: %w", err)
 	}
-	var prd appprepare.PRD
-	if err := json.Unmarshal(data, &prd); err != nil {
+	prd, err := decodePreparedPRD(data)
+	if err != nil {
 		return appruns.ApprovalRecord{}, fmt.Errorf("decode prepared prd: %w", err)
 	}
 	if prd.ID != strings.TrimSpace(prdID) {
@@ -5187,9 +5215,6 @@ func (h *Handler) compilePreparedBundle(_ context.Context, req compileRequestInp
 	if err != nil {
 		return appprepare.Bundle{}, "", err
 	}
-	if shouldRejectJobsUIGenericFallback(req, bundle) {
-		return appprepare.Bundle{}, "", fmt.Errorf("jobs-ui real_checks requires a concrete domain requirement; generic fallback only runs prepare-level smoke checks, please refine requirement_text with concrete domain keywords such as bookkeeping/finance")
-	}
 	workspace, err := h.appFactoryWorkspacePath()
 	if err != nil {
 		return appprepare.Bundle{}, "", fmt.Errorf("init workspace: %w", err)
@@ -5199,20 +5224,6 @@ func (h *Handler) compilePreparedBundle(_ context.Context, req compileRequestInp
 		return appprepare.Bundle{}, "", fmt.Errorf("write bundle: %w", err)
 	}
 	return bundle, bundleDir, nil
-}
-
-func shouldRejectJobsUIGenericFallback(req compileRequestInput, bundle appprepare.Bundle) bool {
-	if req.RequirementSource != "jobs-ui" || !req.RealChecks {
-		return false
-	}
-	for _, check := range bundle.BuilderInput.AcceptanceChecks {
-		for _, command := range check.Commands {
-			if strings.TrimSpace(command) == "echo generic-input-ready" {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (h *Handler) compilePreparedBundleForJob(ctx context.Context, jobID string) (publicJobRecord, error) {
@@ -5455,7 +5466,7 @@ func writeCompilePRDError(w http.ResponseWriter, err error) {
 	case strings.Contains(message, "requirement_text is required"):
 		writeInternalError(w, http.StatusBadRequest, "VALIDATION_INVALID_REQUEST", message)
 	case strings.Contains(message, "not found in registry"), strings.Contains(message, "no template matches"):
-		writeInternalError(w, http.StatusBadRequest, "PREPARE_COMPILE_FAILED", message)
+		writeInternalError(w, http.StatusBadRequest, "PREPARE_COMPILE_FAILED", userFacingTemplateSelectionError(message))
 	case strings.Contains(message, "init workspace"):
 		writeInternalError(w, http.StatusInternalServerError, "APPFACTORY_INIT_FAILED", message)
 	case strings.Contains(message, "write bundle"):
@@ -5544,9 +5555,32 @@ func writeJobCompilePrepareError(w http.ResponseWriter, err error) {
 		writeInternalError(w, http.StatusInternalServerError, "PREPARE_WRITE_FAILED", message)
 	case strings.Contains(message, "write job record"), strings.Contains(message, "marshal job record"):
 		writeInternalError(w, http.StatusInternalServerError, "JOB_WRITE_FAILED", message)
+	case strings.Contains(message, "not found in registry"), strings.Contains(message, "no template matches"):
+		writeInternalError(w, http.StatusBadRequest, "PREPARE_COMPILE_FAILED", userFacingTemplateSelectionError(message))
 	default:
 		writeInternalError(w, http.StatusBadRequest, "PREPARE_COMPILE_FAILED", message)
 	}
+}
+
+func userFacingTemplateSelectionError(message string) string {
+	trimmed := strings.TrimSpace(message)
+	if strings.Contains(trimmed, "not found in registry") {
+		unknownTemplateID := ""
+		if start := strings.Index(trimmed, `template "`); start >= 0 {
+			start += len(`template "`)
+			if end := strings.Index(trimmed[start:], `"`); end >= 0 {
+				unknownTemplateID = trimmed[start : start+end]
+			}
+		}
+		if unknownTemplateID != "" {
+			return fmt.Sprintf("模板选择失败：template_id=%s 未登记。请从已登记模板列表重新选择，或省略 template_id 让系统自动匹配。", unknownTemplateID)
+		}
+		return fmt.Sprintf("模板选择失败：%s。请从已登记模板列表重新选择，或省略 template_id 让系统自动匹配。", trimmed)
+	}
+	if strings.Contains(trimmed, "no template matches") {
+		return "模板选择失败：当前需求还不能稳定匹配到已登记模板。请补充首页摘要、列表、表单、详情、本地持久化等结构要求，或改用已登记模板。"
+	}
+	return trimmed
 }
 
 func writeJobCancelError(w http.ResponseWriter, err error) {

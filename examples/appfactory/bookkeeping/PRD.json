@@ -1,0 +1,374 @@
+{
+  "schema_version": "0.1.0",
+  "id": "prd-bookkeeping-lite",
+  "version": "0.1.0",
+  "status": "draft",
+  "title": "轻量记账 App",
+  "summary": "为个人用户提供一个只覆盖最小核心流程的 Android 记账应用，优先验证需求整理、PRD 生成、Builder 输入包生成和最小执行链路。",
+  "problem_statement": "当前实验阶段需要一条从自然语言需求到 Builder 输入包的最小闭环，用来验证 PicoClaw 能否把简单记账需求整理成结构化规格，并驱动 Builder 执行最小任务链。",
+  "target_users": [
+    {
+      "user_id": "user-office-worker",
+      "label": "个人记账用户",
+      "summary": "希望快速记录日常收支，不想维护复杂预算系统。",
+      "pain_points": [
+        "记录动作过重",
+        "很难快速回看最近消费",
+        "实验阶段不需要注册登录"
+      ]
+    },
+    {
+      "user_id": "user-validator",
+      "label": "内部验证人员",
+      "summary": "需要一眼看出首页、录入页、列表页是否已被清晰定义。",
+      "pain_points": [
+        "输入层散乱",
+        "Builder 输入包经常缺上下文"
+      ]
+    }
+  ],
+  "core_scenarios": [
+    {
+      "scenario_id": "scenario-quick-add",
+      "title": "快速新增一笔收支",
+      "summary": "用户能在数秒内录入金额、分类、日期和备注。",
+      "primary_user_refs": [
+        "user-office-worker"
+      ]
+    },
+    {
+      "scenario_id": "scenario-ledger",
+      "title": "查看最近账单",
+      "summary": "用户可以按时间顺序浏览最近账单并确认金额与分类。",
+      "primary_user_refs": [
+        "user-office-worker"
+      ]
+    },
+    {
+      "scenario_id": "scenario-summary",
+      "title": "查看本月概览",
+      "summary": "用户能在首页看到收入、支出和结余概览。",
+      "primary_user_refs": [
+        "user-office-worker",
+        "user-validator"
+      ]
+    }
+  ],
+  "goals": [
+    "输出完整 PRD.md 和 PRD.json，覆盖首页、记账录入、账单列表三个核心范围。",
+    "生成可直接被当前 P0 Builder 链路消费的 builder-input.json。",
+    "将任务拆成最小 task bundle，便于后续替换成真实 Flutter Builder runtime。"
+  ],
+  "non_goals": [
+    "不做账号体系、云同步、多人协作。",
+    "不做应用上架、签名、隐私政策页面。",
+    "不做复杂预算、报税、OCR 导入。"
+  ],
+  "feature_list": [
+    {
+      "feature_id": "feature-home-summary",
+      "title": "首页收支概览",
+      "summary": "展示本月收入、支出、结余和最近三笔账单。",
+      "priority": "p0",
+      "required": true,
+      "related_scenarios": [
+        "scenario-summary"
+      ],
+      "related_screens": [
+        "screen-home"
+      ],
+      "acceptance_refs": [
+        "ac-home",
+        "ac-navigation"
+      ]
+    },
+    {
+      "feature_id": "feature-add-entry",
+      "title": "记一笔",
+      "summary": "支持录入金额、类型、分类、日期和备注。",
+      "priority": "p0",
+      "required": true,
+      "related_scenarios": [
+        "scenario-quick-add"
+      ],
+      "related_screens": [
+        "screen-entry-form"
+      ],
+      "acceptance_refs": [
+        "ac-entry"
+      ]
+    },
+    {
+      "feature_id": "feature-ledger",
+      "title": "账单列表",
+      "summary": "按时间倒序展示账单，并显示分类和金额。",
+      "priority": "p0",
+      "required": true,
+      "related_scenarios": [
+        "scenario-ledger"
+      ],
+      "related_screens": [
+        "screen-ledger"
+      ],
+      "acceptance_refs": [
+        "ac-ledger"
+      ]
+    },
+    {
+      "feature_id": "feature-local-data",
+      "title": "本地数据持久化",
+      "summary": "账单数据本地持久化，关闭应用后仍能恢复。",
+      "priority": "p1",
+      "required": true,
+      "related_scenarios": [
+        "scenario-quick-add",
+        "scenario-ledger"
+      ],
+      "related_screens": [
+        "screen-entry-form",
+        "screen-ledger"
+      ],
+      "acceptance_refs": [
+        "ac-persistence"
+      ]
+    }
+  ],
+  "screen_list": [
+    {
+      "screen_id": "screen-home",
+      "name": "首页",
+      "purpose": "显示本月概览和最近账单入口。",
+      "primary_features": [
+        "feature-home-summary",
+        "feature-ledger"
+      ]
+    },
+    {
+      "screen_id": "screen-entry-form",
+      "name": "记账录入页",
+      "purpose": "完成一笔收支的新增录入。",
+      "primary_features": [
+        "feature-add-entry"
+      ]
+    },
+    {
+      "screen_id": "screen-ledger",
+      "name": "账单列表页",
+      "purpose": "浏览、筛选和核对近期账单。",
+      "primary_features": [
+        "feature-ledger",
+        "feature-local-data"
+      ]
+    }
+  ],
+  "user_flows": [
+    {
+      "flow_id": "flow-add-expense",
+      "title": "新增支出",
+      "steps": [
+        {
+          "step_id": "step-open-form",
+          "title": "从首页进入记账录入页",
+          "screen_ref": "screen-home",
+          "actor": "个人记账用户",
+          "expected_result": "能看到金额和分类输入控件"
+        },
+        {
+          "step_id": "step-fill-entry",
+          "title": "填写金额、分类、日期和备注",
+          "screen_ref": "screen-entry-form",
+          "actor": "个人记账用户",
+          "expected_result": "表单校验通过"
+        },
+        {
+          "step_id": "step-save-entry",
+          "title": "保存账单并返回首页",
+          "screen_ref": "screen-entry-form",
+          "actor": "个人记账用户",
+          "expected_result": "首页和列表页能看到新增账单"
+        }
+      ]
+    },
+    {
+      "flow_id": "flow-review-ledger",
+      "title": "查看账单列表",
+      "steps": [
+        {
+          "step_id": "step-open-ledger",
+          "title": "从首页切到账单列表页",
+          "screen_ref": "screen-home",
+          "actor": "个人记账用户",
+          "expected_result": "页面展示最近账单"
+        },
+        {
+          "step_id": "step-confirm-entry",
+          "title": "核对账单金额和分类",
+          "screen_ref": "screen-ledger",
+          "actor": "个人记账用户",
+          "expected_result": "关键信息易于识别"
+        }
+      ]
+    }
+  ],
+  "data_entities": [
+    {
+      "entity_id": "entity-entry",
+      "name": "账单记录",
+      "fields": [
+        {
+          "name": "entry_id",
+          "type": "string",
+          "required": true,
+          "description": "账单唯一标识"
+        },
+        {
+          "name": "entry_type",
+          "type": "enum[income,expense]",
+          "required": true,
+          "description": "收入或支出"
+        },
+        {
+          "name": "amount",
+          "type": "decimal",
+          "required": true,
+          "description": "金额"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "required": true,
+          "description": "分类"
+        },
+        {
+          "name": "occurred_on",
+          "type": "date",
+          "required": true,
+          "description": "发生日期"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "description": "备注"
+        }
+      ],
+      "source": "local_storage"
+    },
+    {
+      "entity_id": "entity-summary",
+      "name": "月度汇总",
+      "fields": [
+        {
+          "name": "month",
+          "type": "string",
+          "required": true,
+          "description": "月份标识"
+        },
+        {
+          "name": "income_total",
+          "type": "decimal",
+          "required": true,
+          "description": "本月收入总额"
+        },
+        {
+          "name": "expense_total",
+          "type": "decimal",
+          "required": true,
+          "description": "本月支出总额"
+        },
+        {
+          "name": "balance",
+          "type": "decimal",
+          "required": true,
+          "description": "结余"
+        }
+      ],
+      "source": "derived"
+    }
+  ],
+  "template_constraints": {
+    "stack": "flutter",
+    "android_required": true,
+    "required_capabilities": [
+      "list",
+      "form",
+      "local-storage",
+      "bottom-navigation",
+      "summary-card"
+    ],
+    "excluded_licenses": [
+      "GPL-3.0"
+    ],
+    "preferred_template_ids": [
+      "flutter-finance-lite"
+    ]
+  },
+  "acceptance_criteria": [
+    {
+      "criterion_id": "ac-home",
+      "label": "首页展示本月概览",
+      "category": "functional",
+      "required": true,
+      "description": "首页必须展示收入、支出、结余和最近账单入口。"
+    },
+    {
+      "criterion_id": "ac-entry",
+      "label": "记账录入链路完整",
+      "category": "functional",
+      "required": true,
+      "description": "用户可以新增一笔账单并返回首页。"
+    },
+    {
+      "criterion_id": "ac-ledger",
+      "label": "账单列表可浏览",
+      "category": "functional",
+      "required": true,
+      "description": "账单列表按时间倒序显示，并展示金额和分类。"
+    },
+    {
+      "criterion_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "category": "smoke",
+      "required": true,
+      "description": "应用重启后仍能读取本地账单数据。"
+    },
+    {
+      "criterion_id": "ac-navigation",
+      "label": "核心页面可导航",
+      "category": "ui",
+      "required": true,
+      "description": "首页、录入页、列表页之间的入口明确且可达。"
+    }
+  ],
+  "manual_review_points": [
+    {
+      "point_id": "mrp-copy",
+      "summary": "检查首页与录入页中文文案是否一致",
+      "reason": "P0 阶段主要靠模板改造，文案容易残留模板默认值。",
+      "owner": "product"
+    },
+    {
+      "point_id": "mrp-data",
+      "summary": "确认本地持久化方案不引入额外后端依赖",
+      "reason": "当前实验阶段明确不接入云端服务。",
+      "owner": "engineering"
+    }
+  ],
+  "known_unknowns": [
+    {
+      "question": "是否需要在下一阶段加入按分类过滤或图表统计",
+      "impact": "medium",
+      "owner": "product"
+    },
+    {
+      "question": "真实 Flutter builder runtime 接入后是否沿用当前 acceptance check 结构",
+      "impact": "medium",
+      "owner": "engineering"
+    }
+  ],
+  "source_refs": [
+    "inline:requirement"
+  ],
+  "created_at": "2026-03-26T06:34:38Z",
+  "updated_at": "2026-03-26T06:34:38Z"
+}

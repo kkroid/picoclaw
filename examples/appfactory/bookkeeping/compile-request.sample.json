@@ -1,0 +1,9 @@
+{
+  "requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
+  "requirement_source": "examples/appfactory/bookkeeping/requirement.md",
+  "title": "轻量记账 App",
+  "job_id": "job-bookkeeping-prepare-sample",
+  "prd_id": "prd-bookkeeping-prepare-sample",
+  "real_checks": false,
+  "executor_image": ""
+}

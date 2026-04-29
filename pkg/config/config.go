@@ -276,7 +276,13 @@ type SessionConfig struct {
 }
 
 type AppFactoryConfig struct {
+	PlanningEngine PlanningEngineConfig `json:"planning_engine,omitempty"`
 	BuilderRuntime BuilderRuntimeConfig `json:"builder_runtime,omitempty"`
+}
+
+type PlanningEngineConfig struct {
+	PlanningModel *AgentModelConfig `json:"planning_model,omitempty"`
+	DecisionModel *AgentModelConfig `json:"decision_model,omitempty"`
 }
 
 type BuilderRuntimeConfig struct {
@@ -293,11 +299,14 @@ type BuilderRuntimeTaskRouteConfig struct {
 }
 
 type BuilderRuntimeUpgradeThresholdConfig struct {
-	MaxAttemptsBeforeUpgrade int  `json:"max_attempts_before_upgrade,omitempty"`
-	MaxFilesBeforeUpgrade    int  `json:"max_files_before_upgrade,omitempty"`
-	UpgradeOnValidationFail  bool `json:"upgrade_on_validation_fail,omitempty"`
-	UpgradeOnPatchParseFail  bool `json:"upgrade_on_patch_parse_fail,omitempty"`
-	UpgradeOnScopeViolation  bool `json:"upgrade_on_scope_violation,omitempty"`
+	MaxAttemptsBeforeUpgrade    int     `json:"max_attempts_before_upgrade,omitempty"`
+	MaxFilesBeforeUpgrade       int     `json:"max_files_before_upgrade,omitempty"`
+	MaxSchemaDriftBeforeUpgrade int     `json:"max_schema_drift_before_upgrade,omitempty"`
+	MaxUnrelatedOperationRate   float64 `json:"max_unrelated_operation_rate,omitempty"`
+	UpgradeOnValidationFail     bool    `json:"upgrade_on_validation_fail,omitempty"`
+	UpgradeOnPatchParseFail     bool    `json:"upgrade_on_patch_parse_fail,omitempty"`
+	UpgradeOnScopeViolation     bool    `json:"upgrade_on_scope_violation,omitempty"`
+	UpgradeOnSemanticConflict   bool    `json:"upgrade_on_semantic_conflict,omitempty"`
 }
 
 // RoutingConfig controls the intelligent model routing feature.

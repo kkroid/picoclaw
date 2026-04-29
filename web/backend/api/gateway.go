@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -76,6 +77,36 @@ func getGatewayHealthByURL(url string, timeout time.Duration) (*health.StatusRes
 	}
 
 	return &healthResponse, resp.StatusCode, nil
+}
+
+func sameCleanPath(left, right string) bool {
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	if left == "" || right == "" {
+		return false
+	}
+	return filepath.Clean(left) == filepath.Clean(right)
+}
+
+func (h *Handler) gatewayConfigTelemetry() map[string]any {
+	data := map[string]any{}
+	configPath := strings.TrimSpace(h.configPath)
+	if configPath != "" {
+		data["config_path"] = configPath
+	}
+
+	if defaultPath := strings.TrimSpace(utils.GetDefaultConfigPath()); defaultPath != "" {
+		data["launcher_default_config_path"] = defaultPath
+		data["uses_launcher_default_config_path"] = sameCleanPath(configPath, defaultPath)
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil && strings.TrimSpace(homeDir) != "" {
+		userHomeConfigPath := filepath.Join(homeDir, ".picoclaw", "config.json")
+		data["user_home_config_path"] = userHomeConfigPath
+		data["uses_user_home_config"] = sameCleanPath(configPath, userHomeConfigPath)
+	}
+
+	return data
 }
 
 // registerGatewayRoutes binds gateway lifecycle endpoints to the ServeMux.
@@ -154,19 +185,57 @@ func (h *Handler) gatewayStartReady() (bool, string, error) {
 		return false, "no default model configured", nil
 	}
 
-	modelCfg := lookupModelConfig(cfg, modelName)
-	if modelCfg == nil {
-		return false, fmt.Sprintf("default model %q is invalid", modelName), nil
+	reason := fmt.Sprintf("default model %q is invalid", modelName)
+	for _, candidateName := range gatewayStartCandidateModels(cfg) {
+		modelCfg := lookupModelConfig(cfg, candidateName)
+		if modelCfg == nil {
+			continue
+		}
+
+		if !hasModelConfiguration(modelCfg) {
+			if candidateName == modelName {
+				reason = fmt.Sprintf("default model %q has no credentials configured", modelName)
+			}
+			continue
+		}
+		if requiresRuntimeProbe(modelCfg) && !probeLocalModelAvailability(modelCfg) {
+			if candidateName == modelName {
+				reason = fmt.Sprintf("default model %q is not reachable", modelName)
+			}
+			continue
+		}
+
+		return true, "", nil
 	}
 
-	if !hasModelConfiguration(modelCfg) {
-		return false, fmt.Sprintf("default model %q has no credentials configured", modelName), nil
-	}
-	if requiresRuntimeProbe(modelCfg) && !probeLocalModelAvailability(modelCfg) {
-		return false, fmt.Sprintf("default model %q is not reachable", modelName), nil
+	return false, reason, nil
+}
+
+func gatewayStartCandidateModels(cfg *config.Config) []string {
+	if cfg == nil {
+		return nil
 	}
 
-	return true, "", nil
+	seen := map[string]struct{}{}
+	values := make([]string, 0, 1+len(cfg.Agents.Defaults.ModelFallbacks))
+	appendCandidate := func(name string) {
+		normalized := strings.TrimSpace(name)
+		if normalized == "" {
+			return
+		}
+		if _, exists := seen[normalized]; exists {
+			return
+		}
+		seen[normalized] = struct{}{}
+		values = append(values, normalized)
+	}
+
+	appendCandidate(cfg.Agents.Defaults.GetModelName())
+	for _, fallback := range cfg.Agents.Defaults.ModelFallbacks {
+		appendCandidate(fallback)
+	}
+
+	return values
 }
 
 func lookupModelConfig(cfg *config.Config, modelName string) *config.ModelConfig {
@@ -713,8 +782,14 @@ func (h *Handler) handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) gatewayStatusData() map[string]any {
 	data := map[string]any{}
+	for key, value := range h.gatewayConfigTelemetry() {
+		data[key] = value
+	}
 	configDefaultModel := ""
 	cfg, cfgErr := config.LoadConfig(h.configPath)
+	if cfgErr != nil {
+		data["config_load_error"] = cfgErr.Error()
+	}
 	if cfgErr == nil && cfg != nil {
 		configDefaultModel = strings.TrimSpace(cfg.Agents.Defaults.GetModelName())
 		if configDefaultModel != "" {

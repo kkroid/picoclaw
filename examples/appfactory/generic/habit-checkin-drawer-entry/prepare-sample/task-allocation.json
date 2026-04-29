@@ -1,0 +1,595 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-habit-checkin-drawer-entry-sample-001",
+  "prd_id": "prd-habit-checkin-drawer-entry-sample-001",
+  "template_id": "flutter-open-lite",
+  "units": [
+    {
+      "allocation_id": "task-create-record-model",
+      "title": "创建领域记录模型",
+      "wave": 0,
+      "lane": "domain",
+      "priority": "p0",
+      "slot_refs": [
+        "domain-model"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation",
+        "surface-inspection"
+      ],
+      "entity_refs": [
+        "entity-habit-record"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "根据 domain model JSON 创建最终的领域记录实体，替代默认 generic record 语义。",
+      "semantic_intent_refs": [
+        "ac-list",
+        "ac-form",
+        "ac-detail",
+        "mrp-entity-fit",
+        "check-profile-open-lite-domain-language"
+      ],
+      "target_paths": [
+        "lib/models/record.dart"
+      ],
+      "owned_paths": [
+        "lib/models/record.dart"
+      ],
+      "success_evidence": [
+        "领域记录模型已创建",
+        "不再保留默认 generic record 字段"
+      ],
+      "risk_level": "high",
+      "route_hint": "strong_model"
+    },
+    {
+      "allocation_id": "task-create-summary-model",
+      "title": "创建首页摘要模型",
+      "wave": 1,
+      "lane": "summary",
+      "priority": "p0",
+      "slot_refs": [
+        "domain-model"
+      ],
+      "surface_refs": [
+        "surface-overview"
+      ],
+      "entity_refs": [
+        "entity-habit-record",
+        "entity-habit-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "根据领域记录模型创建首页摘要模型，让首页指标直接承接领域语义。",
+      "semantic_intent_refs": [
+        "ac-overview",
+        "mrp-summary-fit",
+        "check-profile-open-lite-domain-language"
+      ],
+      "target_paths": [
+        "lib/models/dashboard_summary.dart"
+      ],
+      "owned_paths": [
+        "lib/models/dashboard_summary.dart"
+      ],
+      "blocked_by": [
+        "task-create-record-model"
+      ],
+      "success_evidence": [
+        "首页摘要模型已创建",
+        "摘要字段与领域关键指标保持一致"
+      ],
+      "risk_level": "high",
+      "route_hint": "strong_model"
+    },
+    {
+      "allocation_id": "task-create-repository",
+      "title": "创建本地仓储实现",
+      "wave": 1,
+      "lane": "storage",
+      "priority": "p0",
+      "slot_refs": [
+        "storage-boundary"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation",
+        "surface-inspection"
+      ],
+      "entity_refs": [
+        "entity-habit-record",
+        "entity-habit-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "固定本地持久化边界，为后续控制器和页面提供稳定的记录读写入口。",
+      "semantic_intent_refs": [
+        "ac-persistence",
+        "check-open-lite-local-persistence-wiring"
+      ],
+      "target_paths": [
+        "lib/repositories/record_repository.dart"
+      ],
+      "owned_paths": [
+        "lib/repositories/record_repository.dart"
+      ],
+      "blocked_by": [
+        "task-create-record-model"
+      ],
+      "success_evidence": [
+        "仓储实现已创建",
+        "领域记录读写入口稳定"
+      ]
+    },
+    {
+      "allocation_id": "task-create-home-controller",
+      "title": "创建概览承载控制器",
+      "wave": 2,
+      "lane": "summary",
+      "priority": "p0",
+      "slot_refs": [
+        "flow-controller"
+      ],
+      "surface_refs": [
+        "surface-overview"
+      ],
+      "entity_refs": [
+        "entity-habit-record",
+        "entity-habit-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "围绕领域记录与摘要模型创建概览承载控制器，承接概览入口与最近记录读取。",
+      "semantic_intent_refs": [
+        "ac-overview",
+        "check-profile-open-lite-domain-language"
+      ],
+      "target_paths": [
+        "lib/controllers/home_controller.dart"
+      ],
+      "owned_paths": [
+        "lib/controllers/home_controller.dart"
+      ],
+      "blocked_by": [
+        "task-create-repository",
+        "task-create-summary-model"
+      ],
+      "success_evidence": [
+        "概览承载控制器已创建",
+        "概览入口可消费领域摘要模型"
+      ]
+    },
+    {
+      "allocation_id": "task-create-form-controller",
+      "title": "创建实体变更控制器",
+      "wave": 2,
+      "lane": "flow",
+      "priority": "p0",
+      "slot_refs": [
+        "flow-controller"
+      ],
+      "surface_refs": [
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-habit-record"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "围绕领域记录创建实体变更控制器，负责输入状态、校验和保存动作。",
+      "semantic_intent_refs": [
+        "ac-form",
+        "check-open-lite-record-flow-wiring",
+        "check-profile-open-lite-domain-language"
+      ],
+      "target_paths": [
+        "lib/controllers/record_form_controller.dart"
+      ],
+      "owned_paths": [
+        "lib/controllers/record_form_controller.dart"
+      ],
+      "blocked_by": [
+        "task-create-repository",
+        "task-create-record-model"
+      ],
+      "success_evidence": [
+        "实体变更控制器已创建",
+        "新增与编辑动作围绕领域字段收口"
+      ]
+    },
+    {
+      "allocation_id": "task-create-list-controller",
+      "title": "创建集合浏览与筛选控制器",
+      "wave": 2,
+      "lane": "flow",
+      "priority": "p0",
+      "slot_refs": [
+        "flow-controller"
+      ],
+      "surface_refs": [
+        "surface-collection",
+        "surface-inspection"
+      ],
+      "entity_refs": [
+        "entity-habit-record"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "围绕领域记录提供集合读取、排序、筛选和结果检查跳转所需的控制器接口。",
+      "semantic_intent_refs": [
+        "ac-list",
+        "ac-detail",
+        "check-profile-open-lite-domain-language"
+      ],
+      "target_paths": [
+        "lib/controllers/record_list_controller.dart"
+      ],
+      "owned_paths": [
+        "lib/controllers/record_list_controller.dart"
+      ],
+      "blocked_by": [
+        "task-create-repository",
+        "task-create-record-model"
+      ],
+      "success_evidence": [
+        "集合浏览控制器已创建",
+        "集合浏览入口可浏览领域记录",
+        "结果检查入口与集合数据保持一致",
+        "集合浏览入口可按领域状态筛选记录"
+      ]
+    },
+    {
+      "allocation_id": "task-create-copy",
+      "title": "创建领域文案投影",
+      "wave": 1,
+      "lane": "content",
+      "priority": "p0",
+      "slot_refs": [
+        "domain-copy"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation",
+        "surface-inspection"
+      ],
+      "entity_refs": [
+        "entity-habit-record",
+        "entity-habit-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "基于参考模板创建 open_lite_copy.dart，使页面标题、标签和空态文案直接映射到领域语义。",
+      "semantic_intent_refs": [
+        "mrp-domain-wording",
+        "check-profile-open-lite-domain-branding",
+        "check-profile-open-lite-domain-language"
+      ],
+      "target_paths": [
+        "lib/template/open_lite_copy.dart"
+      ],
+      "owned_paths": [
+        "lib/template/open_lite_copy.dart"
+      ],
+      "blocked_by": [
+        "task-create-record-model"
+      ],
+      "success_evidence": [
+        "领域文案投影文件已创建",
+        "默认 seed 文案已被领域文案替换"
+      ],
+      "risk_level": "high",
+      "route_hint": "strong_model"
+    },
+    {
+      "allocation_id": "task-create-android-branding",
+      "title": "创建 Android 启动器文案",
+      "wave": 2,
+      "lane": "content",
+      "priority": "p0",
+      "slot_refs": [
+        "android-branding"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation",
+        "surface-inspection"
+      ],
+      "entity_refs": [
+        "entity-habit-record"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "在 strings.xml 中创建 Android 启动器名称与品牌文案，确保不再残留默认 seed branding。",
+      "semantic_intent_refs": [
+        "mrp-domain-wording",
+        "check-profile-open-lite-domain-branding"
+      ],
+      "target_paths": [
+        "android/app/src/main/res/values/strings.xml"
+      ],
+      "owned_paths": [
+        "android/app/src/main/res/values/strings.xml"
+      ],
+      "blocked_by": [
+        "task-create-copy"
+      ],
+      "success_evidence": [
+        "Android 启动器名称已创建",
+        "领域品牌文案已同步到 strings.xml"
+      ],
+      "route_hint": "deterministic"
+    },
+    {
+      "allocation_id": "task-create-android-build-config",
+      "title": "创建 Android 构建文案入口",
+      "wave": 3,
+      "lane": "content",
+      "priority": "p0",
+      "slot_refs": [
+        "android-branding"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation",
+        "surface-inspection"
+      ],
+      "entity_refs": [
+        "entity-habit-record"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "在 build.gradle.kts 中保留 Android branding 的单点覆盖入口，避免品牌改动分散到其他文件。",
+      "semantic_intent_refs": [
+        "check-profile-open-lite-domain-branding"
+      ],
+      "target_paths": [
+        "android/app/build.gradle.kts"
+      ],
+      "owned_paths": [
+        "android/app/build.gradle.kts"
+      ],
+      "blocked_by": [
+        "task-create-android-branding"
+      ],
+      "success_evidence": [
+        "Android branding 构建入口已创建",
+        "build.gradle.kts 保留单点覆盖能力"
+      ],
+      "route_hint": "deterministic"
+    },
+    {
+      "allocation_id": "task-bind-overview-surface",
+      "title": "绑定概览承载单元",
+      "wave": 3,
+      "lane": "screen",
+      "priority": "p0",
+      "slot_refs": [
+        "surface-overview"
+      ],
+      "surface_refs": [
+        "surface-overview"
+      ],
+      "entity_refs": [
+        "entity-habit-record",
+        "entity-habit-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "根据概览承载控制器和领域文案绑定概览承载单元，承接领域摘要与最近记录入口。",
+      "semantic_intent_refs": [
+        "ac-overview",
+        "mrp-domain-wording"
+      ],
+      "target_paths": [
+        "lib/views/home_page.dart"
+      ],
+      "owned_paths": [
+        "lib/views/home_page.dart"
+      ],
+      "blocked_by": [
+        "task-create-home-controller",
+        "task-create-copy"
+      ],
+      "success_evidence": [
+        "概览承载单元已绑定",
+        "领域摘要与最近记录入口已接入"
+      ]
+    },
+    {
+      "allocation_id": "task-bind-collection-surface",
+      "title": "绑定集合浏览承载单元",
+      "wave": 3,
+      "lane": "screen",
+      "priority": "p0",
+      "slot_refs": [
+        "surface-collection"
+      ],
+      "surface_refs": [
+        "surface-collection"
+      ],
+      "entity_refs": [
+        "entity-habit-record"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "根据集合浏览控制器和领域文案绑定集合浏览承载单元，提供记录浏览、筛选和结果定位入口。",
+      "semantic_intent_refs": [
+        "ac-list",
+        "ac-detail"
+      ],
+      "target_paths": [
+        "lib/views/record_list_page.dart"
+      ],
+      "owned_paths": [
+        "lib/views/record_list_page.dart"
+      ],
+      "blocked_by": [
+        "task-create-list-controller",
+        "task-create-copy"
+      ],
+      "success_evidence": [
+        "集合浏览承载单元已绑定",
+        "集合结果可浏览领域记录",
+        "结果检查入口与集合数据保持一致",
+        "集合结果可按领域状态筛选"
+      ]
+    },
+    {
+      "allocation_id": "task-bind-mutation-surface",
+      "title": "绑定实体变更承载单元",
+      "wave": 3,
+      "lane": "screen",
+      "priority": "p0",
+      "slot_refs": [
+        "surface-mutation"
+      ],
+      "surface_refs": [
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-habit-record"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "根据实体变更控制器和领域文案绑定实体变更承载单元，承接领域字段输入。",
+      "semantic_intent_refs": [
+        "ac-form",
+        "mrp-domain-wording"
+      ],
+      "target_paths": [
+        "lib/views/record_form_page.dart"
+      ],
+      "owned_paths": [
+        "lib/views/record_form_page.dart"
+      ],
+      "blocked_by": [
+        "task-create-form-controller",
+        "task-create-copy"
+      ],
+      "success_evidence": [
+        "实体变更承载单元已绑定",
+        "字段输入链路已接线到控制器"
+      ]
+    },
+    {
+      "allocation_id": "task-bind-inspection-surface",
+      "title": "绑定结果检查承载单元",
+      "wave": 2,
+      "lane": "screen",
+      "priority": "p0",
+      "slot_refs": [
+        "surface-inspection"
+      ],
+      "surface_refs": [
+        "surface-inspection"
+      ],
+      "entity_refs": [
+        "entity-habit-record"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "根据领域记录模型和文案绑定结果检查承载单元，承接单条记录展示、编辑和删除入口。",
+      "semantic_intent_refs": [
+        "ac-detail",
+        "mrp-domain-wording"
+      ],
+      "target_paths": [
+        "lib/views/record_detail_page.dart"
+      ],
+      "owned_paths": [
+        "lib/views/record_detail_page.dart"
+      ],
+      "blocked_by": [
+        "task-create-record-model",
+        "task-create-copy"
+      ],
+      "success_evidence": [
+        "结果检查承载单元已绑定",
+        "结果检查可围绕单条领域记录展示"
+      ]
+    },
+    {
+      "allocation_id": "task-bind-app-entry",
+      "title": "接线应用入口与承载单元路由",
+      "wave": 4,
+      "lane": "screen",
+      "priority": "p0",
+      "slot_refs": [
+        "app-entry"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation",
+        "surface-inspection"
+      ],
+      "entity_refs": [
+        "entity-habit-record",
+        "entity-habit-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "把已创建的控制器、承载单元和仓储接线到应用入口，形成稳定的中性交互骨架。",
+      "semantic_intent_refs": [
+        "ac-navigation",
+        "check-generic-open-scope"
+      ],
+      "target_paths": [
+        "lib/main.dart"
+      ],
+      "owned_paths": [
+        "lib/main.dart"
+      ],
+      "blocked_by": [
+        "task-bind-overview-surface",
+        "task-bind-collection-surface",
+        "task-bind-mutation-surface",
+        "task-bind-inspection-surface",
+        "task-create-home-controller",
+        "task-create-list-controller",
+        "task-create-form-controller",
+        "task-create-repository"
+      ],
+      "success_evidence": [
+        "应用入口已接线",
+        "概览、集合浏览、实体变更、结果检查承载单元导航骨架可用"
+      ]
+    },
+    {
+      "allocation_id": "task-create-test",
+      "title": "创建最小 Widget 测试",
+      "wave": 5,
+      "lane": "flow",
+      "priority": "p0",
+      "slot_refs": [
+        "widget-test"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation",
+        "surface-inspection"
+      ],
+      "entity_refs": [
+        "entity-habit-record",
+        "entity-habit-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "为当前领域承载单元和主流程创建最小 widget 测试，确保后续 analyze/test 收口有稳定入口。",
+      "semantic_intent_refs": [
+        "ac-navigation",
+        "ac-form",
+        "ac-detail",
+        "check-open-lite-counter-demo-removed",
+        "check-open-lite-record-flow-wiring",
+        "check-profile-open-lite-domain-language"
+      ],
+      "target_paths": [
+        "test/widget_test.dart"
+      ],
+      "owned_paths": [
+        "test/widget_test.dart"
+      ],
+      "blocked_by": [
+        "task-bind-app-entry"
+      ],
+      "success_evidence": [
+        "最小 Widget 测试已创建",
+        "测试断言与当前领域文案和主流程保持同步"
+      ]
+    }
+  ]
+}

@@ -27,11 +27,156 @@ type TaskCategory string
 
 const (
 	TaskCategoryDomain     TaskCategory = "domain"
+	TaskCategoryContent    TaskCategory = "content"
 	TaskCategoryStorage    TaskCategory = "storage"
 	TaskCategoryScreen     TaskCategory = "screen"
+	TaskCategorySummary    TaskCategory = "summary"
 	TaskCategoryFlow       TaskCategory = "flow"
 	TaskCategoryValidation TaskCategory = "validation"
 )
+
+func NormalizeTaskCategory(value string) TaskCategory {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case string(TaskCategoryDomain):
+		return TaskCategoryDomain
+	case string(TaskCategoryContent), "copy":
+		return TaskCategoryContent
+	case string(TaskCategoryStorage):
+		return TaskCategoryStorage
+	case string(TaskCategoryScreen), "ui":
+		return TaskCategoryScreen
+	case string(TaskCategorySummary):
+		return TaskCategorySummary
+	case string(TaskCategoryFlow):
+		return TaskCategoryFlow
+	case string(TaskCategoryValidation):
+		return TaskCategoryValidation
+	default:
+		return ""
+	}
+}
+
+type TaskRiskLevel string
+
+const (
+	TaskRiskLevelLow    TaskRiskLevel = "low"
+	TaskRiskLevelMedium TaskRiskLevel = "medium"
+	TaskRiskLevelHigh   TaskRiskLevel = "high"
+)
+
+func NormalizeTaskRiskLevel(value string) TaskRiskLevel {
+	switch TaskRiskLevel(strings.ToLower(strings.TrimSpace(value))) {
+	case TaskRiskLevelLow:
+		return TaskRiskLevelLow
+	case TaskRiskLevelMedium:
+		return TaskRiskLevelMedium
+	case TaskRiskLevelHigh:
+		return TaskRiskLevelHigh
+	default:
+		return ""
+	}
+}
+
+type TaskRouteHint string
+
+const (
+	TaskRouteHintDeterministic TaskRouteHint = "deterministic"
+	TaskRouteHintDefaultModel  TaskRouteHint = "default_model"
+	TaskRouteHintUpgradeModel  TaskRouteHint = "upgrade_model"
+	TaskRouteHintStrongModel   TaskRouteHint = "strong_model"
+)
+
+func NormalizeTaskRouteHint(value string) TaskRouteHint {
+	switch TaskRouteHint(strings.ToLower(strings.TrimSpace(value))) {
+	case TaskRouteHintDeterministic:
+		return TaskRouteHintDeterministic
+	case TaskRouteHintDefaultModel:
+		return TaskRouteHintDefaultModel
+	case TaskRouteHintUpgradeModel:
+		return TaskRouteHintUpgradeModel
+	case TaskRouteHintStrongModel:
+		return TaskRouteHintStrongModel
+	default:
+		return ""
+	}
+}
+
+type PlanningStage string
+
+const (
+	PlanningStageRequirementStructuring PlanningStage = "requirement_structuring"
+	PlanningStageDomainModeling         PlanningStage = "domain_modeling"
+	PlanningStageTaskAllocation         PlanningStage = "task_allocation"
+	PlanningStageAcceptancePlanning     PlanningStage = "acceptance_planning"
+	PlanningStageBuildInputProjection   PlanningStage = "build_input_projection"
+)
+
+func NormalizePlanningStage(value string) PlanningStage {
+	switch PlanningStage(strings.ToLower(strings.TrimSpace(value))) {
+	case PlanningStageRequirementStructuring:
+		return PlanningStageRequirementStructuring
+	case PlanningStageDomainModeling:
+		return PlanningStageDomainModeling
+	case PlanningStageTaskAllocation:
+		return PlanningStageTaskAllocation
+	case PlanningStageAcceptancePlanning:
+		return PlanningStageAcceptancePlanning
+	case PlanningStageBuildInputProjection:
+		return PlanningStageBuildInputProjection
+	default:
+		return ""
+	}
+}
+
+type PlanningStageRoute string
+
+const (
+	PlanningStageRoutePlanningModel PlanningStageRoute = "planning_model"
+	PlanningStageRouteDecisionModel PlanningStageRoute = "decision_model"
+	PlanningStageRouteDeterministic PlanningStageRoute = "deterministic"
+)
+
+func NormalizePlanningStageRoute(value string) PlanningStageRoute {
+	switch PlanningStageRoute(strings.ToLower(strings.TrimSpace(value))) {
+	case PlanningStageRoutePlanningModel:
+		return PlanningStageRoutePlanningModel
+	case PlanningStageRouteDecisionModel:
+		return PlanningStageRouteDecisionModel
+	case PlanningStageRouteDeterministic:
+		return PlanningStageRouteDeterministic
+	default:
+		return ""
+	}
+}
+
+type PlanningStagePolicy struct {
+	Stage     PlanningStage      `json:"stage"`
+	Route     PlanningStageRoute `json:"route"`
+	Rationale string             `json:"rationale,omitempty"`
+}
+
+type PlanningPolicySnapshot struct {
+	PolicyVersion string                `json:"policy_version"`
+	Stages        []PlanningStagePolicy `json:"stages"`
+}
+
+func NormalizePlanningPolicySnapshot(policy PlanningPolicySnapshot) PlanningPolicySnapshot {
+	normalized := policy
+	normalized.PolicyVersion = strings.TrimSpace(normalized.PolicyVersion)
+	if len(normalized.Stages) == 0 {
+		return normalized
+	}
+	stages := make([]PlanningStagePolicy, 0, len(normalized.Stages))
+	for _, item := range normalized.Stages {
+		stages = append(stages, PlanningStagePolicy{
+			Stage:     NormalizePlanningStage(string(item.Stage)),
+			Route:     NormalizePlanningStageRoute(string(item.Route)),
+			Rationale: strings.TrimSpace(item.Rationale),
+		})
+	}
+	normalized.Stages = stages
+	return normalized
+}
 
 type BuilderRuntimeTaskType string
 
@@ -51,11 +196,14 @@ type BuilderRuntimeModelRef struct {
 }
 
 type BuilderRuntimeUpgradeThreshold struct {
-	MaxAttemptsBeforeUpgrade int  `json:"max_attempts_before_upgrade,omitempty"`
-	MaxFilesBeforeUpgrade    int  `json:"max_files_before_upgrade,omitempty"`
-	UpgradeOnValidationFail  bool `json:"upgrade_on_validation_fail,omitempty"`
-	UpgradeOnPatchParseFail  bool `json:"upgrade_on_patch_parse_fail,omitempty"`
-	UpgradeOnScopeViolation  bool `json:"upgrade_on_scope_violation,omitempty"`
+	MaxAttemptsBeforeUpgrade    int     `json:"max_attempts_before_upgrade,omitempty"`
+	MaxFilesBeforeUpgrade       int     `json:"max_files_before_upgrade,omitempty"`
+	MaxSchemaDriftBeforeUpgrade int     `json:"max_schema_drift_before_upgrade,omitempty"`
+	MaxUnrelatedOperationRate   float64 `json:"max_unrelated_operation_rate,omitempty"`
+	UpgradeOnValidationFail     bool    `json:"upgrade_on_validation_fail,omitempty"`
+	UpgradeOnPatchParseFail     bool    `json:"upgrade_on_patch_parse_fail,omitempty"`
+	UpgradeOnScopeViolation     bool    `json:"upgrade_on_scope_violation,omitempty"`
+	UpgradeOnSemanticConflict   bool    `json:"upgrade_on_semantic_conflict,omitempty"`
 }
 
 type BuilderRuntimeTaskRoute struct {
@@ -91,8 +239,97 @@ func NormalizeBuilderRuntimeTaskType(value string) BuilderRuntimeTaskType {
 }
 
 func NormalizeTaskBundleItem(task TaskBundleItem) TaskBundleItem {
+	task.Category = NormalizeTaskCategory(string(task.Category))
 	task.TaskType = task.EffectiveTaskType()
+	task.RiskLevel = NormalizeTaskRiskLevel(string(task.RiskLevel))
+	task.RouteHint = NormalizeTaskRouteHint(string(task.RouteHint))
+	task.AllocationTransition = normalizeTaskAllocationTransition(task.AllocationTransition, task)
 	return task
+}
+
+type TaskAllocationTransition struct {
+	AllocationID        string   `json:"allocation_id,omitempty"`
+	SemanticIntentRefs  []string `json:"semantic_intent_refs,omitempty"`
+	BindingRefs         []string `json:"binding_refs,omitempty"`
+	SurfaceRefs         []string `json:"surface_refs,omitempty"`
+	ScreenRefs          []string `json:"screen_refs,omitempty"`
+	EntityRefs          []string `json:"entity_refs,omitempty"`
+	RelationGroupRefs   []string `json:"relation_group_refs,omitempty"`
+	SharedOwnershipRefs []string `json:"shared_ownership_refs,omitempty"`
+	OwnedPaths          []string `json:"owned_paths,omitempty"`
+	BlockedBy           []string `json:"blocked_by,omitempty"`
+	SuccessEvidence     []string `json:"success_evidence,omitempty"`
+}
+
+func normalizeTaskAllocationTransition(current *TaskAllocationTransition, task TaskBundleItem) *TaskAllocationTransition {
+	transition := &TaskAllocationTransition{}
+	if current != nil {
+		*transition = *current
+	}
+	transition.AllocationID = firstNonEmpty(strings.TrimSpace(transition.AllocationID), strings.TrimSpace(task.TaskID))
+	transition.SemanticIntentRefs = firstNonEmptySlice(transition.SemanticIntentRefs, task.RelatedRequirements)
+	transition.BindingRefs = trimAndDedupeStrings(transition.BindingRefs)
+	transition.SurfaceRefs = trimAndDedupeStrings(transition.SurfaceRefs)
+	transition.ScreenRefs = trimAndDedupeStrings(transition.ScreenRefs)
+	if len(transition.SurfaceRefs) > 0 {
+		transition.ScreenRefs = nil
+	}
+	transition.EntityRefs = trimAndDedupeStrings(transition.EntityRefs)
+	transition.RelationGroupRefs = trimAndDedupeStrings(transition.RelationGroupRefs)
+	transition.SharedOwnershipRefs = trimAndDedupeStrings(transition.SharedOwnershipRefs)
+	transition.OwnedPaths = firstNonEmptySlice(transition.OwnedPaths, task.TargetPaths)
+	transition.BlockedBy = firstNonEmptySlice(transition.BlockedBy, task.Dependencies)
+	transition.SuccessEvidence = firstNonEmptySlice(transition.SuccessEvidence, task.CompletionCriteria)
+	transition.SemanticIntentRefs = trimAndDedupeStrings(transition.SemanticIntentRefs)
+	transition.OwnedPaths = trimAndDedupeStrings(transition.OwnedPaths)
+	transition.BlockedBy = trimAndDedupeStrings(transition.BlockedBy)
+	transition.SuccessEvidence = trimAndDedupeStrings(transition.SuccessEvidence)
+	if transition.AllocationID == "" && len(transition.SemanticIntentRefs) == 0 && len(transition.BindingRefs) == 0 && len(transition.SurfaceRefs) == 0 && len(transition.ScreenRefs) == 0 && len(transition.EntityRefs) == 0 && len(transition.RelationGroupRefs) == 0 && len(transition.SharedOwnershipRefs) == 0 && len(transition.OwnedPaths) == 0 && len(transition.BlockedBy) == 0 && len(transition.SuccessEvidence) == 0 {
+		return nil
+	}
+	return transition
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func firstNonEmptySlice(candidates ...[]string) []string {
+	for _, items := range candidates {
+		normalized := trimAndDedupeStrings(items)
+		if len(normalized) > 0 {
+			return normalized
+		}
+	}
+	return nil
+}
+
+func trimAndDedupeStrings(items []string) []string {
+	if len(items) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(items))
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 func (task TaskBundleItem) EffectiveTaskType() BuilderRuntimeTaskType {
@@ -164,31 +401,48 @@ const (
 	ApprovalStatusApproved         = "approved"
 	ApprovalStatusRejected         = "rejected"
 	ApprovalStatusChangesRequested = "changes_requested"
+	BuildInputSchemaVersionV010    = "0.1.0"
+	CurrentBuildInputSchemaVersion = BuildInputSchemaVersionV010
 )
 
+func NormalizeBuildInputSchemaVersion(value string) string {
+	return strings.TrimSpace(value)
+}
+
+func IsSupportedBuildInputSchemaVersion(value string) bool {
+	switch NormalizeBuildInputSchemaVersion(value) {
+	case BuildInputSchemaVersionV010:
+		return true
+	default:
+		return false
+	}
+}
+
 type BuildInput struct {
-	SchemaVersion                  string            `json:"schema_version"`
-	JobID                          string            `json:"job_id"`
-	PRDID                          string            `json:"prd_id"`
-	TemplateID                     string            `json:"template_id"`
-	PreparedPRDSubjectVersion      string            `json:"prepared_prd_subject_version,omitempty"`
-	PreparedTemplateSubjectVersion string            `json:"prepared_template_subject_version,omitempty"`
-	ExecutorImage                  string            `json:"executor_image,omitempty"`
-	ContextSourceDir               string            `json:"context_source_dir,omitempty"`
-	TemplateSourceDir              string            `json:"template_source_dir,omitempty"`
-	WorkspacePath                  string            `json:"workspace_path"`
-	ArtifactDir                    string            `json:"artifact_dir"`
-	GoalSummary                    string            `json:"goal_summary"`
-	TaskBundle                     []TaskBundleItem  `json:"task_bundle"`
-	AcceptanceChecks               []AcceptanceCheck `json:"acceptance_checks"`
-	AllowedPaths                   []string          `json:"allowed_paths"`
-	ProtectedPaths                 []string          `json:"protected_paths"`
-	KnowledgePack                  []ProfileSkill    `json:"knowledge_pack,omitempty"`
-	CommandProfile                 json.RawMessage   `json:"command_profile"`
-	ContextFiles                   json.RawMessage   `json:"context_files"`
-	IterationBudget                int               `json:"iteration_budget"`
-	TokenBudget                    int               `json:"token_budget"`
-	HumanNotes                     json.RawMessage   `json:"human_notes,omitempty"`
+	SchemaVersion                  string                 `json:"schema_version"`
+	JobID                          string                 `json:"job_id"`
+	PRDID                          string                 `json:"prd_id"`
+	TemplateID                     string                 `json:"template_id"`
+	PlanningPolicy                 PlanningPolicySnapshot `json:"planning_policy"`
+	PreparedPRDSubjectVersion      string                 `json:"prepared_prd_subject_version,omitempty"`
+	PreparedTemplateSubjectVersion string                 `json:"prepared_template_subject_version,omitempty"`
+	ExecutorImage                  string                 `json:"executor_image,omitempty"`
+	ContextSourceDir               string                 `json:"context_source_dir,omitempty"`
+	TemplateSourceDir              string                 `json:"template_source_dir,omitempty"`
+	WorkspacePath                  string                 `json:"workspace_path"`
+	ArtifactDir                    string                 `json:"artifact_dir"`
+	GoalSummary                    string                 `json:"goal_summary"`
+	TaskBundle                     []TaskBundleItem       `json:"task_bundle"`
+	AcceptanceChecks               []AcceptanceCheck      `json:"acceptance_checks"`
+	AllowedPaths                   []string               `json:"allowed_paths"`
+	ProtectedPaths                 []string               `json:"protected_paths"`
+	KnowledgePack                  []ProfileSkill         `json:"knowledge_pack,omitempty"`
+	CommandProfile                 json.RawMessage        `json:"command_profile"`
+	ContextFiles                   json.RawMessage        `json:"context_files"`
+	IterationBudget                int                    `json:"iteration_budget"`
+	TokenBudget                    int                    `json:"token_budget"`
+	HumanNotes                     json.RawMessage        `json:"human_notes,omitempty"`
+	InitialRoundState              *RoundState            `json:"initial_round_state,omitempty"`
 }
 
 func BuildInputDigest(input BuildInput) string {
@@ -202,6 +456,8 @@ func BuildInputDigest(input BuildInput) string {
 	normalized.CommandProfile = normalizeDigestRawJSON(normalized.CommandProfile)
 	normalized.ContextFiles = normalizeDigestRawJSON(normalized.ContextFiles)
 	normalized.HumanNotes = normalizeDigestRawJSON(normalized.HumanNotes)
+	normalized.InitialRoundState = nil
+	normalized.PlanningPolicy = NormalizePlanningPolicySnapshot(normalized.PlanningPolicy)
 	data, err := json.Marshal(normalized)
 	if err != nil {
 		return ""
@@ -305,6 +561,11 @@ func defaultTemplateSourceDir(templateID string) string {
 	if strings.TrimSpace(templateID) == "" {
 		return ""
 	}
+	if templateRoot := strings.TrimSpace(os.Getenv("APPFACTORY_TEMPLATE_ROOT")); templateRoot != "" {
+		return filepath.Join(templateRoot, templateID)
+	}
+	// Repo fallback is kept only for local development and tests when the caller
+	// does not run inside the builder image.
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
 		return ""
@@ -453,18 +714,21 @@ type ApprovalDecision struct {
 }
 
 type TaskBundleItem struct {
-	TaskID              string                 `json:"task_id"`
-	Title               string                 `json:"title"`
-	Category            TaskCategory           `json:"category"`
-	TaskType            BuilderRuntimeTaskType `json:"task_type,omitempty"`
-	Objective           string                 `json:"objective"`
-	Priority            string                 `json:"priority,omitempty"`
-	RelatedRequirements []string               `json:"related_requirements,omitempty"`
-	Dependencies        []string               `json:"dependencies,omitempty"`
-	TargetPaths         []string               `json:"target_paths"`
-	OutputExpectations  []string               `json:"output_expectations,omitempty"`
-	CompletionCriteria  []string               `json:"completion_criteria"`
-	RiskNotes           []string               `json:"risk_notes,omitempty"`
+	TaskID               string                    `json:"task_id"`
+	Title                string                    `json:"title"`
+	Category             TaskCategory              `json:"category"`
+	TaskType             BuilderRuntimeTaskType    `json:"task_type,omitempty"`
+	RiskLevel            TaskRiskLevel             `json:"risk_level,omitempty"`
+	RouteHint            TaskRouteHint             `json:"route_hint,omitempty"`
+	AllocationTransition *TaskAllocationTransition `json:"allocation_transition,omitempty"`
+	Objective            string                    `json:"objective"`
+	Priority             string                    `json:"priority,omitempty"`
+	RelatedRequirements  []string                  `json:"related_requirements,omitempty"`
+	Dependencies         []string                  `json:"dependencies,omitempty"`
+	TargetPaths          []string                  `json:"target_paths"`
+	OutputExpectations   []string                  `json:"output_expectations,omitempty"`
+	CompletionCriteria   []string                  `json:"completion_criteria"`
+	RiskNotes            []string                  `json:"risk_notes,omitempty"`
 }
 
 type AcceptanceCheck struct {
@@ -501,14 +765,15 @@ const (
 const RepairBudgetOwnerPlatform = "platform"
 
 type RoundInput struct {
-	RoundID          string              `json:"round_id"`
-	Attempt          int                 `json:"attempt"`
-	GoalSummary      string              `json:"goal_summary,omitempty"`
-	TaskBundle       []TaskBundleItem    `json:"task_bundle,omitempty"`
-	AllowedPaths     []string            `json:"allowed_paths,omitempty"`
-	KnowledgePack    []ProfileSkill      `json:"knowledge_pack,omitempty"`
-	AcceptanceChecks []AcceptanceCheck   `json:"acceptance_checks,omitempty"`
-	BuilderRuntime   *BuilderRuntimePlan `json:"builder_runtime,omitempty"`
+	RoundID          string                 `json:"round_id"`
+	Attempt          int                    `json:"attempt"`
+	GoalSummary      string                 `json:"goal_summary,omitempty"`
+	PlanningPolicy   PlanningPolicySnapshot `json:"planning_policy,omitempty"`
+	TaskBundle       []TaskBundleItem       `json:"task_bundle,omitempty"`
+	AllowedPaths     []string               `json:"allowed_paths,omitempty"`
+	KnowledgePack    []ProfileSkill         `json:"knowledge_pack,omitempty"`
+	AcceptanceChecks []AcceptanceCheck      `json:"acceptance_checks,omitempty"`
+	BuilderRuntime   *BuilderRuntimePlan    `json:"builder_runtime,omitempty"`
 }
 
 type RoundOutput struct {
@@ -545,12 +810,35 @@ type BuilderRuntimeExecutionStats struct {
 	FailureReason           string                 `json:"failure_reason,omitempty"`
 }
 
+type BuilderRuntimeTaskStatus string
+
+const (
+	BuilderRuntimeTaskStatusNotStarted BuilderRuntimeTaskStatus = "not_started"
+	BuilderRuntimeTaskStatusCreated    BuilderRuntimeTaskStatus = "created"
+	BuilderRuntimeTaskStatusValidated  BuilderRuntimeTaskStatus = "validated"
+)
+
+func NormalizeBuilderRuntimeTaskStatus(value string) BuilderRuntimeTaskStatus {
+	switch BuilderRuntimeTaskStatus(strings.ToLower(strings.TrimSpace(value))) {
+	case BuilderRuntimeTaskStatusNotStarted:
+		return BuilderRuntimeTaskStatusNotStarted
+	case BuilderRuntimeTaskStatusCreated:
+		return BuilderRuntimeTaskStatusCreated
+	case BuilderRuntimeTaskStatusValidated:
+		return BuilderRuntimeTaskStatusValidated
+	default:
+		return ""
+	}
+}
+
 type RoundState struct {
-	CurrentPhase      RoundPhase    `json:"current_phase"`
-	PhaseTrace        []RoundPhase  `json:"phase_trace,omitempty"`
-	NextAction        ControlAction `json:"next_action,omitempty"`
-	PreserveWorkspace bool          `json:"preserve_workspace,omitempty"`
-	ResumeAllowed     bool          `json:"resume_allowed,omitempty"`
+	CurrentPhase      RoundPhase                          `json:"current_phase"`
+	PhaseTrace        []RoundPhase                        `json:"phase_trace,omitempty"`
+	NextAction        ControlAction                       `json:"next_action,omitempty"`
+	PreserveWorkspace bool                                `json:"preserve_workspace,omitempty"`
+	ResumeAllowed     bool                                `json:"resume_allowed,omitempty"`
+	CurrentTaskID     string                              `json:"current_task_id,omitempty"`
+	TaskStatuses      map[string]BuilderRuntimeTaskStatus `json:"task_statuses,omitempty"`
 }
 
 type WorkspacePatch struct {
@@ -771,49 +1059,52 @@ type FailureSignature struct {
 }
 
 type RunRecord struct {
-	RunID                   string            `json:"run_id"`
-	JobID                   string            `json:"job_id"`
-	BuilderID               string            `json:"builder_id"`
-	WorkerID                string            `json:"worker_id"`
-	LeaseID                 string            `json:"lease_id"`
-	Status                  Status            `json:"status"`
-	ExecutorImage           string            `json:"executor_image,omitempty"`
-	GoalSummary             string            `json:"goal_summary,omitempty"`
-	HumanNotes              json.RawMessage   `json:"human_notes,omitempty"`
-	TaskBundle              []TaskBundleItem  `json:"task_bundle,omitempty"`
-	AcceptanceChecks        []AcceptanceCheck `json:"acceptance_checks,omitempty"`
-	AllowedPaths            []string          `json:"allowed_paths,omitempty"`
-	ProtectedPaths          []string          `json:"protected_paths,omitempty"`
-	KnowledgePack           []ProfileSkill    `json:"knowledge_pack,omitempty"`
-	PreparedInputDigest     string            `json:"prepared_input_digest,omitempty"`
-	InputPath               string            `json:"input_path"`
-	WorkspacePath           string            `json:"workspace_path"`
-	ArtifactDir             string            `json:"artifact_dir"`
-	RunnerScriptPath        string            `json:"runner_script_path,omitempty"`
-	LaunchCommand           string            `json:"launch_command,omitempty"`
-	LaunchArgs              []string          `json:"launch_args,omitempty"`
-	LogPath                 string            `json:"log_path,omitempty"`
-	OutputPath              string            `json:"output_path,omitempty"`
-	ArtifactManifestPath    string            `json:"artifact_manifest_path,omitempty"`
-	MetricsPath             string            `json:"metrics_path,omitempty"`
-	EventsPath              string            `json:"events_path"`
-	CreatedAt               time.Time         `json:"created_at"`
-	UpdatedAt               time.Time         `json:"updated_at"`
-	StartedAt               time.Time         `json:"started_at"`
-	FinishedAt              time.Time         `json:"finished_at,omitempty"`
-	LastStage               ExecutionStage    `json:"last_stage,omitempty"`
-	IterationCount          int               `json:"iteration_count,omitempty"`
-	TotalTokens             int               `json:"total_tokens,omitempty"`
-	FailureSummary          string            `json:"failure_summary,omitempty"`
-	FailureSignatures       []string          `json:"failure_signatures,omitempty"`
-	RecoverySuggestion      string            `json:"recovery_suggestion,omitempty"`
-	CurrentRoundID          string            `json:"current_round_id,omitempty"`
-	CurrentRoundAttempt     int               `json:"current_round_attempt,omitempty"`
-	CurrentCheckpointKey    string            `json:"current_checkpoint_key,omitempty"`
-	CurrentRoundTargetPaths []string          `json:"current_round_target_paths,omitempty"`
-	RoundState              *RoundState       `json:"round_state,omitempty"`
-	RepairContext           *RepairContext    `json:"repair_context,omitempty"`
-	DistinctFailureCount    int               `json:"distinct_failure_count,omitempty"`
+	RunID                   string                 `json:"run_id"`
+	JobID                   string                 `json:"job_id"`
+	BuilderID               string                 `json:"builder_id"`
+	WorkerID                string                 `json:"worker_id"`
+	LeaseID                 string                 `json:"lease_id"`
+	Status                  Status                 `json:"status"`
+	ExecutorImage           string                 `json:"executor_image,omitempty"`
+	GoalSummary             string                 `json:"goal_summary,omitempty"`
+	PlanningPolicy          PlanningPolicySnapshot `json:"planning_policy,omitempty"`
+	HumanNotes              json.RawMessage        `json:"human_notes,omitempty"`
+	TaskBundle              []TaskBundleItem       `json:"task_bundle,omitempty"`
+	AcceptanceChecks        []AcceptanceCheck      `json:"acceptance_checks,omitempty"`
+	AllowedPaths            []string               `json:"allowed_paths,omitempty"`
+	ProtectedPaths          []string               `json:"protected_paths,omitempty"`
+	KnowledgePack           []ProfileSkill         `json:"knowledge_pack,omitempty"`
+	TemplateSourceDir       string                 `json:"template_source_dir,omitempty"`
+	TemplateReferenceFiles  map[string]string      `json:"template_reference_files,omitempty"`
+	PreparedInputDigest     string                 `json:"prepared_input_digest,omitempty"`
+	InputPath               string                 `json:"input_path"`
+	WorkspacePath           string                 `json:"workspace_path"`
+	ArtifactDir             string                 `json:"artifact_dir"`
+	RunnerScriptPath        string                 `json:"runner_script_path,omitempty"`
+	LaunchCommand           string                 `json:"launch_command,omitempty"`
+	LaunchArgs              []string               `json:"launch_args,omitempty"`
+	LogPath                 string                 `json:"log_path,omitempty"`
+	OutputPath              string                 `json:"output_path,omitempty"`
+	ArtifactManifestPath    string                 `json:"artifact_manifest_path,omitempty"`
+	MetricsPath             string                 `json:"metrics_path,omitempty"`
+	EventsPath              string                 `json:"events_path"`
+	CreatedAt               time.Time              `json:"created_at"`
+	UpdatedAt               time.Time              `json:"updated_at"`
+	StartedAt               time.Time              `json:"started_at"`
+	FinishedAt              time.Time              `json:"finished_at,omitempty"`
+	LastStage               ExecutionStage         `json:"last_stage,omitempty"`
+	IterationCount          int                    `json:"iteration_count,omitempty"`
+	TotalTokens             int                    `json:"total_tokens,omitempty"`
+	FailureSummary          string                 `json:"failure_summary,omitempty"`
+	FailureSignatures       []string               `json:"failure_signatures,omitempty"`
+	RecoverySuggestion      string                 `json:"recovery_suggestion,omitempty"`
+	CurrentRoundID          string                 `json:"current_round_id,omitempty"`
+	CurrentRoundAttempt     int                    `json:"current_round_attempt,omitempty"`
+	CurrentCheckpointKey    string                 `json:"current_checkpoint_key,omitempty"`
+	CurrentRoundTargetPaths []string               `json:"current_round_target_paths,omitempty"`
+	RoundState              *RoundState            `json:"round_state,omitempty"`
+	RepairContext           *RepairContext         `json:"repair_context,omitempty"`
+	DistinctFailureCount    int                    `json:"distinct_failure_count,omitempty"`
 }
 
 type Heartbeat struct {

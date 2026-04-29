@@ -1,0 +1,136 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-bookkeeping-lite-real",
+  "prd_id": "prd-bookkeeping-lite",
+  "template_id": "flutter-finance-lite",
+  "executor_image": "picoclaw/appfactory-builder:local",
+  "workspace_path": "/workspace/job-bookkeeping-lite-real",
+  "artifact_dir": "/artifacts/job-bookkeeping-lite-real",
+  "goal_summary": "使用真实 Flutter Builder 镜像验证记账模板的 analyze、test 和 debug APK 构建链路。",
+  "task_bundle": [
+    {
+      "task_id": "task-template-verify",
+      "title": "验证记账模板种子",
+      "category": "validation",
+      "objective": "在 Builder 镜像内对最小记账模板执行真实 Flutter 命令链。",
+      "priority": "p0",
+      "target_paths": [
+        "lib/**",
+        "test/**",
+        "pubspec.yaml"
+      ],
+      "completion_criteria": [
+        "flutter analyze 通过",
+        "flutter test 通过",
+        "flutter build apk --debug 产出 APK"
+      ]
+    }
+  ],
+  "acceptance_checks": [
+    {
+      "check_id": "check-flutter-pub-get",
+      "label": "安装 Flutter 依赖",
+      "stage": "baseline",
+      "required": true,
+      "commands": [
+        "flutter pub get"
+      ],
+      "success_criteria": "Flutter 依赖安装成功。",
+      "timeout_seconds": 300
+    },
+    {
+      "check_id": "check-flutter-analyze",
+      "label": "执行静态检查",
+      "stage": "cheap",
+      "required": true,
+      "commands": [
+        "flutter analyze"
+      ],
+      "success_criteria": "Flutter analyze 无错误。",
+      "timeout_seconds": 300
+    },
+    {
+      "check_id": "check-flutter-test",
+      "label": "执行模板测试",
+      "stage": "cheap",
+      "required": true,
+      "commands": [
+        "flutter test"
+      ],
+      "success_criteria": "Widget test 全部通过。",
+      "timeout_seconds": 300
+    },
+    {
+      "check_id": "check-flutter-build-apk",
+      "label": "构建 Debug APK",
+      "stage": "milestone",
+      "required": true,
+      "commands": [
+        "flutter build apk --debug"
+      ],
+      "success_criteria": "产出 app-debug.apk。",
+      "timeout_seconds": 1800
+    }
+  ],
+  "allowed_paths": [
+    "lib/**",
+    "assets/**",
+    "pubspec.yaml",
+    "test/**"
+  ],
+  "protected_paths": [
+    "ios/**",
+    "linux/**",
+    "macos/**",
+    "windows/**"
+  ],
+  "command_profile": {
+    "profile_name": "flutter-builder-p0",
+    "allowed_stages": [
+      "baseline",
+      "cheap",
+      "milestone"
+    ],
+    "allowed_commands": [
+      "flutter"
+    ],
+    "denied_commands": [
+      "rm",
+      "sudo"
+    ],
+    "max_single_command_seconds": 1800,
+    "max_parallel_commands": 1,
+    "network_policy": "enabled",
+    "writable_roots": [
+      "."
+    ],
+    "env_allowlist": [
+      "PATH",
+      "HOME",
+      "JAVA_HOME",
+      "ANDROID_HOME",
+      "ANDROID_SDK_ROOT",
+      "PUB_CACHE",
+      "FLUTTER_ROOT"
+    ]
+  },
+  "context_files": {
+    "prd_markdown_path": "PRD.md",
+    "prd_json_path": "PRD.json",
+    "template_fit_report_path": "template-fit-report.md",
+    "implementation_plan_path": "implementation-plan.md",
+    "manual_constraints_path": "manual-constraints.md",
+    "supporting_files": [
+      "requirement.md"
+    ]
+  },
+  "iteration_budget": 3,
+  "token_budget": 4000,
+  "human_notes": [
+    {
+      "note_id": "note-real-build",
+      "scope": "engineering",
+      "summary": "该输入包用于真实 Flutter Builder 验证，不再只是 echo 级别 smoke check。"
+    }
+  ]
+}

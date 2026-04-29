@@ -1,0 +1,1070 @@
+{
+  "schema_version": "0.1.0",
+  "id": "prd-weight-tracker-detail-without-delete-sample-001",
+  "version": "0.1.0",
+  "status": "draft",
+  "title": "体重记录 App（只读详情）",
+  "summary": "把体重记录需求整理成基于通用中性交互承载 Flutter 模板的 Android MVP 规格，并保留体重、日期、备注和趋势等核心语义。",
+  "problem_statement": "generic compile 在映射到 open-lite 骨架前，不能丢失体重、日期、备注和趋势等核心领域语义，否则最终生成物会退化成只有通用 record 壳子的伪成功样本。",
+  "target_users": [
+    {
+      "user_id": "user-builder",
+      "label": "体重记录 应用使用者",
+      "summary": "需要一个离线可用的个人体重记录工具，用于持续记录并回看变化趋势。",
+      "pain_points": [
+        "自然语言需求容易在 compile 后丢失体重字段和趋势语义",
+        "希望先有稳定骨架，再逐步收口为健康记录产品"
+      ]
+    },
+    {
+      "user_id": "user-validator",
+      "label": "内部验证人员",
+      "summary": "需要快速确认 PRD 与 builder-input 是否同时保留领域语义和中性交互承载约束。",
+      "pain_points": [
+        "需要确认体重、日期、备注和趋势是否进入结构化 PRD",
+        "不能再只验证多页面骨架是否存在"
+      ]
+    }
+  ],
+  "core_scenarios": [
+    {
+      "scenario_id": "scenario-inspect-detail",
+      "title": "查看体重详情",
+      "summary": "用户可以从概览或历史集合入口进入结果检查入口查看单条体重记录。",
+      "primary_user_refs": [
+        "user-builder"
+      ]
+    }
+  ],
+  "goals": [
+    "输出覆盖概览、历史集合、实体变更、结果检查和本地存储的体重记录 PRD 与 builder-input。",
+    "保留体重、日期、备注与趋势等核心领域语义，再映射到 flutter-open-lite 中性交互承载骨架。",
+    "让后续 Builder 能在不改承载单元绑定的前提下，明确收口为体重记录 app。"
+  ],
+  "non_goals": [
+    "不引入登录、支付、广告、地图、推送、实时通信。",
+    "不把远端 API 或自建服务器当作模板基础依赖。",
+    "不处理上架、签名或复杂商业化配置。"
+  ],
+  "feature_list": [
+    {
+      "feature_id": "feature-record-list",
+      "title": "历史记录集合承载单元",
+      "summary": "按日期倒序展示历史体重记录，并允许进入结果检查入口。",
+      "priority": "p0",
+      "required": true,
+      "related_scenarios": [
+        "scenario-inspect-detail"
+      ],
+      "related_surface_refs": [
+        "surface-collection",
+        "surface-inspection"
+      ],
+      "acceptance_refs": [
+        "ac-list",
+        "ac-detail"
+      ]
+    },
+    {
+      "feature_id": "feature-local-storage",
+      "title": "本地持久化",
+      "summary": "体重记录 数据本地持久化，应用重启后仍能恢复。",
+      "priority": "p1",
+      "required": true,
+      "related_surface_refs": [
+        "surface-collection",
+        "surface-inspection"
+      ],
+      "acceptance_refs": [
+        "ac-persistence"
+      ]
+    }
+  ],
+  "surface_list": [
+    {
+      "surface_id": "surface-collection",
+      "label": "集合浏览承载单元",
+      "purpose": "承载领域记录集合浏览、筛选和结果定位。",
+      "primary_feature_refs": [
+        "feature-record-list"
+      ]
+    },
+    {
+      "surface_id": "surface-inspection",
+      "label": "结果检查承载单元",
+      "purpose": "承载单条记录检查、删除确认和结果回流。",
+      "primary_feature_refs": [
+        "feature-record-list"
+      ]
+    }
+  ],
+  "user_flows": [
+    {
+      "flow_id": "flow-inspect-record",
+      "title": "查看体重详情",
+      "steps": [
+        {
+          "step_id": "step-open-inspection",
+          "title": "点击一条记录进入结果检查入口",
+          "surface_ref": "surface-collection",
+          "actor": "体重记录 应用使用者",
+          "expected_result": "能看到单条体重记录的体重、日期和备注"
+        }
+      ]
+    }
+  ],
+  "data_entities": [
+    {
+      "entity_id": "entity-weight-record",
+      "name": "体重记录",
+      "fields": [
+        {
+          "name": "record_id",
+          "type": "string",
+          "required": true,
+          "description": "记录唯一标识"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "required": true,
+          "description": "体重数值"
+        },
+        {
+          "name": "recorded_at",
+          "type": "date",
+          "required": true,
+          "description": "记录日期"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "description": "补充备注"
+        }
+      ],
+      "source": "local_storage"
+    }
+  ],
+  "template_constraints": {
+    "stack": "flutter",
+    "android_required": true,
+    "required_capabilities": [
+      "navigation",
+      "local-storage",
+      "theme",
+      "list",
+      "detail"
+    ],
+    "preferred_template_ids": [
+      "flutter-open-lite"
+    ]
+  },
+  "acceptance_criteria": [
+    {
+      "criterion_id": "ac-list",
+      "label": "历史记录集合承载单元可浏览",
+      "category": "functional",
+      "required": true,
+      "description": "历史集合承载单元必须按日期展示体重记录，并允许进入结果检查入口。"
+    },
+    {
+      "criterion_id": "ac-detail",
+      "label": "结果检查入口可达",
+      "category": "functional",
+      "required": true,
+      "description": "从集合浏览入口至少存在一条进入结果检查入口的路径。"
+    },
+    {
+      "criterion_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "category": "smoke",
+      "required": true,
+      "description": "应用重启后仍能读取本地记录数据。"
+    },
+    {
+      "criterion_id": "ac-navigation",
+      "label": "核心承载单元可导航",
+      "category": "ui",
+      "required": true,
+      "description": "当前需求声明的集合浏览和结果检查承载单元之间路径明确且可达。"
+    }
+  ],
+  "manual_review_points": [
+    {
+      "point_id": "mrp-domain-wording",
+      "summary": "检查体重领域语义是否完整进入 PRD",
+      "reason": "体重、日期、备注和趋势不能在 compile 阶段被压平成通用 record 话术。",
+      "owner": "product"
+    },
+    {
+      "point_id": "mrp-entity-fit",
+      "summary": "确认领域实体能映射到 open-lite 中性交互承载骨架",
+      "reason": "compile 后必须在复用集合浏览和结果检查承载单元的同时保留领域字段。",
+      "owner": "engineering"
+    }
+  ],
+  "known_unknowns": [
+    {
+      "question": "后续是否需要在当前状态筛选基线之上补批量操作、归档、撤销或软删除",
+      "impact": "medium",
+      "owner": "product"
+    },
+    {
+      "question": "当需求出现复杂多实体关系时，是继续扩展 record 模型，还是拆出新模板",
+      "impact": "medium",
+      "owner": "engineering"
+    }
+  ],
+  "execution_contract": {
+    "contract_version": "0.1.0",
+    "domain_model": {
+      "domain_name": "体重记录 App（只读详情）",
+      "entities": [
+        {
+          "entity_id": "entity-weight-record",
+          "name": "体重记录",
+          "fields": [
+            {
+              "name": "record_id",
+              "type": "string",
+              "required": true,
+              "description": "记录唯一标识"
+            },
+            {
+              "name": "weight",
+              "type": "number",
+              "required": true,
+              "description": "体重数值"
+            },
+            {
+              "name": "recorded_at",
+              "type": "date",
+              "required": true,
+              "description": "记录日期"
+            },
+            {
+              "name": "note",
+              "type": "string",
+              "required": false,
+              "description": "补充备注"
+            }
+          ],
+          "source": "local_storage"
+        }
+      ],
+      "critical_flow_refs": [
+        "flow-inspect-record"
+      ],
+      "semantic_acceptance_refs": [
+        "ac-list",
+        "ac-detail",
+        "ac-persistence",
+        "ac-navigation"
+      ]
+    },
+    "surface_relation_schema": {
+      "anchor_collection_path": "surface_list",
+      "anchor_id_path": "surface_list[].surface_id",
+      "primary_ref_fields": [
+        "surface_ref",
+        "surface_refs"
+      ],
+      "allowed_references": [
+        {
+          "source_path": "feature_list[].related_surface_refs[]",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "many"
+        },
+        {
+          "source_path": "user_flows[].steps[].surface_ref",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "one"
+        },
+        {
+          "source_path": "execution_contract.surface_contracts[].surface_ref",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "one"
+        },
+        {
+          "source_path": "execution_contract.key_flows[].entry_surface_ref",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "one"
+        },
+        {
+          "source_path": "execution_contract.key_flows[].steps[].surface_ref",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "one"
+        },
+        {
+          "source_path": "task_allocation.units[].surface_refs[]",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "many"
+        },
+        {
+          "source_path": "execution_contract.task_projection[].surface_refs[]",
+          "target_path": "surface_list[].surface_id",
+          "cardinality": "many"
+        }
+      ],
+      "compatibility_fields": [
+        {
+          "field_path": "screen_list",
+          "canonical_path": "surface_list",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "surface_list[].legacy_screen_ref",
+          "canonical_path": "surface_list[].surface_id",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "feature_list[].related_screens[]",
+          "canonical_path": "feature_list[].related_surface_refs[]",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "user_flows[].steps[].screen_ref",
+          "canonical_path": "user_flows[].steps[].surface_ref",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "task_bundle[].allocation_transition.screen_refs[]",
+          "canonical_path": "task_bundle[].allocation_transition.surface_refs[]",
+          "policy": "read_only_input"
+        },
+        {
+          "field_path": "task_allocation.units[].screen_refs[]",
+          "canonical_path": "task_allocation.units[].surface_refs[]",
+          "policy": "read_only_input"
+        }
+      ]
+    },
+    "surface_contracts": [
+      {
+        "contract_id": "contract-surface-collection",
+        "surface_ref": "surface-collection",
+        "template_binding_ref": "surface-collection",
+        "purpose": "承载领域记录集合浏览、筛选和结果定位。",
+        "primary_feature_refs": [
+          "feature-record-list"
+        ],
+        "primary_entity_refs": [
+          "entity-weight-record"
+        ],
+        "target_paths": [
+          "lib/views/record_list_page.dart",
+          "lib/controllers/record_list_controller.dart"
+        ],
+        "required_actions": [
+          {
+            "action_id": "flow-inspect-record:step-open-inspection",
+            "label": "点击一条记录进入结果检查入口",
+            "trigger": "体重记录 应用使用者",
+            "outcome": "能看到单条体重记录的体重、日期和备注"
+          }
+        ],
+        "required_states": [
+          {
+            "state_id": "state-list",
+            "label": "历史记录集合承载单元可浏览",
+            "evidence": "历史集合承载单元必须按日期展示体重记录，并允许进入结果检查入口。"
+          },
+          {
+            "state_id": "state-detail",
+            "label": "结果检查入口可达",
+            "evidence": "从集合浏览入口至少存在一条进入结果检查入口的路径。"
+          }
+        ],
+        "acceptance_refs": [
+          "ac-list",
+          "ac-detail"
+        ]
+      },
+      {
+        "contract_id": "contract-surface-inspection",
+        "surface_ref": "surface-inspection",
+        "template_binding_ref": "surface-inspection",
+        "purpose": "承载单条记录检查、删除确认和结果回流。",
+        "primary_feature_refs": [
+          "feature-record-list"
+        ],
+        "primary_entity_refs": [
+          "entity-weight-record"
+        ],
+        "target_paths": [
+          "lib/views/record_detail_page.dart"
+        ],
+        "required_states": [
+          {
+            "state_id": "state-list",
+            "label": "历史记录集合承载单元可浏览",
+            "evidence": "历史集合承载单元必须按日期展示体重记录，并允许进入结果检查入口。"
+          },
+          {
+            "state_id": "state-detail",
+            "label": "结果检查入口可达",
+            "evidence": "从集合浏览入口至少存在一条进入结果检查入口的路径。"
+          }
+        ],
+        "acceptance_refs": [
+          "ac-list",
+          "ac-detail"
+        ]
+      }
+    ],
+    "key_flows": [
+      {
+        "flow_id": "flow-inspect-record",
+        "title": "查看体重详情",
+        "entry_surface_ref": "surface-collection",
+        "steps": [
+          {
+            "step_id": "step-open-inspection",
+            "surface_ref": "surface-collection",
+            "actor": "体重记录 应用使用者",
+            "action": "点击一条记录进入结果检查入口",
+            "expected_result": "能看到单条体重记录的体重、日期和备注"
+          }
+        ],
+        "read_entity_refs": [
+          "entity-weight-record"
+        ],
+        "success_signals": [
+          "能看到单条体重记录的体重、日期和备注"
+        ],
+        "acceptance_refs": [
+          "ac-list",
+          "ac-detail",
+          "ac-persistence"
+        ]
+      }
+    ],
+    "acceptance_matrix": [
+      {
+        "matrix_id": "matrix-check-flutter-pub-get",
+        "acceptance_ref": "check-flutter-pub-get",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-flutter-pub-get"
+        ],
+        "check_refs": [
+          "check-flutter-pub-get"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-open-lite-counter-demo-removed",
+        "acceptance_ref": "check-open-lite-counter-demo-removed",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-open-lite-counter-demo-removed"
+        ],
+        "slot_refs": [
+          "widget-test"
+        ],
+        "check_refs": [
+          "check-open-lite-counter-demo-removed"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-open-lite-record-flow-wiring",
+        "acceptance_ref": "check-open-lite-record-flow-wiring",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-open-lite-record-flow-wiring"
+        ],
+        "check_refs": [
+          "check-open-lite-record-flow-wiring"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-open-lite-local-persistence-wiring",
+        "acceptance_ref": "check-open-lite-local-persistence-wiring",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-open-lite-local-persistence-wiring"
+        ],
+        "slot_refs": [
+          "storage-boundary"
+        ],
+        "check_refs": [
+          "check-open-lite-local-persistence-wiring"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-profile-open-lite-domain-branding",
+        "acceptance_ref": "check-profile-open-lite-domain-branding",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-profile-open-lite-domain-branding"
+        ],
+        "slot_refs": [
+          "domain-copy",
+          "android-branding"
+        ],
+        "check_refs": [
+          "check-profile-open-lite-domain-branding"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-profile-open-lite-domain-language",
+        "acceptance_ref": "check-profile-open-lite-domain-language",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-profile-open-lite-domain-language"
+        ],
+        "slot_refs": [
+          "domain-model",
+          "flow-controller",
+          "domain-copy",
+          "widget-test"
+        ],
+        "check_refs": [
+          "check-profile-open-lite-domain-language"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-flutter-analyze",
+        "acceptance_ref": "check-flutter-analyze",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-flutter-analyze"
+        ],
+        "check_refs": [
+          "check-flutter-analyze"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-flutter-test",
+        "acceptance_ref": "check-flutter-test",
+        "layer": "structure",
+        "required": true,
+        "source_refs": [
+          "check-flutter-test"
+        ],
+        "check_refs": [
+          "check-flutter-test"
+        ]
+      },
+      {
+        "matrix_id": "matrix-ac-list",
+        "acceptance_ref": "ac-list",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "ac-list"
+        ],
+        "slot_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "field_refs": [
+          "record_id",
+          "weight",
+          "recorded_at",
+          "note"
+        ],
+        "check_refs": [
+          "ac-list"
+        ],
+        "evidence_pattern": "体重记录 App（只读详情）|record_id|recordId|weight|recorded_at|recordedAt|note"
+      },
+      {
+        "matrix_id": "matrix-ac-detail",
+        "acceptance_ref": "ac-detail",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "ac-detail"
+        ],
+        "slot_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "field_refs": [
+          "record_id",
+          "weight",
+          "recorded_at",
+          "note"
+        ],
+        "check_refs": [
+          "ac-detail"
+        ],
+        "evidence_pattern": "体重记录 App（只读详情）|record_id|recordId|weight|recorded_at|recordedAt|note"
+      },
+      {
+        "matrix_id": "matrix-ac-persistence",
+        "acceptance_ref": "ac-persistence",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "ac-persistence"
+        ],
+        "slot_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "field_refs": [
+          "record_id",
+          "weight",
+          "recorded_at",
+          "note"
+        ],
+        "check_refs": [
+          "ac-persistence"
+        ],
+        "evidence_pattern": "体重记录 App（只读详情）|record_id|recordId|weight|recorded_at|recordedAt|note"
+      },
+      {
+        "matrix_id": "matrix-ac-navigation",
+        "acceptance_ref": "ac-navigation",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "ac-navigation"
+        ],
+        "check_refs": [
+          "ac-navigation"
+        ],
+        "evidence_pattern": "体重记录 App（只读详情）"
+      },
+      {
+        "matrix_id": "matrix-mrp-domain-wording",
+        "acceptance_ref": "mrp-domain-wording",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "mrp-domain-wording"
+        ],
+        "slot_refs": [
+          "domain-copy",
+          "android-branding",
+          "surface-inspection"
+        ],
+        "check_refs": [
+          "mrp-domain-wording"
+        ]
+      },
+      {
+        "matrix_id": "matrix-mrp-entity-fit",
+        "acceptance_ref": "mrp-entity-fit",
+        "layer": "semantic",
+        "required": true,
+        "source_refs": [
+          "mrp-entity-fit"
+        ],
+        "slot_refs": [
+          "domain-model"
+        ],
+        "check_refs": [
+          "mrp-entity-fit"
+        ]
+      },
+      {
+        "matrix_id": "matrix-flow-inspect-record",
+        "acceptance_ref": "flow-inspect-record",
+        "layer": "behavior",
+        "required": true,
+        "source_refs": [
+          "flow-inspect-record"
+        ],
+        "slot_refs": [
+          "surface-collection"
+        ],
+        "check_refs": [
+          "flow-inspect-record"
+        ]
+      },
+      {
+        "matrix_id": "matrix-check-flutter-build-apk",
+        "acceptance_ref": "check-flutter-build-apk",
+        "layer": "delivery",
+        "required": true,
+        "source_refs": [
+          "check-flutter-build-apk"
+        ],
+        "check_refs": [
+          "check-flutter-build-apk"
+        ]
+      }
+    ],
+    "task_projection": [
+      {
+        "task_id": "task-create-record-model",
+        "title": "创建领域记录模型",
+        "wave": 0,
+        "lane": "domain",
+        "category": "domain",
+        "task_type": "dual_file_wiring",
+        "route_hint": "strong_model",
+        "risk_level": "high",
+        "surface_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "ac-list",
+          "ac-detail",
+          "mrp-entity-fit",
+          "check-profile-open-lite-domain-language"
+        ],
+        "slot_refs": [
+          "domain-model"
+        ],
+        "target_paths": [
+          "lib/models/record.dart"
+        ],
+        "owned_paths": [
+          "lib/models/record.dart"
+        ],
+        "success_evidence": [
+          "领域记录模型已创建",
+          "不再保留默认 generic record 字段"
+        ]
+      },
+      {
+        "task_id": "task-create-repository",
+        "title": "创建本地仓储实现",
+        "wave": 1,
+        "lane": "storage",
+        "category": "storage",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "ac-persistence",
+          "check-open-lite-local-persistence-wiring"
+        ],
+        "depends_on": [
+          "task-create-record-model"
+        ],
+        "slot_refs": [
+          "storage-boundary"
+        ],
+        "target_paths": [
+          "lib/repositories/record_repository.dart"
+        ],
+        "owned_paths": [
+          "lib/repositories/record_repository.dart"
+        ],
+        "success_evidence": [
+          "仓储实现已创建",
+          "领域记录读写入口稳定"
+        ]
+      },
+      {
+        "task_id": "task-create-list-controller",
+        "title": "创建集合浏览控制器",
+        "wave": 2,
+        "lane": "flow",
+        "category": "flow",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "ac-list",
+          "ac-detail",
+          "check-profile-open-lite-domain-language"
+        ],
+        "depends_on": [
+          "task-create-repository",
+          "task-create-record-model"
+        ],
+        "slot_refs": [
+          "flow-controller"
+        ],
+        "target_paths": [
+          "lib/controllers/record_list_controller.dart"
+        ],
+        "owned_paths": [
+          "lib/controllers/record_list_controller.dart"
+        ],
+        "success_evidence": [
+          "集合浏览控制器已创建",
+          "集合浏览入口可浏览领域记录",
+          "结果检查入口与集合数据保持一致"
+        ]
+      },
+      {
+        "task_id": "task-create-copy",
+        "title": "创建领域文案投影",
+        "wave": 1,
+        "lane": "content",
+        "category": "content",
+        "task_type": "dual_file_wiring",
+        "route_hint": "strong_model",
+        "risk_level": "high",
+        "surface_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "mrp-domain-wording",
+          "check-profile-open-lite-domain-branding",
+          "check-profile-open-lite-domain-language"
+        ],
+        "depends_on": [
+          "task-create-record-model"
+        ],
+        "slot_refs": [
+          "domain-copy"
+        ],
+        "target_paths": [
+          "lib/template/open_lite_copy.dart"
+        ],
+        "owned_paths": [
+          "lib/template/open_lite_copy.dart"
+        ],
+        "success_evidence": [
+          "领域文案投影文件已创建",
+          "默认 seed 文案已被领域文案替换"
+        ]
+      },
+      {
+        "task_id": "task-create-android-branding",
+        "title": "创建 Android 启动器文案",
+        "wave": 2,
+        "lane": "content",
+        "category": "content",
+        "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
+        "surface_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "mrp-domain-wording",
+          "check-profile-open-lite-domain-branding"
+        ],
+        "depends_on": [
+          "task-create-copy"
+        ],
+        "slot_refs": [
+          "android-branding"
+        ],
+        "target_paths": [
+          "android/app/src/main/res/values/strings.xml"
+        ],
+        "owned_paths": [
+          "android/app/src/main/res/values/strings.xml"
+        ],
+        "success_evidence": [
+          "Android 启动器名称已创建",
+          "领域品牌文案已同步到 strings.xml"
+        ]
+      },
+      {
+        "task_id": "task-create-android-build-config",
+        "title": "创建 Android 构建文案入口",
+        "wave": 3,
+        "lane": "content",
+        "category": "content",
+        "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
+        "surface_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "check-profile-open-lite-domain-branding"
+        ],
+        "depends_on": [
+          "task-create-android-branding"
+        ],
+        "slot_refs": [
+          "android-branding"
+        ],
+        "target_paths": [
+          "android/app/build.gradle.kts"
+        ],
+        "owned_paths": [
+          "android/app/build.gradle.kts"
+        ],
+        "success_evidence": [
+          "Android branding 构建入口已创建",
+          "build.gradle.kts 保留单点覆盖能力"
+        ]
+      },
+      {
+        "task_id": "task-bind-collection-surface",
+        "title": "绑定集合浏览承载单元",
+        "wave": 3,
+        "lane": "screen",
+        "category": "screen",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-collection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "ac-list",
+          "ac-detail"
+        ],
+        "depends_on": [
+          "task-create-list-controller",
+          "task-create-copy"
+        ],
+        "slot_refs": [
+          "surface-collection"
+        ],
+        "target_paths": [
+          "lib/views/record_list_page.dart"
+        ],
+        "owned_paths": [
+          "lib/views/record_list_page.dart"
+        ],
+        "success_evidence": [
+          "集合浏览承载单元已绑定",
+          "集合结果可浏览领域记录",
+          "结果检查入口与集合数据保持一致"
+        ]
+      },
+      {
+        "task_id": "task-bind-inspection-surface",
+        "title": "绑定结果检查承载单元",
+        "wave": 2,
+        "lane": "screen",
+        "category": "screen",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "ac-detail",
+          "mrp-domain-wording"
+        ],
+        "depends_on": [
+          "task-create-record-model",
+          "task-create-copy"
+        ],
+        "slot_refs": [
+          "surface-inspection"
+        ],
+        "target_paths": [
+          "lib/views/record_detail_page.dart"
+        ],
+        "owned_paths": [
+          "lib/views/record_detail_page.dart"
+        ],
+        "success_evidence": [
+          "结果检查承载单元已绑定",
+          "结果检查可围绕单条领域记录展示"
+        ]
+      },
+      {
+        "task_id": "task-bind-app-entry",
+        "title": "接线应用入口与承载单元路由",
+        "wave": 4,
+        "lane": "screen",
+        "category": "screen",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "ac-navigation",
+          "check-generic-open-scope"
+        ],
+        "depends_on": [
+          "task-bind-collection-surface",
+          "task-bind-inspection-surface",
+          "task-create-list-controller",
+          "task-create-repository"
+        ],
+        "slot_refs": [
+          "app-entry"
+        ],
+        "target_paths": [
+          "lib/main.dart"
+        ],
+        "owned_paths": [
+          "lib/main.dart"
+        ],
+        "success_evidence": [
+          "应用入口已接线",
+          "集合浏览、结果检查承载单元导航骨架可用"
+        ]
+      },
+      {
+        "task_id": "task-create-test",
+        "title": "创建最小 Widget 测试",
+        "wave": 5,
+        "lane": "flow",
+        "category": "flow",
+        "task_type": "dual_file_wiring",
+        "surface_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "semantic_intent_refs": [
+          "ac-navigation",
+          "ac-detail",
+          "check-open-lite-counter-demo-removed",
+          "check-profile-open-lite-domain-language"
+        ],
+        "depends_on": [
+          "task-bind-app-entry"
+        ],
+        "slot_refs": [
+          "widget-test"
+        ],
+        "target_paths": [
+          "test/widget_test.dart"
+        ],
+        "owned_paths": [
+          "test/widget_test.dart"
+        ],
+        "success_evidence": [
+          "最小 Widget 测试已创建",
+          "测试断言与当前领域文案和主流程保持同步"
+        ]
+      }
+    ]
+  },
+  "source_refs": [
+    "jobs-ui"
+  ],
+  "created_at": "2026-04-11T09:15:00Z",
+  "updated_at": "2026-04-11T09:15:00Z"
+}

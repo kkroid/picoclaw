@@ -2,19 +2,97 @@
 
 set -euo pipefail
 
-template_dir="${APPFACTORY_TEMPLATE_GOVERNANCE_TEMPLATE_DIR:-${1:-examples/appfactory/templates/flutter-finance-lite}}"
+template_ref="${APPFACTORY_TEMPLATE_GOVERNANCE_TEMPLATE_DIR:-${1:-flutter-finance-lite}}"
 governance_root="${APPFACTORY_TEMPLATE_GOVERNANCE_ROOT:-${2:-workspace/appfactory/template-governance}}"
 latest_json_path="${APPFACTORY_TEMPLATE_GOVERNANCE_LATEST_JSON:-${governance_root}/latest.json}"
 latest_markdown_path="${APPFACTORY_TEMPLATE_GOVERNANCE_LATEST_MARKDOWN:-${governance_root}/latest.md}"
 cache_root="${APPFACTORY_TEMPLATE_GOVERNANCE_CACHE_ROOT:-workspace/appfactory/builder-cache/template-verify}"
+builder_image="${APPFACTORY_BUILDER_IMAGE:-picoclaw/appfactory-builder:local}"
+governance_source_mode="${APPFACTORY_TEMPLATE_GOVERNANCE_SOURCE:-image}"
+template_root_in_image="${APPFACTORY_TEMPLATE_ROOT_IN_IMAGE:-/opt/appfactory/templates}"
+repo_root_in_image="${APPFACTORY_REPO_ROOT_IN_IMAGE:-/opt/appfactory}"
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "python3 is required" >&2
-  exit 1
-fi
+abs_path() {
+  local target="$1"
+  if [[ "$target" = /* ]]; then
+    printf '%s\n' "$target"
+  else
+    printf '%s/%s\n' "$PWD" "${target#./}"
+  fi
+}
 
-python3 - "$template_dir" "$governance_root" "$latest_json_path" "$latest_markdown_path" "$repo_root" "$cache_root" <<'PY'
+resolve_host_template_dir() {
+  local ref="$1"
+  if [ -d "$ref" ]; then
+    printf '%s\n' "$ref"
+    return
+  fi
+  if [ -d "$PWD/$ref" ]; then
+    printf '%s\n' "$PWD/$ref"
+    return
+  fi
+  if [ -d "$PWD/examples/appfactory/templates/$ref" ]; then
+    printf '%s\n' "$PWD/examples/appfactory/templates/$ref"
+    return
+  fi
+  return 1
+}
+
+resolve_image_template_dir() {
+  local ref="$1"
+  if [[ "$ref" = /* ]]; then
+    printf '%s\n' "$ref"
+    return
+  fi
+  ref="${ref#./}"
+  ref="${ref#examples/appfactory/templates/}"
+  printf '%s\n' "$template_root_in_image/$ref"
+}
+
+map_to_container_repo_path() {
+  local host_path="$1"
+  local repo_root_abs="$2"
+  local rel
+  case "$host_path" in
+    "$repo_root_abs")
+      printf '%s\n' /workspace/host
+      ;;
+    "$repo_root_abs"/*)
+      rel="${host_path#"$repo_root_abs"/}"
+      printf '%s/%s\n' /workspace/host "$rel"
+      ;;
+    *)
+      echo "image mode only supports paths under repo root: $host_path" >&2
+      exit 1
+      ;;
+  esac
+}
+
+case "$governance_source_mode" in
+  image|host)
+    ;;
+  *)
+    echo "unsupported template governance source: $governance_source_mode" >&2
+    echo "expected one of: image, host" >&2
+    exit 1
+    ;;
+esac
+
+repo_root_abs="$(abs_path "$repo_root")"
+governance_root_abs="$(abs_path "$governance_root")"
+latest_json_abs="$(abs_path "$latest_json_path")"
+latest_markdown_abs="$(abs_path "$latest_markdown_path")"
+cache_root_abs="$(abs_path "$cache_root")"
+mkdir -p "$governance_root_abs" "$cache_root_abs"
+
+python_script_path="$(mktemp "$cache_root_abs/template-governance.XXXXXX.py")"
+cleanup() {
+  rm -f "$python_script_path"
+}
+trap cleanup EXIT
+
+cat <<'PY' > "$python_script_path"
 import json
 import re
 import sys
@@ -470,3 +548,41 @@ print(f"template_governance_latest_markdown={latest_markdown_path.as_posix()}")
 if dependency_risks or transitive_dependency_risks or permission_risks or policy_violations:
     sys.exit(1)
 PY
+
+container_template_dir=""
+if [ "$governance_source_mode" = "host" ]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 is required in host mode" >&2
+    exit 1
+  fi
+  if ! template_dir="$(resolve_host_template_dir "$template_ref")"; then
+    echo "template directory not found on host: $template_ref" >&2
+    exit 1
+  fi
+  python3 "$python_script_path" "$template_dir" "$governance_root_abs" "$latest_json_abs" "$latest_markdown_abs" "$repo_root_abs" "$cache_root_abs"
+  exit 0
+fi
+
+if ! docker image inspect "$builder_image" >/dev/null 2>&1; then
+  echo "builder image not found: $builder_image" >&2
+  echo "run 'make build-appfactory-builder' first or set APPFACTORY_BUILDER_IMAGE to an existing image" >&2
+  exit 1
+fi
+
+container_template_dir="$(resolve_image_template_dir "$template_ref")"
+container_governance_root="$(map_to_container_repo_path "$governance_root_abs" "$repo_root_abs")"
+container_latest_json="$(map_to_container_repo_path "$latest_json_abs" "$repo_root_abs")"
+container_latest_markdown="$(map_to_container_repo_path "$latest_markdown_abs" "$repo_root_abs")"
+container_cache_root="$(map_to_container_repo_path "$cache_root_abs" "$repo_root_abs")"
+
+docker run --rm \
+  -v "$repo_root_abs:/workspace/host" \
+  -v "$python_script_path:/workspace/check-template-governance.py:ro" \
+  "$builder_image" \
+  exec python3 /workspace/check-template-governance.py \
+    "$container_template_dir" \
+    "$container_governance_root" \
+    "$container_latest_json" \
+    "$container_latest_markdown" \
+    "$repo_root_in_image" \
+    "$container_cache_root"

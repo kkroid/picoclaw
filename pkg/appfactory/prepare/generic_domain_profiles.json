@@ -1,0 +1,317 @@
+{
+  "SchemaVersion": "v0.1.0",
+  "Profiles": [
+    {
+      "ProfileID": "weight-tracker",
+      "MatchTokens": ["体重", "weight"],
+      "Signals": {
+        "AppTitle": "体重记录 App",
+        "DomainLabel": "体重记录",
+        "SummaryLabel": "体重摘要",
+        "OverviewTitle": "查看体重摘要",
+        "OverviewSummary": "用户打开应用后可以看到最新体重、记录数量和最近趋势。",
+        "CreateTitle": "新增体重记录",
+        "CreateSummary": "用户可以通过实体变更承载单元录入体重、日期和备注，并立即回到概览或历史集合入口看到结果。",
+        "UpdateTitle": "编辑体重记录",
+        "UpdateSummary": "用户可以从结果检查入口进入实体变更承载单元，更新体重、日期和备注。",
+        "DeleteTitle": "删除体重记录",
+        "DeleteSummary": "用户可以删除单条体重记录，并让概览摘要和历史集合同步刷新。",
+        "InspectTitle": "查看体重详情",
+        "InspectSummary": "用户可以从概览或历史集合入口进入结果检查入口查看单条体重记录。",
+        "OverviewFeatureTitle": "体重概览承载单元",
+        "OverviewFeatureSummary": "展示最新体重、记录数量和最近趋势，作为体重记录的概览入口。",
+        "CollectionFeatureTitle": "历史记录集合承载单元",
+        "CollectionFeatureSummary": "按日期倒序展示历史体重记录，并允许进入结果检查入口。",
+        "MutationFeatureTitle": "体重记录变更承载单元",
+        "MutationFeatureSummary": "支持录入体重、日期和备注，并可用于新增或编辑记录。",
+        "DeleteFeatureTitle": "体重记录删除",
+        "DeleteFeatureSummary": "支持删除单条体重记录，并让概览摘要和历史集合同步刷新。",
+        "CreateFieldsExpected": "可以看到体重、日期和备注字段",
+        "UpdateFieldsExpected": "体重、日期与备注可被更新",
+        "DetailFieldsExpected": "能看到单条体重记录的体重、日期和备注",
+        "Summary": "把体重记录需求整理成基于通用中性交互承载 Flutter 模板的 Android MVP 规格，并保留体重、日期、备注和趋势等核心语义。",
+        "ProblemStatement": "generic compile 在映射到 open-lite 骨架前，不能丢失体重、日期、备注和趋势等核心领域语义，否则最终生成物会退化成只有通用 record 壳子的伪成功样本。",
+        "Goals": [
+          "输出覆盖概览、历史集合、实体变更、结果检查和本地存储的体重记录 PRD 与 builder-input。",
+          "保留体重、日期、备注与趋势等核心领域语义，再映射到 flutter-open-lite 中性交互承载骨架。",
+          "让后续 Builder 能在不改承载单元绑定的前提下，明确收口为体重记录 app。"
+        ],
+        "Highlights": [
+          "目标是离线使用的个人健康记录工具。",
+          "概览承载单元需要展示最近趋势和记录数量。",
+          "实体变更承载单元需要录入体重、日期和备注。",
+          "历史集合与结果检查入口需要查看历史体重记录。"
+        ],
+        "Entity": {
+          "entity_id": "entity-weight-record",
+          "name": "体重记录",
+          "source": "local_storage",
+          "fields": [
+            {"name": "record_id", "type": "string", "required": true, "description": "记录唯一标识"},
+            {"name": "weight", "type": "number", "required": true, "description": "体重数值"},
+            {"name": "recorded_at", "type": "date", "required": true, "description": "记录日期"},
+            {"name": "note", "type": "string", "required": false, "description": "补充备注"}
+          ]
+        },
+        "SummaryEntity": {
+          "entity_id": "entity-weight-summary",
+          "name": "体重概览摘要",
+          "source": "derived",
+          "fields": [
+            {"name": "latest_weight", "type": "number", "required": true, "description": "最近一次记录的体重"},
+            {"name": "record_count", "type": "int", "required": true, "description": "累计记录数量"},
+            {"name": "trend", "type": "string", "required": true, "description": "最近趋势摘要"}
+          ]
+        },
+        "OverviewAcceptance": "概览承载单元必须展示最新体重、记录数量和最近趋势摘要。",
+        "ListAcceptance": "历史集合承载单元必须按日期展示体重记录，并允许进入结果检查入口。",
+        "FormAcceptance": "用户可以通过实体变更承载单元录入或编辑体重、日期和备注，并立即看到结果。",
+        "DeleteAcceptance": "删除体重记录后，概览摘要和历史集合内容必须同步刷新。",
+        "NavigationAcceptance": "概览、历史集合、实体变更和结果检查入口之间路径明确且可达。",
+        "ManualReviewSummary": "检查体重领域语义是否完整进入 PRD",
+        "ManualReviewReason": "体重、日期、备注和趋势不能在 compile 阶段被压平成通用 record 话术。",
+        "SummaryReviewSummary": "确认首页摘要仍然承接体重趋势语义",
+        "SummaryReviewReason": "首页摘要不能退化为只有通用计数字段的中性概览。",
+        "GoalSummary": "将体重记录需求整理成基于 %s 的中性交互承载 Android MVP 输入包，围绕概览、历史集合、实体变更、结果检查和本地持久化保留体重领域文案。",
+        "TemplateFitDomainGap": "真实体重字段、趋势摘要和业务文案仍需在后续任务包里压实到代码，不能把中性 seed 直接视为体重记录交付结果。",
+        "ImplementationPhases": [
+          "阶段 1：冻结体重记录实体、体重概览摘要模型和本地仓储边界。",
+          "阶段 2：搭建概览、历史集合、实体变更、结果检查四类承载单元并接通导航。",
+          "阶段 3：补齐新增、编辑、删除和结果检查主流程，为后续真实 validate 链路预留稳定输入包。"
+        ],
+        "ManualConstraints": [
+          "当前体重记录模板默认本地优先，不接入登录、云同步、图表分享和社区能力。",
+          "模板当前仍复用 open-lite 中性交互承载骨架，但不能牺牲体重、日期、备注与趋势等核心语义。",
+          "当前阶段仍以稳定 Builder 输入包和多页面 seed 为主，不把远端 API 作为默认前提。",
+          "需求拆解后二开应优先复用概览、历史集合、实体变更、结果检查四类承载单元，而不是新增第二套平行骨架。"
+        ],
+        "HumanNotes": [
+          {"note_id": "note-weight-domain", "summary": "Builder 后续必须把中性 record 骨架收口为体重记录 app，而不是停在 open-lite 默认文案。", "scope": "engineering"},
+          {"note_id": "note-weight-summary", "summary": "首页摘要必须承接最新体重、记录数量和趋势，不允许只保留通用计数。", "scope": "product"}
+        ],
+        "TargetUserSummary": "需要一个离线可用的个人体重记录工具，用于持续记录并回看变化趋势。",
+        "TargetUserPainPoints": [
+          "自然语言需求容易在 compile 后丢失体重字段和趋势语义",
+          "希望先有稳定骨架，再逐步收口为健康记录产品"
+        ],
+        "ValidatorPainPoints": [
+          "需要确认体重、日期、备注和趋势是否进入结构化 PRD",
+          "不能再只验证多页面骨架是否存在"
+        ],
+        "DomainCheckPattern": "体重|weight|recorded_at|latest_weight|trend",
+        "DomainCheckSummary": "生成代码或配置中必须出现体重领域词、记录日期字段或趋势摘要字段。"
+      }
+    },
+    {
+      "ProfileID": "todo-lite",
+      "MatchTokens": ["待办", "todo"],
+      "Signals": {
+        "AppTitle": "待办事项 App",
+        "DomainLabel": "待办事项",
+        "SummaryLabel": "待办摘要",
+        "OverviewTitle": "查看待办摘要",
+        "OverviewSummary": "用户打开应用后可以看到待整理、进行中和已完成待办的摘要。",
+        "CreateTitle": "创建待办",
+        "CreateSummary": "用户可以通过实体变更承载单元新建待办，并立即回到概览或集合浏览入口看到结果。",
+        "UpdateTitle": "编辑待办",
+        "UpdateSummary": "用户可以从结果检查入口进入实体变更承载单元，更新标题、分类、状态和备注。",
+        "DeleteTitle": "删除待办",
+        "DeleteSummary": "用户可以删除单条待办，并让概览摘要与集合结果同步刷新。",
+        "InspectTitle": "查看待办详情",
+        "InspectSummary": "用户可以从概览或待办集合入口进入结果检查入口查看单条任务。",
+        "FilterTitle": "按状态筛选待办",
+        "FilterSummary": "用户可以在集合浏览承载单元按待整理、进行中、已完成切换视图，快速收敛到目标待办。",
+        "HasFilter": true,
+        "OverviewFeatureTitle": "待办概览承载单元",
+        "OverviewFeatureSummary": "提供待办状态分布和最近任务，作为待办管理的概览入口。",
+        "CollectionFeatureTitle": "待办集合浏览承载单元",
+        "CollectionFeatureSummary": "按时间顺序展示全部待办，支持按状态筛选，并允许进入结果检查入口。",
+        "MutationFeatureTitle": "待办变更承载单元",
+        "MutationFeatureSummary": "支持新增或编辑待办，并提供标题、分类、状态和备注输入。",
+        "DeleteFeatureTitle": "待办删除",
+        "DeleteFeatureSummary": "支持删除单条待办，并让概览摘要和集合结果同步刷新。",
+        "CreateFieldsExpected": "可以看到标题、分类、状态和备注字段",
+        "UpdateFieldsExpected": "标题、分类、状态与备注可被更新",
+        "DetailFieldsExpected": "能看到单条待办的分类、状态和备注",
+        "FilterExpected": "列表立即收敛到对应状态的待办",
+        "Summary": "把待办事项需求整理成基于通用中性交互承载 Flutter 模板的 Android MVP 规格，并保留待办状态分布与任务字段语义。",
+        "ProblemStatement": "generic compile 在映射到 open-lite 骨架前，不能把待办的状态分布、标题、分类和备注等语义压平成无差别 record。",
+        "Goals": [
+          "输出覆盖概览、集合浏览、实体变更、结果检查和本地存储的待办事项 PRD 与 builder-input。",
+          "保留待整理、进行中、已完成等状态语义，再映射到 flutter-open-lite 中性交互承载骨架。",
+          "让后续 Builder 能明确收口为待办事项 app，而不是停在中性 seed。"
+        ],
+        "Highlights": [
+          "首页需要看到待整理、进行中、已完成数量。",
+          "表单页需要录入标题、分类、状态和备注。",
+          "列表页需要快速浏览全部待办。",
+          "详情页需要查看单条任务的完整说明。"
+        ],
+        "Entity": {
+          "entity_id": "entity-todo-item",
+          "name": "待办事项",
+          "source": "local_storage",
+          "fields": [
+            {"name": "task_id", "type": "string", "required": true, "description": "待办唯一标识"},
+            {"name": "title", "type": "string", "required": true, "description": "待办标题"},
+            {"name": "category", "type": "string", "required": true, "description": "待办分类"},
+            {"name": "status", "type": "enum[inbox,inProgress,done]", "required": true, "description": "待办状态"},
+            {"name": "note", "type": "string", "required": false, "description": "补充备注"}
+          ]
+        },
+        "SummaryEntity": {
+          "entity_id": "entity-todo-summary",
+          "name": "待办概览摘要",
+          "source": "derived",
+          "fields": [
+            {"name": "inbox_count", "type": "int", "required": true, "description": "待整理待办数量"},
+            {"name": "in_progress_count", "type": "int", "required": true, "description": "进行中待办数量"},
+            {"name": "done_count", "type": "int", "required": true, "description": "已完成待办数量"}
+          ]
+        },
+        "OverviewAcceptance": "概览承载单元必须展示待整理、进行中、已完成待办的摘要。",
+        "ListAcceptance": "集合浏览承载单元必须展示完整待办、支持按状态筛选，并允许进入结果检查入口。",
+        "FormAcceptance": "用户可以通过实体变更承载单元创建或编辑一条待办并立即看到结果。",
+        "DeleteAcceptance": "用户确认删除后，概览摘要和集合结果内容必须同步刷新。",
+        "NavigationAcceptance": "概览、集合浏览、实体变更和结果检查入口之间路径明确且可达。",
+        "ManualReviewSummary": "检查待办领域文案是否完整进入 PRD",
+        "ManualReviewReason": "待办标题、状态分布和任务字段不能被通用 record 话术覆盖。",
+        "SummaryReviewSummary": "确认首页摘要承接待办状态分布语义",
+        "SummaryReviewReason": "首页摘要必须保留待整理、进行中、已完成三类状态。",
+        "GoalSummary": "将待办事项需求整理成基于 %s 的中性交互承载 Android MVP 输入包，围绕概览、集合浏览、实体变更、结果检查和本地持久化保留待办领域文案。",
+        "TemplateFitDomainGap": "真实待办字段、状态分布和业务文案仍需在后续任务包里压实到代码，不能把中性 seed 直接视为待办成品。",
+        "ImplementationPhases": [
+          "阶段 1：冻结待办实体、待办概览摘要模型和本地仓储边界。",
+          "阶段 2：搭建概览、集合浏览、实体变更、结果检查四类承载单元并接通导航。",
+          "阶段 3：补齐创建、编辑、删除和状态筛选主流程，为后续真实 validate 链路预留稳定输入包。"
+        ],
+        "ManualConstraints": [
+          "当前待办模板默认本地优先，不接入推送、协作、日历同步。",
+          "模板当前仍复用 open-lite 中性交互承载骨架，但不能牺牲待办状态和任务字段等核心语义。",
+          "当前阶段仍以稳定 Builder 输入包和多页面 seed 为主，不把远端 API 作为默认前提。",
+          "需求拆解后二开应优先复用概览、集合浏览、实体变更、结果检查四类承载单元，而不是新增第二套平行骨架。"
+        ],
+        "HumanNotes": [
+          {"note_id": "note-todo-domain", "summary": "Builder 后续必须把中性骨架收口为待办事项 app，首页摘要要体现状态分布。", "scope": "engineering"}
+        ],
+        "TargetUserSummary": "需要一个离线可用的轻量待办工具，用于管理单一任务闭环。",
+        "TargetUserPainPoints": [
+          "需求常先以自然语言描述，后续容易丢失待办状态语义",
+          "希望在统一模板上保留待办领域文案"
+        ],
+        "ValidatorPainPoints": [
+          "需要确认待办状态分布是否进入 PRD",
+          "不能只验证通用 CRUD 骨架是否存在"
+        ],
+        "DomainCheckPattern": "待办|task_id|inbox_count|done_count|进行中",
+        "DomainCheckSummary": "生成代码或配置中必须出现待办领域词、任务字段或状态摘要字段。"
+      }
+    },
+    {
+      "ProfileID": "habit-checkin",
+      "MatchTokens": ["习惯", "habit"],
+      "Signals": {
+        "AppTitle": "习惯打卡 App",
+        "DomainLabel": "习惯打卡",
+        "SummaryLabel": "习惯摘要",
+        "OverviewTitle": "查看习惯摘要",
+        "OverviewSummary": "用户打开应用后可以看到总记录数和完成状态分布。",
+        "CreateTitle": "创建习惯记录",
+        "CreateSummary": "用户可以通过实体变更承载单元创建习惯记录，并立即回到概览或集合浏览入口看到结果。",
+        "UpdateTitle": "编辑习惯记录",
+        "UpdateSummary": "用户可以从结果检查入口进入实体变更承载单元，更新标题、分类、状态和备注。",
+        "DeleteTitle": "删除习惯记录",
+        "DeleteSummary": "用户可以删除单条习惯记录，并让概览摘要与集合结果同步刷新。",
+        "InspectTitle": "查看习惯详情",
+        "InspectSummary": "用户可以从概览或集合浏览入口进入结果检查入口查看单条习惯记录。",
+        "FilterTitle": "按状态查看习惯记录",
+        "FilterSummary": "用户可以在集合浏览承载单元按完成状态切换视图，快速查看最近打卡记录。",
+        "HasFilter": true,
+        "OverviewFeatureTitle": "习惯概览承载单元",
+        "OverviewFeatureSummary": "提供完成状态分布和最近记录，作为习惯打卡的概览入口。",
+        "CollectionFeatureTitle": "习惯记录集合承载单元",
+        "CollectionFeatureSummary": "按时间展示最近习惯记录，支持按完成状态查看，并允许进入结果检查入口。",
+        "MutationFeatureTitle": "习惯记录变更承载单元",
+        "MutationFeatureSummary": "支持新增或编辑习惯记录，并提供标题、分类、状态和备注输入。",
+        "DeleteFeatureTitle": "习惯记录删除",
+        "DeleteFeatureSummary": "支持删除单条习惯记录，并让概览摘要和集合结果同步刷新。",
+        "CreateFieldsExpected": "可以看到习惯标题、分类、状态和备注字段",
+        "UpdateFieldsExpected": "习惯标题、分类、状态与备注可被更新",
+        "DetailFieldsExpected": "能看到单条习惯记录的标题、状态、备注和打卡时间",
+        "FilterExpected": "列表立即收敛到对应完成状态的习惯记录",
+        "Summary": "把习惯打卡需求整理成基于通用中性交互承载 Flutter 模板的 Android MVP 规格，并保留完成状态分布与打卡记录语义。",
+        "ProblemStatement": "generic compile 在映射到 open-lite 骨架前，不能把习惯打卡的完成状态分布、打卡记录和时间信息压平成无差别 record。",
+        "Goals": [
+          "输出覆盖概览、集合浏览、实体变更、结果检查和本地存储的习惯打卡 PRD 与 builder-input。",
+          "保留完成状态分布、最近记录和打卡信息等核心领域语义，再映射到 flutter-open-lite 中性交互承载骨架。",
+          "让后续 Builder 能明确收口为习惯打卡 app，而不是停在中性 seed。"
+        ],
+        "Highlights": [
+          "首页摘要区需要能展示总记录数和完成状态分布。",
+          "表单页需要录入习惯标题、分类、状态和备注。",
+          "列表页需要按时间查看最近打卡记录。",
+          "详情页需要查看单条打卡记录的完整信息。"
+        ],
+        "Entity": {
+          "entity_id": "entity-habit-record",
+          "name": "习惯记录",
+          "source": "local_storage",
+          "fields": [
+            {"name": "habit_record_id", "type": "string", "required": true, "description": "习惯记录唯一标识"},
+            {"name": "title", "type": "string", "required": true, "description": "习惯标题"},
+            {"name": "category", "type": "string", "required": true, "description": "习惯分类"},
+            {"name": "status", "type": "enum[pending,done]", "required": true, "description": "完成状态"},
+            {"name": "checked_at", "type": "date", "required": true, "description": "打卡时间"},
+            {"name": "note", "type": "string", "required": false, "description": "补充备注"}
+          ]
+        },
+        "SummaryEntity": {
+          "entity_id": "entity-habit-summary",
+          "name": "习惯概览摘要",
+          "source": "derived",
+          "fields": [
+            {"name": "total_count", "type": "int", "required": true, "description": "习惯记录总数"},
+            {"name": "pending_count", "type": "int", "required": true, "description": "未完成记录数"},
+            {"name": "done_count", "type": "int", "required": true, "description": "已完成记录数"}
+          ]
+        },
+        "OverviewAcceptance": "概览承载单元必须展示总记录数和完成状态分布。",
+        "ListAcceptance": "集合浏览承载单元必须按时间展示最近习惯记录，支持查看完成状态，并允许进入结果检查入口。",
+        "FormAcceptance": "用户可以通过实体变更承载单元创建或编辑一条习惯记录并立即看到结果。",
+        "DeleteAcceptance": "用户确认删除后，概览摘要和集合结果内容必须同步刷新。",
+        "NavigationAcceptance": "概览、集合浏览、实体变更和结果检查入口之间路径明确且可达。",
+        "ManualReviewSummary": "检查习惯打卡语义是否完整进入 PRD",
+        "ManualReviewReason": "完成状态分布、打卡时间和记录字段不能被通用 record 话术覆盖。",
+        "SummaryReviewSummary": "确认首页摘要承接完成状态分布语义",
+        "SummaryReviewReason": "首页摘要必须保留总数与完成状态分布，而不是只有通用计数。",
+        "GoalSummary": "将习惯打卡需求整理成基于 %s 的中性交互承载 Android MVP 输入包，围绕概览、集合浏览、实体变更、结果检查和本地持久化保留习惯领域文案。",
+        "TemplateFitDomainGap": "真实习惯字段、完成状态分布和业务文案仍需在后续任务包里压实到代码，不能把中性 seed 直接视为习惯打卡成品。",
+        "ImplementationPhases": [
+          "阶段 1：冻结习惯记录实体、习惯概览摘要模型和本地仓储边界。",
+          "阶段 2：搭建概览、集合浏览、实体变更、结果检查四类承载单元并接通导航。",
+          "阶段 3：补齐创建、编辑、删除和状态查看主流程，为后续真实 validate 链路预留稳定输入包。"
+        ],
+        "ManualConstraints": [
+          "当前习惯打卡模板默认本地优先，不接入排行榜、社交分享和远端账号。",
+          "模板当前仍复用 open-lite 中性交互承载骨架，但不能牺牲完成状态分布和打卡记录等核心语义。",
+          "当前阶段仍以稳定 Builder 输入包和多页面 seed 为主，不把远端 API 作为默认前提。",
+          "需求拆解后二开应优先复用概览、集合浏览、实体变更、结果检查四类承载单元，而不是新增第二套平行骨架。"
+        ],
+        "HumanNotes": [
+          {"note_id": "note-habit-domain", "summary": "Builder 后续必须把中性骨架收口为习惯打卡 app，首页摘要要体现完成状态分布。", "scope": "engineering"}
+        ],
+        "TargetUserSummary": "需要一个离线可用的习惯打卡工具，用于持续记录并查看完成状态。",
+        "TargetUserPainPoints": [
+          "自然语言需求容易在 compile 后丢失完成状态和打卡时间语义",
+          "希望在统一模板上保留习惯记录文案"
+        ],
+        "ValidatorPainPoints": [
+          "需要确认完成状态分布和最近记录是否进入 PRD",
+          "不能只验证通用 CRUD 骨架是否存在"
+        ],
+        "DomainCheckPattern": "习惯|habit|checked_at|done_count|pending_count|打卡",
+        "DomainCheckSummary": "生成代码或配置中必须出现习惯领域词、打卡字段或完成状态摘要字段。"
+      }
+    }
+  ]
+}

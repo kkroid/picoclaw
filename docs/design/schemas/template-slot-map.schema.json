@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://picoclaw.local/docs/design/schemas/template-slot-map.schema.json",
+  "title": "PicoClaw Template Slot Map",
+  "description": "模板稳定覆盖点与验收影响的注册表草案。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "template_id",
+    "slots"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "template_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "template_subject_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "slots": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/templateSlot"
+      }
+    }
+  },
+  "$defs": {
+    "templateSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_id",
+        "slot_id",
+        "slot_kind",
+        "target_paths",
+        "override_policy"
+      ],
+      "properties": {
+        "binding_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "公共层可消费的中性绑定引用；execution_contract、task-allocation、acceptance-plan 只允许继续投影这个字段。"
+        },
+        "slot_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "模板 registry 内部的私有登记键，用于区分模板覆盖点，不再回填到公共 contract。"
+        },
+        "slot_kind": {
+          "type": "string",
+          "enum": [
+            "summary",
+            "list",
+            "form",
+            "detail",
+            "copy",
+            "branding",
+            "storage",
+            "test",
+            "other"
+          ]
+        },
+        "target_paths": {
+          "$ref": "./builder-input.schema.json#/$defs/pathList"
+        },
+        "override_policy": {
+          "type": "string",
+          "enum": [
+            "replace",
+            "extend",
+            "append",
+            "synchronize"
+          ]
+        },
+        "required_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "acceptance_impacts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

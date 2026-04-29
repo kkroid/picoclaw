@@ -1,0 +1,298 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-bookkeeping-prepare-sample",
+  "prd_id": "prd-bookkeeping-prepare-sample",
+  "template_id": "flutter-finance-lite",
+  "units": [
+    {
+      "allocation_id": "task-domain-models",
+      "title": "冻结账单实体与收支汇总模型",
+      "wave": 0,
+      "lane": "domain",
+      "priority": "p0",
+      "slot_refs": [
+        "domain-model"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-entry",
+        "entity-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "先明确记账 App 的账单实体、派生汇总和目录落点，避免后续承载单元与存储边界反复漂移。",
+      "semantic_intent_refs": [
+        "feature-local-data",
+        "feature-home-summary"
+      ],
+      "related_requirements": [
+        "feature-local-data",
+        "feature-home-summary"
+      ],
+      "target_paths": [
+        "lib/models/entry.dart",
+        "lib/models/summary.dart"
+      ],
+      "owned_paths": [
+        "lib/models/entry.dart",
+        "lib/models/summary.dart"
+      ],
+      "success_evidence": [
+        "账单记录包含金额、分类、日期和备注",
+        "汇总模型可以表达收入、支出和结余"
+      ],
+      "output_expectations": [
+        "账单实体字段稳定",
+        "月度汇总可从账单实体推导"
+      ],
+      "risk_notes": [
+        "如果实体字段频繁变化，后续承载单元和测试都会跟着返工"
+      ]
+    },
+    {
+      "allocation_id": "task-storage-wiring",
+      "title": "接通本地持久化与账单仓储边界",
+      "wave": 1,
+      "lane": "storage",
+      "priority": "p0",
+      "slot_refs": [
+        "storage-boundary",
+        "dependency-manifest"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-entry",
+        "entity-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "把本地持久化方案和 repository 边界固定下来，确保新增账单后可恢复概览与账单集合。",
+      "semantic_intent_refs": [
+        "ac-persistence",
+        "mrp-data"
+      ],
+      "related_requirements": [
+        "feature-local-data"
+      ],
+      "target_paths": [
+        "lib/repositories/entry_repository.dart",
+        "pubspec.yaml"
+      ],
+      "owned_paths": [
+        "lib/repositories/entry_repository.dart",
+        "pubspec.yaml"
+      ],
+      "blocked_by": [
+        "task-domain-models"
+      ],
+      "success_evidence": [
+        "代码或依赖中出现明确的本地持久化实现",
+        "应用重启后仍能读取账单集合并恢复概览"
+      ],
+      "output_expectations": [
+        "明确的本地持久化实现",
+        "账单读写入口稳定"
+      ],
+      "risk_notes": [
+        "不要同时引入两个同类本地存储方案"
+      ]
+    },
+    {
+      "allocation_id": "task-bind-core-surfaces",
+      "title": "绑定概览、记账动作与集合浏览承载单元",
+      "wave": 1,
+      "lane": "screen",
+      "priority": "p0",
+      "slot_refs": [
+        "app-entry",
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation",
+        "domain-copy"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-entry",
+        "entity-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "先把概览承载、实体变更承载、集合浏览承载和主导航入口搭出来，不把默认 seed 骨架当作完成结果。",
+      "semantic_intent_refs": [
+        "mrp-copy"
+      ],
+      "related_requirements": [
+        "feature-home-summary",
+        "feature-add-entry",
+        "feature-ledger"
+      ],
+      "target_paths": [
+        "lib/main.dart",
+        "lib/views/home_page.dart",
+        "lib/views/entry_form_page.dart",
+        "lib/views/entry_list_page.dart"
+      ],
+      "owned_paths": [
+        "lib/main.dart",
+        "lib/views/home_page.dart",
+        "lib/views/entry_form_page.dart",
+        "lib/views/entry_list_page.dart"
+      ],
+      "blocked_by": [
+        "task-domain-models"
+      ],
+      "success_evidence": [
+        "概览、记账动作、账单集合浏览之间入口明确可达",
+        "默认 counter demo 页面与文案已被移除"
+      ],
+      "output_expectations": [
+        "概览承载单元骨架",
+        "记账动作承载单元骨架",
+        "账单集合浏览承载单元骨架"
+      ],
+      "risk_notes": [
+        "承载单元骨架完成不等于记账主流程闭环已接通"
+      ]
+    },
+    {
+      "allocation_id": "task-flow-wiring",
+      "title": "接通记账动作、概览刷新与账单集合回显主流程",
+      "wave": 2,
+      "lane": "flow",
+      "priority": "p0",
+      "slot_refs": [
+        "flow-controller",
+        "storage-boundary",
+        "widget-test"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-entry",
+        "entity-summary"
+      ],
+      "task_type": "dual_file_wiring",
+      "objective": "把账单录入保存、概览刷新和账单集合回显串成一个完整功能闭环。",
+      "semantic_intent_refs": [
+        "check-counter-demo-removed"
+      ],
+      "related_requirements": [
+        "feature-add-entry",
+        "feature-home-summary",
+        "feature-ledger",
+        "feature-local-data"
+      ],
+      "target_paths": [
+        "lib/controllers/home_controller.dart",
+        "lib/controllers/entry_form_controller.dart",
+        "lib/controllers/entry_list_controller.dart",
+        "lib/repositories/entry_repository.dart",
+        "test/widget_test.dart"
+      ],
+      "owned_paths": [
+        "lib/controllers/home_controller.dart",
+        "lib/controllers/entry_form_controller.dart",
+        "lib/controllers/entry_list_controller.dart",
+        "lib/repositories/entry_repository.dart",
+        "test/widget_test.dart"
+      ],
+      "blocked_by": [
+        "task-storage-wiring",
+        "task-bind-core-surfaces"
+      ],
+      "success_evidence": [
+        "记账动作、概览刷新与账单集合回显主流程已接通"
+      ],
+      "output_expectations": [
+        "保存动作可触发持久化",
+        "概览和账单集合能看到新增账单"
+      ],
+      "risk_notes": [
+        "不要为了接线方便重做整套承载结构或状态管理"
+      ]
+    },
+    {
+      "allocation_id": "task-validation-closure",
+      "title": "完成 analyze、test 与 APK 构建收口",
+      "wave": 3,
+      "lane": "validation",
+      "priority": "p0",
+      "slot_refs": [
+        "app-entry",
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation",
+        "flow-controller",
+        "storage-boundary",
+        "dependency-manifest"
+      ],
+      "surface_refs": [
+        "surface-overview",
+        "surface-collection",
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-entry",
+        "entity-summary"
+      ],
+      "task_type": "closure_repair",
+      "objective": "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 debug APK 全通过。",
+      "semantic_intent_refs": [
+        "ac-entry",
+        "ac-ledger",
+        "ac-persistence",
+        "ac-navigation"
+      ],
+      "related_requirements": [
+        "ac-entry",
+        "ac-ledger",
+        "ac-persistence",
+        "ac-navigation"
+      ],
+      "target_paths": [
+        "lib/main.dart",
+        "lib/views/**",
+        "lib/controllers/**",
+        "lib/repositories/**",
+        "test/**",
+        "pubspec.yaml"
+      ],
+      "owned_paths": [
+        "lib/main.dart",
+        "lib/views/**",
+        "lib/controllers/**",
+        "lib/repositories/**",
+        "test/**",
+        "pubspec.yaml"
+      ],
+      "blocked_by": [
+        "task-flow-wiring"
+      ],
+      "success_evidence": [
+        "flutter analyze 无错误",
+        "flutter test 全通过",
+        "flutter build apk --debug 成功"
+      ],
+      "output_expectations": [
+        "静态检查通过",
+        "测试通过",
+        "可构建 Debug APK"
+      ],
+      "risk_notes": [
+        "只做低风险收口，不把单点失败扩展为大面积自由重构"
+      ]
+    }
+  ]
+}

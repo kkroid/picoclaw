@@ -547,7 +547,7 @@ func TestCompilePRDGeneratesUniqueDefaultIDsForJobsUI(t *testing.T) {
 	}
 }
 
-func TestCompilePRDRejectsGenericFallbackForJobsUIRealChecks(t *testing.T) {
+func TestCompilePRDAllowsGenericStructuredBundleForJobsUIRealChecks(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
@@ -563,26 +563,53 @@ func TestCompilePRDRejectsGenericFallbackForJobsUIRealChecks(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	req := httptest.NewRequest(http.MethodPost, server.URL+"/api/v1/prds:compile", bytes.NewBufferString(`{"requirement_text":"做一个简单应用，先看看能不能自动生成。","requirement_source":"jobs-ui","real_checks":true}`))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d, body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+	resp := postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text":   "做一个待办事项 app，需要首页摘要、新建待办、任务列表和详情页。",
+		"requirement_source": "jobs-ui",
+		"real_checks":        true,
+	}, http.StatusOK)
+	if resp["template_id"] != "flutter-open-lite" {
+		t.Fatalf("template_id = %v, want flutter-open-lite", resp["template_id"])
 	}
-	var resp internalErrorResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("Unmarshal() error = %v", err)
+	jobID, _ := resp["job_id"].(string)
+	if !strings.HasPrefix(jobID, "JOB_") {
+		t.Fatalf("job_id = %q, want generated jobs-ui id", jobID)
 	}
-	if resp.ErrorCode != "PREPARE_COMPILE_FAILED" {
-		t.Fatalf("error_code = %q, want PREPARE_COMPILE_FAILED", resp.ErrorCode)
+	bundleDir, _ := resp["bundle_dir"].(string)
+	if !strings.Contains(bundleDir, filepath.Join("jobs", jobID, "prepare")) {
+		t.Fatalf("bundle_dir = %q, want generated job-specific prepare dir", bundleDir)
 	}
-	if !strings.Contains(resp.Message, "generic fallback") || !strings.Contains(resp.Message, "concrete domain requirement") {
-		t.Fatalf("message = %q, want generic fallback guidance", resp.Message)
+	builderInputPath := filepath.Join(workspace, "appfactory", "jobs", jobID, "prepare", "builder-input.json")
+	data, err := os.ReadFile(builderInputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(builder-input.json) error = %v", err)
 	}
-	jobsRoot := filepath.Join(workspace, "appfactory", "jobs", "job-generic-mvp")
-	if _, err := os.Stat(jobsRoot); !os.IsNotExist(err) {
-		t.Fatalf("expected generic fallback job bundle to be rejected before write, stat err=%v", err)
+	var builderInput map[string]any
+	if err := json.Unmarshal(data, &builderInput); err != nil {
+		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
+	}
+	if builderInput["template_id"] != "flutter-open-lite" {
+		t.Fatalf("builder-input template_id = %v, want flutter-open-lite", builderInput["template_id"])
+	}
+	checks, ok := builderInput["acceptance_checks"].([]any)
+	if !ok || len(checks) != 9 {
+		t.Fatalf("acceptance_checks = %v, want 9 checks for generic real-check Flutter bundle", builderInput["acceptance_checks"])
+	}
+	for index, checkID := range []string{
+		"check-flutter-pub-get",
+		"check-open-lite-counter-demo-removed",
+		"check-open-lite-record-flow-wiring",
+		"check-open-lite-local-persistence-wiring",
+		"check-profile-open-lite-domain-branding",
+		"check-profile-open-lite-domain-language",
+		"check-flutter-analyze",
+		"check-flutter-test",
+		"check-flutter-build-apk",
+	} {
+		check, ok := checks[index].(map[string]any)
+		if !ok || check["check_id"] != checkID {
+			t.Fatalf("acceptance_checks[%d] = %v, want check_id=%q", index, checks[index], checkID)
+		}
 	}
 }
 
@@ -615,8 +642,11 @@ func TestCompilePRDRejectsUnknownTemplate(t *testing.T) {
 	if resp.ErrorCode != "PREPARE_COMPILE_FAILED" {
 		t.Fatalf("error_code = %q, want PREPARE_COMPILE_FAILED", resp.ErrorCode)
 	}
-	if !strings.Contains(resp.Message, "not found in registry") {
-		t.Fatalf("message = %q, want registry error", resp.Message)
+	if !strings.Contains(resp.Message, "模板选择失败") || !strings.Contains(resp.Message, "template_id=unknown-template") || !strings.Contains(resp.Message, "省略 template_id 让系统自动匹配") {
+		t.Fatalf("message = %q, want user-facing template selection guidance", resp.Message)
+	}
+	if strings.Contains(strings.ToLower(resp.Message), "bookkeeping") {
+		t.Fatalf("message = %q, should not depend on bookkeeping wording", resp.Message)
 	}
 }
 
@@ -802,7 +832,7 @@ func TestGetPublicJobReflectsUpdatedPreparedBundleInputs(t *testing.T) {
 	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
 		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
 	}
-	builderInput["template_id"] = "flutter-template-demo"
+	builderInput["template_id"] = "flutter-open-lite"
 	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
 	if err != nil {
 		t.Fatalf("Marshal(builder-input.json) error = %v", err)
@@ -815,8 +845,8 @@ func TestGetPublicJobReflectsUpdatedPreparedBundleInputs(t *testing.T) {
 	if loaded["prd_version"] != "0.2.0" {
 		t.Fatalf("prd_version = %v, want 0.2.0 from updated prepared PRD", loaded["prd_version"])
 	}
-	if loaded["template_id"] != "flutter-template-demo" {
-		t.Fatalf("template_id = %v, want flutter-template-demo from updated builder-input", loaded["template_id"])
+	if loaded["template_id"] != "flutter-open-lite" {
+		t.Fatalf("template_id = %v, want flutter-open-lite from updated builder-input", loaded["template_id"])
 	}
 	if loaded["builder_input_path"] != "jobs/job-public-input-refresh/prepare/builder-input.json" {
 		t.Fatalf("builder_input_path = %v, want prepare builder-input path", loaded["builder_input_path"])
@@ -3205,6 +3235,116 @@ func TestStartPublicJobWritesStructuredRoundOutputForFlutterProfile(t *testing.T
 	}
 }
 
+func TestStartPublicJobGenericOpenLiteProducesWorkspaceForDeviceVerify(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	h.appFactory.runnerFactory = func(runsSvc runService) *appadapter.Runner {
+		runner := appadapter.NewRunnerWithBackend(runServiceRunnerBackend{runsSvc: runsSvc})
+		runner.Executor = structuredGenericOpenLiteRoundTestExecutor{}
+		return runner
+	}
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个待办事项 app，需要首页摘要、新建待办、任务列表和详情页，优先保证本地可用。",
+		"job_id":           "job-public-generic-open-lite-device",
+		"prd_id":           "prd-public-generic-open-lite-device",
+		"real_checks":      true,
+		"executor_image":   "picoclaw/appfactory-builder:local",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-generic-open-lite-device",
+		"template_id": "flutter-open-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	started := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-generic-open-lite-device:start", map[string]any{}, http.StatusOK)
+	if started["status"] != "running_builder" {
+		t.Fatalf("status = %v, want running_builder", started["status"])
+	}
+	completed := waitForJobStatus(t, server.Client(), server.URL+"/api/v1/jobs/job-public-generic-open-lite-device", "completed", 5*time.Second)
+	builderOutputPath, _ := completed["builder_output_path"].(string)
+	if builderOutputPath == "" {
+		t.Fatal("builder_output_path should not be empty after async completion")
+	}
+	builderOutput := requireJSONObjectFile(t, filepath.Join(workspace, "appfactory", filepath.FromSlash(builderOutputPath)))
+
+	jobWorkspace := filepath.Join(workspace, "appfactory", "jobs", "job-public-generic-open-lite-device", "workspace")
+	for _, rel := range []string{
+		"pubspec.yaml",
+		"lib/main.dart",
+		"lib/models/record.dart",
+		"lib/models/dashboard_summary.dart",
+		"lib/repositories/record_repository.dart",
+		"lib/views/home_page.dart",
+		"lib/views/record_form_page.dart",
+		"lib/views/record_list_page.dart",
+		"lib/views/record_detail_page.dart",
+		"test/widget_test.dart",
+	} {
+		if _, err := os.Stat(filepath.Join(jobWorkspace, filepath.FromSlash(rel))); err != nil {
+			t.Fatalf("expected open-lite workspace file %s: %v", rel, err)
+		}
+	}
+
+	validationResults, ok := builderOutput["validation_results"].([]any)
+	if !ok || len(validationResults) == 0 {
+		t.Fatalf("validation_results = %T %#v, want non-empty results", builderOutput["validation_results"], builderOutput["validation_results"])
+	}
+	seenChecks := map[string]bool{}
+	for _, item := range validationResults {
+		result, ok := item.(map[string]any)
+		if !ok {
+			t.Fatalf("validation_result = %T, want object", item)
+		}
+		checkID, _ := result["check_id"].(string)
+		seenChecks[checkID] = true
+	}
+	for _, checkID := range []string{
+		"check-open-lite-counter-demo-removed",
+		"check-open-lite-record-flow-wiring",
+		"check-open-lite-local-persistence-wiring",
+		"check-flutter-analyze",
+		"check-flutter-test",
+		"check-flutter-build-apk",
+	} {
+		if !seenChecks[checkID] {
+			t.Fatalf("validation_results missing %s: %v", checkID, seenChecks)
+		}
+	}
+	if strings.Contains(string(mustReadFileBytes(t, filepath.Join(jobWorkspace, "lib", "main.dart"))), "BookkeepingApp") {
+		t.Fatalf("generic open-lite workspace should not fall back to bookkeeping wording")
+	}
+	if completed["template_id"] != "flutter-open-lite" {
+		t.Fatalf("template_id = %v, want flutter-open-lite", completed["template_id"])
+	}
+	if builderInput := requireJSONObjectFile(t, filepath.Join(workspace, "appfactory", "jobs", "job-public-generic-open-lite-device", "prepare", "builder-input.json")); builderInput["template_id"] != "flutter-open-lite" {
+		t.Fatalf("builder-input template_id = %v, want flutter-open-lite", builderInput["template_id"])
+	}
+	if completed["status"] != "completed" {
+		t.Fatalf("status = %v, want completed", completed["status"])
+	}
+	t.Logf("public_job_generic_open_lite_device_job_id=%s", "job-public-generic-open-lite-device")
+}
+
 func TestStartPublicJobAutoRepairsFlutterAnalyzeFailureThroughPublicJobsAPI(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
@@ -3866,6 +4006,108 @@ func TestCancelRunningExecutionMarksExecutionCancelledAndDoesNotReplay(t *testin
 	}
 	if recoveredRun.Status != appruns.StatusCancelled {
 		t.Fatalf("run status = %s, want cancelled", recoveredRun.Status)
+	}
+}
+
+func TestCancelRunningPublicJobInterruptsBlockingBuilderRuntimePatch(t *testing.T) {
+	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	generator := &blockingPublicJobPatchGenerator{
+		started:   make(chan struct{}),
+		cancelled: make(chan struct{}),
+	}
+
+	h := NewHandler(configPath)
+	t.Cleanup(h.waitForAsyncJobs)
+	h.appFactory.runnerFactory = func(runsSvc runService) *appadapter.Runner {
+		runner := appadapter.NewRunnerWithBackend(runServiceRunnerBackend{runsSvc: runsSvc})
+		runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
+			Enabled:      true,
+			DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+		}
+		runner.PatchGenerator = generator
+		runner.Executor = publicJobAutoRepairExecutor{
+			checkID:  "check-noop",
+			label:    "noop validation",
+			stage:    appruns.StageBaseline,
+			commands: []string{"true"},
+			script:   "true",
+		}
+		return runner
+	}
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个任务与标签联动的项目跟踪 app，至少需要项目、任务、标签和它们的关联关系。",
+		"job_id":           "job-public-cancel-blocking-builder-runtime",
+		"prd_id":           "prd-public-cancel-blocking-builder-runtime",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-cancel-blocking-builder-runtime",
+		"template_id": "flutter-open-lite",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
+		"builder_id":        "builder-a",
+		"display_name":      "Builder A",
+		"capability_tags":   []string{"flutter"},
+		"max_parallel_runs": 1,
+		"worker_profile": map[string]any{
+			"image": "builder:latest",
+		},
+	}, http.StatusOK)
+
+	started := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-cancel-blocking-builder-runtime:start", map[string]any{}, http.StatusOK)
+	if started["status"] != "running_builder" {
+		t.Fatalf("status = %v, want running_builder", started["status"])
+	}
+
+	select {
+	case <-generator.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("blocking builder-runtime patch generator did not start before timeout")
+	}
+
+	cancelled := postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-cancel-blocking-builder-runtime:cancel", map[string]any{
+		"reason": "cancel blocking builder runtime patch",
+	}, http.StatusOK)
+	if cancelled["status"] != "cancelled" {
+		t.Fatalf("status = %v, want cancelled", cancelled["status"])
+	}
+
+	select {
+	case <-generator.cancelled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("blocking builder-runtime patch generator did not observe ctx cancellation")
+	}
+
+	finalJob := waitForJobStatus(t, server.Client(), server.URL+"/api/v1/jobs/job-public-cancel-blocking-builder-runtime", "cancelled", 2*time.Second)
+	if finalJob["phase"] != "terminal" {
+		t.Fatalf("phase = %v, want terminal", finalJob["phase"])
+	}
+	execution := waitForPublicJobExecutionStatus(t, workspace, "job-public-cancel-blocking-builder-runtime", "cancelled", 2*time.Second)
+	if execution.LeaseOwnerID != "" {
+		t.Fatalf("lease_owner_id = %q, want cleared after cancel", execution.LeaseOwnerID)
+	}
+
+	runsSvc, err := h.buildRunsControlPlane()
+	if err != nil {
+		t.Fatalf("buildRunsControlPlane() error = %v", err)
+	}
+	runRecord, err := runsSvc.Get(context.Background(), execution.RunID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if runRecord.Status != appruns.StatusCancelled {
+		t.Fatalf("run status = %s, want cancelled", runRecord.Status)
 	}
 }
 
@@ -4620,6 +4862,76 @@ func TestListPublicJobsSupportsStatusFilter(t *testing.T) {
 	}
 }
 
+func TestPublicJobsTolerateLegacyPreparedExecutionContract(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.DefaultConfig()
+	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Agents.Defaults.Workspace = workspace
+	if err := config.SaveConfig(configPath, cfg); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
+		"requirement_text": "做一个简单待办 app，不要首页概览，也不要详情页，只要列表和编辑入口。",
+		"title":            "Legacy Execution Contract Job",
+		"job_id":           "job-public-legacy-contract",
+		"prd_id":           "prd-public-legacy-contract",
+	}, http.StatusOK)
+	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
+		"prd_id":      "prd-public-legacy-contract",
+		"template_id": "flutter-open-lite",
+	}, http.StatusOK)
+
+	prdPath := filepath.Join(workspace, "appfactory", "jobs", "job-public-legacy-contract", "prepare", "PRD.json")
+	prdData, err := os.ReadFile(prdPath)
+	if err != nil {
+		t.Fatalf("ReadFile(PRD.json) error = %v", err)
+	}
+	legacyPRDData := bytes.Replace(prdData, []byte(`"surface_contracts"`), []byte(`"page_contracts"`), 1)
+	if bytes.Equal(legacyPRDData, prdData) {
+		t.Fatal("expected prepared PRD to contain surface_contracts before legacy mutation")
+	}
+	if err := os.WriteFile(prdPath, legacyPRDData, 0o644); err != nil {
+		t.Fatalf("WriteFile(PRD.json) error = %v", err)
+	}
+
+	listed := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", http.StatusOK)
+	items, ok := listed["items"].([]any)
+	if !ok || len(items) == 0 {
+		t.Fatalf("items = %v, want non-empty job list", listed["items"])
+	}
+	found := false
+	for _, item := range items {
+		record, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if record["job_id"] == "job-public-legacy-contract" {
+			found = true
+			if record["title"] != "Legacy Execution Contract Job" {
+				t.Fatalf("title = %v, want Legacy Execution Contract Job", record["title"])
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("legacy job not found in list: %v", items)
+	}
+
+	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-legacy-contract", http.StatusOK)
+	if loaded["job_id"] != "job-public-legacy-contract" {
+		t.Fatalf("job_id = %v, want job-public-legacy-contract", loaded["job_id"])
+	}
+	if loaded["prd_id"] != "prd-public-legacy-contract" {
+		t.Fatalf("prd_id = %v, want prd-public-legacy-contract", loaded["prd_id"])
+	}
+}
+
 func TestStartPublicJobReturnsConflictWhenExecutionAlreadyActive(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
@@ -4914,7 +5226,7 @@ func TestResumeFailedPublicJobRejectsWhenApprovedTemplateVersionNoLongerMatchesP
 	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
 		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
 	}
-	builderInput["template_id"] = "flutter-template-demo"
+	builderInput["template_id"] = "flutter-open-lite"
 	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
 	if err != nil {
 		t.Fatalf("Marshal(builder-input.json) error = %v", err)
@@ -4943,12 +5255,12 @@ func TestResumeFailedPublicJobRejectsWhenApprovedTemplateVersionNoLongerMatchesP
 	if body.ErrorCode != "JOB_RESUME_CONFLICT" {
 		t.Fatalf("error_code = %q, want JOB_RESUME_CONFLICT", body.ErrorCode)
 	}
-	if !strings.Contains(body.Message, "approval snapshot conflict") || !strings.Contains(body.Message, "template approval subject_version mismatch") || !strings.Contains(body.Message, "selected-template@flutter-template-demo@v0.1.0@sha256:") || !strings.Contains(body.Message, "selected-template@flutter-finance-lite@v0.1.0@sha256:") {
+	if !strings.Contains(body.Message, "approval snapshot conflict") || !strings.Contains(body.Message, "template approval subject_version mismatch") || !strings.Contains(body.Message, "selected-template@flutter-open-lite@v0.1.0@sha256:") || !strings.Contains(body.Message, "selected-template@flutter-finance-lite@v0.1.0@sha256:") {
 		t.Fatalf("message = %q, want template subject_version drift conflict", body.Message)
 	}
 	loaded := getJSONURL(t, server.Client(), server.URL+"/api/v1/jobs/job-public-resume-template-version-drift", http.StatusOK)
-	if loaded["template_id"] != "flutter-template-demo" {
-		t.Fatalf("template_id = %v, want flutter-template-demo after prepared bundle drift", loaded["template_id"])
+	if loaded["template_id"] != "flutter-open-lite" {
+		t.Fatalf("template_id = %v, want flutter-open-lite after prepared bundle drift", loaded["template_id"])
 	}
 	if loaded["status"] != "awaiting_template_approval" {
 		t.Fatalf("status = %v, want awaiting_template_approval after template approval drift", loaded["status"])
@@ -5049,7 +5361,7 @@ func TestSubmitTemplateApprovalPromotesFreshStartAfterTemplateSelectionChange(t 
 	if err := json.Unmarshal(builderInputData, &builderInput); err != nil {
 		t.Fatalf("Unmarshal(builder-input.json) error = %v", err)
 	}
-	builderInput["template_id"] = "flutter-template-demo"
+	builderInput["template_id"] = "flutter-open-lite"
 	updatedBuilderInput, err := json.MarshalIndent(builderInput, "", "  ")
 	if err != nil {
 		t.Fatalf("Marshal(builder-input.json) error = %v", err)
@@ -5072,12 +5384,12 @@ func TestSubmitTemplateApprovalPromotesFreshStartAfterTemplateSelectionChange(t 
 		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
 	}
 
-	reapproval := postJSONURL(t, server.Client(), server.URL+"/api/v1/templates/flutter-template-demo:submit-approval", map[string]any{
+	reapproval := postJSONURL(t, server.Client(), server.URL+"/api/v1/templates/flutter-open-lite:submit-approval", map[string]any{
 		"job_id":  "job-public-template-reapproval",
 		"prd_id":  "prd-public-template-reapproval",
-		"summary": "确认切换到 flutter-template-demo 后可以继续恢复。",
+		"summary": "确认切换到 flutter-open-lite 后可以继续恢复。",
 	}, http.StatusOK)
-	if subjectVersion, _ := reapproval["subject_version"].(string); !strings.HasPrefix(subjectVersion, "selected-template@flutter-template-demo@v0.1.0@sha256:") {
+	if subjectVersion, _ := reapproval["subject_version"].(string); !strings.HasPrefix(subjectVersion, "selected-template@flutter-open-lite@v0.1.0@sha256:") {
 		t.Fatalf("subject_version = %v, want content-bound template approval version after template reapproval", reapproval["subject_version"])
 	}
 
@@ -10340,6 +10652,24 @@ type publicJobAutoRepairPatchGenerator struct {
 	models    []string
 }
 
+type blockingPublicJobPatchGenerator struct {
+	started    chan struct{}
+	cancelled  chan struct{}
+	startOnce  sync.Once
+	cancelOnce sync.Once
+}
+
+func (generator *blockingPublicJobPatchGenerator) GeneratePatch(ctx context.Context, request appadapter.BuilderRuntimePatchRequest) (appadapter.BuilderRuntimePatchResponse, error) {
+	generator.startOnce.Do(func() {
+		close(generator.started)
+	})
+	<-ctx.Done()
+	generator.cancelOnce.Do(func() {
+		close(generator.cancelled)
+	})
+	return appadapter.BuilderRuntimePatchResponse{}, ctx.Err()
+}
+
 func (generator *publicJobAutoRepairPatchGenerator) GeneratePatch(ctx context.Context, request appadapter.BuilderRuntimePatchRequest) (appadapter.BuilderRuntimePatchResponse, error) {
 	for _, alias := range request.ModelAliases {
 		generator.models = append(generator.models, alias)
@@ -10436,6 +10766,59 @@ func (structuredRoundTestExecutor) Prepare(ctx context.Context, run appadapter.R
 			StepID:  "edit-workspace",
 			Stage:   appruns.StageThinPrepare,
 			Summary: "write bookkeeping app entry",
+			Command: editCmd,
+		},
+		ValidationSteps:  validationSteps,
+		AcceptanceChecks: acceptanceChecks,
+	}, nil
+}
+
+type structuredGenericOpenLiteRoundTestExecutor struct{}
+
+func (structuredGenericOpenLiteRoundTestExecutor) Prepare(ctx context.Context, run appadapter.RunRecord) (appadapter.RoundPlan, error) {
+	roundInput := appadapter.BuildRoundInputForTest(run)
+	editCmd := exec.CommandContext(ctx, "sh", "-c", "test -f lib/main.dart && test -f lib/models/record.dart && test -f test/widget_test.dart")
+	editCmd.Dir = run.WorkspacePath
+	checks := []struct {
+		id    string
+		label string
+		stage appruns.ExecutionStage
+	}{
+		{id: "check-open-lite-counter-demo-removed", label: "Open lite counter demo removed", stage: appruns.StageCheap},
+		{id: "check-open-lite-record-flow-wiring", label: "Open lite CRUD wiring", stage: appruns.StageCheap},
+		{id: "check-open-lite-local-persistence-wiring", label: "Open lite local persistence wiring", stage: appruns.StageCheap},
+		{id: "check-flutter-analyze", label: "Flutter analyze", stage: appruns.StageHeavy},
+		{id: "check-flutter-test", label: "Flutter test", stage: appruns.StageHeavy},
+		{id: "check-flutter-build-apk", label: "Flutter build apk", stage: appruns.StageHeavy},
+	}
+	validationSteps := make([]appadapter.ExecutionStep, 0, len(checks))
+	acceptanceChecks := make([]appadapter.CheckExecutionPreview, 0, len(checks))
+	for _, check := range checks {
+		cmd := exec.CommandContext(ctx, "sh", "-c", "echo "+check.id)
+		cmd.Dir = run.WorkspacePath
+		preview := appadapter.CheckExecutionPreview{
+			CheckID:  check.id,
+			Label:    check.label,
+			Stage:    check.stage,
+			Required: true,
+			Commands: []string{"echo " + check.id},
+		}
+		validationSteps = append(validationSteps, appadapter.ExecutionStep{
+			StepID:  check.id,
+			Stage:   check.stage,
+			Summary: check.label,
+			Command: cmd,
+			Check:   &preview,
+		})
+		acceptanceChecks = append(acceptanceChecks, preview)
+	}
+	return appadapter.RoundPlan{
+		Summary:    "structured generic open-lite public job round",
+		RoundInput: roundInput,
+		EditStep: appadapter.ExecutionStep{
+			StepID:  "inspect-open-lite-workspace",
+			Stage:   appruns.StageThinPrepare,
+			Summary: "inspect open-lite workspace seed",
 			Command: editCmd,
 		},
 		ValidationSteps:  validationSteps,

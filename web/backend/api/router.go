@@ -40,7 +40,9 @@ type Handler struct {
 	orchestratorPassMu      sync.Mutex
 	orchestratorWatchMu     sync.Mutex
 	orchestratorMu          sync.Mutex
+	executionCancelMu       sync.Mutex
 	orchestratorActive      map[string]bool
+	executionCancels        map[string]context.CancelFunc
 	orchestratorInstanceID  string
 	orchestratorWatchRun    bool
 	orchestratorWatchStop   bool
@@ -64,6 +66,7 @@ func NewHandler(configPath string) *Handler {
 		weixinFlows:            make(map[string]*weixinFlow),
 		wecomFlows:             make(map[string]*wecomFlow),
 		orchestratorActive:     make(map[string]bool),
+		executionCancels:       make(map[string]context.CancelFunc),
 		orchestratorInstanceID: newOrchestratorInstanceID(),
 	}
 }

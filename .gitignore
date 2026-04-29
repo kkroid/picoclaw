@@ -69,6 +69,15 @@ web/backend/dist/*
 docker/data
 .runtime/
 .artifacts/
-examples/appfactory/
+examples/appfactory/*
+!examples/appfactory/bookkeeping/
+!examples/appfactory/bookkeeping/**
+!examples/appfactory/builder-input.sample.json
+!examples/appfactory/generic/
+!examples/appfactory/generic/**
+!examples/appfactory/flutter-finance-lite/
+!examples/appfactory/flutter-finance-lite/**
+!examples/appfactory/templates/
+!examples/appfactory/templates/**
 workspace/appfactory/
 logs/

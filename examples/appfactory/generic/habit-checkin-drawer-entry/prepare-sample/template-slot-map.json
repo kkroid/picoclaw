@@ -1,0 +1,178 @@
+{
+  "schema_version": "0.1.0",
+  "template_id": "flutter-open-lite",
+  "template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:98b892c5043151b1",
+  "slots": [
+    {
+      "binding_id": "surface-overview",
+      "slot_id": "open-lite-overview-slot",
+      "slot_kind": "summary",
+      "target_paths": [
+        "lib/views/home_page.dart",
+        "lib/controllers/home_controller.dart",
+        "lib/models/dashboard_summary.dart"
+      ],
+      "override_policy": "replace",
+      "required_inputs": [
+        "domain-model.json",
+        "planning-context.json"
+      ],
+      "acceptance_impacts": [
+        "ac-overview",
+        "ac-navigation"
+      ],
+      "emit_eligible": false
+    },
+    {
+      "binding_id": "surface-collection",
+      "slot_id": "open-lite-collection-slot",
+      "slot_kind": "list",
+      "target_paths": [
+        "lib/views/record_list_page.dart",
+        "lib/controllers/record_list_controller.dart"
+      ],
+      "override_policy": "replace",
+      "required_inputs": [
+        "domain-model.json",
+        "task-allocation.json"
+      ],
+      "acceptance_impacts": [
+        "ac-list",
+        "ac-detail"
+      ],
+      "emit_eligible": false
+    },
+    {
+      "binding_id": "surface-mutation",
+      "slot_id": "open-lite-mutation-slot",
+      "slot_kind": "form",
+      "target_paths": [
+        "lib/views/record_form_page.dart",
+        "lib/controllers/record_form_controller.dart"
+      ],
+      "override_policy": "replace",
+      "required_inputs": [
+        "domain-model.json",
+        "task-allocation.json"
+      ],
+      "acceptance_impacts": [
+        "ac-form"
+      ],
+      "emit_eligible": false
+    },
+    {
+      "binding_id": "surface-inspection",
+      "slot_id": "open-lite-inspection-slot",
+      "slot_kind": "detail",
+      "target_paths": [
+        "lib/views/record_detail_page.dart"
+      ],
+      "override_policy": "replace",
+      "required_inputs": [
+        "domain-model.json",
+        "task-allocation.json"
+      ],
+      "acceptance_impacts": [
+        "ac-detail",
+        "ac-delete"
+      ],
+      "emit_eligible": false
+    },
+    {
+      "binding_id": "app-entry",
+      "slot_id": "open-lite-app-entry-slot",
+      "slot_kind": "app_entry",
+      "target_paths": [
+        "lib/main.dart"
+      ],
+      "override_policy": "replace",
+      "required_inputs": [
+        "planning-context.json",
+        "domain-model.json"
+      ],
+      "acceptance_impacts": [
+        "ac-navigation"
+      ],
+      "emit_eligible": true
+    },
+    {
+      "binding_id": "domain-copy",
+      "slot_id": "open-lite-domain-copy-slot",
+      "slot_kind": "copy",
+      "target_paths": [
+        "lib/template/open_lite_copy.dart",
+        "lib/views/home_page.dart",
+        "lib/views/record_form_page.dart",
+        "lib/views/record_detail_page.dart",
+        "lib/views/record_list_page.dart"
+      ],
+      "override_policy": "synchronize",
+      "required_inputs": [
+        "planning-context.json",
+        "domain-model.json"
+      ],
+      "acceptance_impacts": [
+        "mrp-domain-wording",
+        "check-profile-open-lite-domain-branding",
+        "check-profile-open-lite-domain-language"
+      ],
+      "emit_eligible": true
+    },
+    {
+      "binding_id": "android-branding",
+      "slot_id": "open-lite-branding-slot",
+      "slot_kind": "branding",
+      "target_paths": [
+        "android/app/src/main/res/values/strings.xml",
+        "android/app/build.gradle.kts"
+      ],
+      "override_policy": "synchronize",
+      "required_inputs": [
+        "planning-context.json",
+        "domain-model.json"
+      ],
+      "acceptance_impacts": [
+        "check-profile-open-lite-domain-branding"
+      ],
+      "emit_eligible": true
+    },
+    {
+      "binding_id": "storage-boundary",
+      "slot_id": "open-lite-storage-slot",
+      "slot_kind": "storage",
+      "target_paths": [
+        "lib/repositories/record_repository.dart",
+        "pubspec.yaml"
+      ],
+      "override_policy": "extend",
+      "required_inputs": [
+        "domain-model.json",
+        "task-allocation.json"
+      ],
+      "acceptance_impacts": [
+        "ac-persistence",
+        "check-open-lite-local-persistence-wiring"
+      ],
+      "emit_eligible": true
+    },
+    {
+      "binding_id": "widget-test",
+      "slot_id": "open-lite-widget-test-slot",
+      "slot_kind": "test",
+      "target_paths": [
+        "test/widget_test.dart"
+      ],
+      "override_policy": "synchronize",
+      "required_inputs": [
+        "acceptance-plan.json",
+        "task-allocation.json"
+      ],
+      "acceptance_impacts": [
+        "check-open-lite-counter-demo-removed",
+        "check-open-lite-record-flow-wiring",
+        "check-profile-open-lite-domain-language"
+      ],
+      "emit_eligible": true
+    }
+  ]
+}

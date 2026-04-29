@@ -304,6 +304,49 @@ func TestGatewayStartReady_LocalOllamaUsesDefaultProbeBase(t *testing.T) {
 	}
 }
 
+func TestGatewayStartReady_UsesFallbackWhenPrimaryIsUnreachable(t *testing.T) {
+	configPath, cleanup := setupOAuthTestEnv(t)
+	defer cleanup()
+	resetModelProbeHooks(t)
+
+	probeOllamaModelFunc = func(apiBase, modelID string) bool {
+		return apiBase == "http://127.0.0.1:11434/v1" && modelID == "gemma4:26b"
+	}
+
+	cfg, err := config.LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	cfg.ModelList = []*config.ModelConfig{
+		{
+			ModelName:  "gemma-remote",
+			Model:      "ollama/gemma4:26b",
+			APIBase:    "http://10.12.11.159:11434/v1",
+			AuthMethod: "local",
+		},
+		{
+			ModelName: "gemma-local",
+			Model:     "ollama/gemma4:26b",
+			APIBase:   "http://127.0.0.1:11434/v1",
+		},
+	}
+	cfg.Agents.Defaults.ModelName = "gemma-remote"
+	cfg.Agents.Defaults.ModelFallbacks = []string{"gemma-local"}
+	err = config.SaveConfig(configPath, cfg)
+	if err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	ready, reason, err := h.gatewayStartReady()
+	if err != nil {
+		t.Fatalf("gatewayStartReady() error = %v", err)
+	}
+	if !ready {
+		t.Fatalf("gatewayStartReady() ready = false, want true when fallback model is reachable (reason=%q)", reason)
+	}
+}
+
 func TestGatewayStartReady_OAuthModelRequiresStoredCredential(t *testing.T) {
 	configPath, cleanup := setupOAuthTestEnv(t)
 	defer cleanup()
@@ -381,6 +424,77 @@ func TestGatewayStatusIncludesStartConditionWhenNotReady(t *testing.T) {
 	}
 	if _, ok := body["gateway_start_reason"].(string); !ok {
 		t.Fatalf("gateway_start_reason missing or not string: %#v", body["gateway_start_reason"])
+	}
+	if got, ok := body["config_path"].(string); !ok || filepath.Clean(got) != filepath.Clean(configPath) {
+		t.Fatalf("config_path = %#v, want %q", body["config_path"], configPath)
+	}
+	if got, ok := body["uses_user_home_config"].(bool); !ok || got {
+		t.Fatalf("uses_user_home_config = %#v, want false", body["uses_user_home_config"])
+	}
+}
+
+func TestGatewayStatusMarksUserHomeConfigUsage(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	configPath := filepath.Join(homeDir, ".picoclaw", "config.json")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := config.SaveConfig(configPath, config.DefaultConfig()); err != nil {
+		t.Fatalf("SaveConfig() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/gateway/status", nil)
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	if got, ok := body["uses_user_home_config"].(bool); !ok || !got {
+		t.Fatalf("uses_user_home_config = %#v, want true", body["uses_user_home_config"])
+	}
+}
+
+func TestGatewayStatusExposesConfigLoadError(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(configPath, []byte("{\n  \"version\": 3\n}\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	h := NewHandler(configPath)
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/gateway/status", nil)
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+
+	errValue, ok := body["config_load_error"].(string)
+	if !ok {
+		t.Fatalf("config_load_error missing or not string: %#v", body["config_load_error"])
+	}
+	if !strings.Contains(errValue, "unsupported config version: 3") {
+		t.Fatalf("config_load_error = %q, want contains %q", errValue, "unsupported config version: 3")
 	}
 }
 

@@ -265,6 +265,80 @@ func TestProviderChat_HTTPError(t *testing.T) {
 	}
 }
 
+func TestProviderChat_RetriesDegradedFunctionBadRequest(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts < 3 {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"status":400,"title":"Bad Request","detail":"Function id 'abc': DEGRADED function cannot be invoked"}`))
+			return
+		}
+		resp := map[string]any{
+			"choices": []map[string]any{
+				{
+					"message":       map[string]any{"content": "ok"},
+					"finish_reason": "stop",
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	p := NewProvider("key", server.URL, "")
+	out, err := p.Chat(t.Context(), []Message{{Role: "user", Content: "hi"}}, nil, "gpt-4o", nil)
+	if err != nil {
+		t.Fatalf("Chat() error = %v", err)
+	}
+	if out == nil || out.Content != "ok" {
+		t.Fatalf("Chat() content = %+v, want ok", out)
+	}
+	if attempts != 3 {
+		t.Fatalf("attempts = %d, want 3", attempts)
+	}
+}
+
+func TestProviderChat_RetriesRateLimitBurst(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts < 5 {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"status":429,"title":"Too Many Requests","detail":"rate limit exceeded"}`))
+			return
+		}
+		resp := map[string]any{
+			"choices": []map[string]any{
+				{
+					"message":       map[string]any{"content": "ok"},
+					"finish_reason": "stop",
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	p := NewProvider("key", server.URL, "")
+	out, err := p.Chat(t.Context(), []Message{{Role: "user", Content: "hi"}}, nil, "gpt-4o", nil)
+	if err != nil {
+		t.Fatalf("Chat() error = %v", err)
+	}
+	if out == nil || out.Content != "ok" {
+		t.Fatalf("Chat() content = %+v, want ok", out)
+	}
+	if attempts != 5 {
+		t.Fatalf("attempts = %d, want 5", attempts)
+	}
+}
+
 func TestProviderChat_JSONHTTPErrorDoesNotReportHTML(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

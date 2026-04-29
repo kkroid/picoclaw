@@ -1,0 +1,159 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-bookkeeping-prepare-sample",
+  "prd_id": "prd-bookkeeping-prepare-sample",
+  "template_id": "flutter-finance-lite",
+  "domain_name": "轻量记账 App",
+  "entities": [
+    {
+      "entity_id": "entity-entry",
+      "name": "账单记录",
+      "fields": [
+        {
+          "name": "entry_id",
+          "type": "string",
+          "required": true,
+          "description": "账单唯一标识"
+        },
+        {
+          "name": "entry_type",
+          "type": "enum[income,expense]",
+          "required": true,
+          "description": "收入或支出"
+        },
+        {
+          "name": "amount",
+          "type": "decimal",
+          "required": true,
+          "description": "金额"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "required": true,
+          "description": "分类"
+        },
+        {
+          "name": "occurred_on",
+          "type": "date",
+          "required": true,
+          "description": "发生日期"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "description": "备注"
+        }
+      ],
+      "source": "local_storage"
+    },
+    {
+      "entity_id": "entity-summary",
+      "name": "月度汇总",
+      "fields": [
+        {
+          "name": "month",
+          "type": "string",
+          "required": true,
+          "description": "月份标识"
+        },
+        {
+          "name": "income_total",
+          "type": "decimal",
+          "required": true,
+          "description": "本月收入总额"
+        },
+        {
+          "name": "expense_total",
+          "type": "decimal",
+          "required": true,
+          "description": "本月支出总额"
+        },
+        {
+          "name": "balance",
+          "type": "decimal",
+          "required": true,
+          "description": "结余"
+        }
+      ],
+      "source": "derived"
+    }
+  ],
+  "summary_metrics": [
+    "月度汇总"
+  ],
+  "domain_copy": {
+    "title": "轻量记账 App",
+    "summary": "为个人用户提供一个只覆盖最小核心流程的 Android 记账应用，围绕收支概览、记账动作和账单集合浏览验证需求整理、PRD 生成、Builder 输入包生成和最小执行链路。",
+    "problem_statement": "当前实验阶段需要一条从自然语言需求到 Builder 输入包的最小闭环，用来验证 PicoClaw 能否把简单记账需求整理成结构化规格，并围绕中性交互承载驱动 Builder 执行最小任务链。"
+  },
+  "critical_flows": [
+    "新增支出",
+    "查看账单集合"
+  ],
+  "semantic_acceptance_rules": [
+    {
+      "rule_id": "ac-home",
+      "label": "概览展示本月收支",
+      "description": "概览承载单元必须展示收入、支出、结余和最近账单入口。",
+      "field_refs": [
+        "month",
+        "income_total",
+        "expense_total",
+        "balance"
+      ],
+      "evidence_pattern": "轻量记账 App|month|income_total|incomeTotal|income|expense_total|expenseTotal|expense|balance"
+    },
+    {
+      "rule_id": "ac-entry",
+      "label": "记账动作链路完整",
+      "description": "用户可以在记账动作承载单元新增一笔账单，并回看概览与账单集合。",
+      "field_refs": [
+        "month",
+        "income_total",
+        "expense_total",
+        "balance"
+      ],
+      "evidence_pattern": "轻量记账 App|month|income_total|incomeTotal|income|expense_total|expenseTotal|expense|balance"
+    },
+    {
+      "rule_id": "ac-ledger",
+      "label": "账单集合可浏览",
+      "description": "账单集合浏览承载单元按时间倒序显示账单，并展示金额和分类。",
+      "field_refs": [
+        "entry_id",
+        "entry_type",
+        "amount",
+        "category",
+        "occurred_on",
+        "note"
+      ],
+      "evidence_pattern": "轻量记账 App|entry_id|entryId|entry_type|entryType|amount|category|occurred_on|occurredOn|note"
+    },
+    {
+      "rule_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "description": "应用重启后仍能读取本地账单数据，并恢复概览与账单集合。",
+      "field_refs": [
+        "month",
+        "income_total",
+        "expense_total",
+        "balance"
+      ],
+      "evidence_pattern": "轻量记账 App|month|income_total|incomeTotal|income|expense_total|expenseTotal|expense|balance"
+    },
+    {
+      "rule_id": "ac-navigation",
+      "label": "核心承载入口可导航",
+      "description": "概览承载、记账动作和账单集合浏览之间的入口明确且可达。",
+      "field_refs": [
+        "month",
+        "income_total",
+        "expense_total",
+        "balance"
+      ],
+      "evidence_pattern": "轻量记账 App|month|income_total|incomeTotal|income|expense_total|expenseTotal|expense|balance"
+    }
+  ]
+}

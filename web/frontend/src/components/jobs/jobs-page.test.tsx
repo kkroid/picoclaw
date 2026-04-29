@@ -814,7 +814,11 @@ describe("JobsPage regressions", () => {
 
   it("创建任务在编译失败时会展示错误并停止后续流程", async () => {
     const user = userEvent.setup()
-    compilePRDMock.mockRejectedValueOnce(new Error("compile failed"))
+    compilePRDMock.mockRejectedValueOnce(
+      new Error(
+        "模板选择失败：当前需求还不能稳定匹配到已登记模板。请补充首页摘要、列表、表单、详情、本地持久化等结构要求，或改用已登记模板。",
+      ),
+    )
 
     renderPage()
 
@@ -833,7 +837,9 @@ describe("JobsPage regressions", () => {
     await user.click(submitButtons[submitButtons.length - 1])
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith("compile failed")
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "模板选择失败：当前需求还不能稳定匹配到已登记模板。请补充首页摘要、列表、表单、详情、本地持久化等结构要求，或改用已登记模板。",
+      )
     })
     expect(createJobMutationMock).not.toHaveBeenCalled()
     expect(registerBuilderMock).not.toHaveBeenCalled()

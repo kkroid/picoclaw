@@ -1,0 +1,92 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-weight-tracker-detail-without-delete-sample-001",
+  "prd_id": "prd-weight-tracker-detail-without-delete-sample-001",
+  "template_id": "flutter-open-lite",
+  "domain_name": "体重记录 App（只读详情）",
+  "entities": [
+    {
+      "entity_id": "entity-weight-record",
+      "name": "体重记录",
+      "fields": [
+        {
+          "name": "record_id",
+          "type": "string",
+          "required": true,
+          "description": "记录唯一标识"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "required": true,
+          "description": "体重数值"
+        },
+        {
+          "name": "recorded_at",
+          "type": "date",
+          "required": true,
+          "description": "记录日期"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "description": "补充备注"
+        }
+      ],
+      "source": "local_storage"
+    }
+  ],
+  "domain_copy": {
+    "title": "体重记录 App（只读详情）",
+    "summary": "把体重记录需求整理成基于通用中性交互承载 Flutter 模板的 Android MVP 规格，并保留体重、日期、备注和趋势等核心语义。",
+    "problem_statement": "generic compile 在映射到 open-lite 骨架前，不能丢失体重、日期、备注和趋势等核心领域语义，否则最终生成物会退化成只有通用 record 壳子的伪成功样本。"
+  },
+  "critical_flows": [
+    "查看体重详情"
+  ],
+  "semantic_acceptance_rules": [
+    {
+      "rule_id": "ac-list",
+      "label": "历史记录集合承载单元可浏览",
+      "description": "历史集合承载单元必须按日期展示体重记录，并允许进入结果检查入口。",
+      "field_refs": [
+        "record_id",
+        "weight",
+        "recorded_at",
+        "note"
+      ],
+      "evidence_pattern": "体重记录 App（只读详情）|record_id|recordId|weight|recorded_at|recordedAt|note"
+    },
+    {
+      "rule_id": "ac-detail",
+      "label": "结果检查入口可达",
+      "description": "从集合浏览入口至少存在一条进入结果检查入口的路径。",
+      "field_refs": [
+        "record_id",
+        "weight",
+        "recorded_at",
+        "note"
+      ],
+      "evidence_pattern": "体重记录 App（只读详情）|record_id|recordId|weight|recorded_at|recordedAt|note"
+    },
+    {
+      "rule_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "description": "应用重启后仍能读取本地记录数据。",
+      "field_refs": [
+        "record_id",
+        "weight",
+        "recorded_at",
+        "note"
+      ],
+      "evidence_pattern": "体重记录 App（只读详情）|record_id|recordId|weight|recorded_at|recordedAt|note"
+    },
+    {
+      "rule_id": "ac-navigation",
+      "label": "核心承载单元可导航",
+      "description": "当前需求声明的集合浏览和结果检查承载单元之间路径明确且可达。",
+      "evidence_pattern": "体重记录 App（只读详情）"
+    }
+  ]
+}

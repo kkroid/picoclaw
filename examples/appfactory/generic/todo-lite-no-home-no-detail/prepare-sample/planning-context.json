@@ -1,0 +1,228 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-todo-lite-no-home-no-detail-sample-001",
+  "prd_id": "prd-todo-lite-no-home-no-detail-sample-001",
+  "template_id": "flutter-open-lite",
+  "prd_subject_version": "prd-todo-lite-no-home-no-detail-sample-001@0.1.0@sha256:2e4d02cc2744005e",
+  "template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:98b892c5043151b1",
+  "planning_policy_version": "phase1-boundary-v1",
+  "planning_model_snapshot": {
+    "requirement_structuring": "planning_model",
+    "domain_modeling": "planning_model",
+    "task_allocation": "decision_model",
+    "acceptance_planning": "decision_model",
+    "build_input_projection": "deterministic"
+  },
+  "execution_route_snapshot": {
+    "default_route_hint": "default_model",
+    "route_hint_counts": {
+      "default_model": 7,
+      "deterministic": 2,
+      "strong_model": 2
+    },
+    "task_routes": [
+      {
+        "allocation_id": "task-create-record-model",
+        "category": "domain",
+        "task_type": "dual_file_wiring",
+        "route_hint": "strong_model",
+        "risk_level": "high",
+        "target_paths": [
+          "lib/models/record.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-create-repository",
+        "category": "storage",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/repositories/record_repository.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-create-form-controller",
+        "category": "flow",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/controllers/record_form_controller.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-create-list-controller",
+        "category": "flow",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/controllers/record_list_controller.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-create-copy",
+        "category": "content",
+        "task_type": "dual_file_wiring",
+        "route_hint": "strong_model",
+        "risk_level": "high",
+        "target_paths": [
+          "lib/template/open_lite_copy.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-create-android-branding",
+        "category": "content",
+        "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
+        "target_paths": [
+          "android/app/src/main/res/values/strings.xml"
+        ]
+      },
+      {
+        "allocation_id": "task-create-android-build-config",
+        "category": "content",
+        "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
+        "target_paths": [
+          "android/app/build.gradle.kts"
+        ]
+      },
+      {
+        "allocation_id": "task-bind-collection-surface",
+        "category": "screen",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/views/record_list_page.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-bind-mutation-surface",
+        "category": "screen",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/views/record_form_page.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-bind-app-entry",
+        "category": "screen",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/main.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-create-test",
+        "category": "flow",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "test/widget_test.dart"
+        ]
+      }
+    ],
+    "upgrade_policy": {
+      "source": "config/config.example.json:appfactory.builder_runtime.upgrade_threshold",
+      "max_attempts_before_upgrade": 2,
+      "max_files_before_upgrade": 2,
+      "max_schema_drift_before_upgrade": 1,
+      "max_unrelated_operation_rate": 0.4,
+      "upgrade_on_validation_fail": true,
+      "upgrade_on_patch_parse_fail": true,
+      "upgrade_on_scope_violation": true,
+      "upgrade_on_semantic_conflict": true,
+      "supported_retry_upgrade_signals": [
+        "parse_failure",
+        "schema_drift",
+        "unrelated_edits",
+        "scope_violation",
+        "validation_failure",
+        "semantic_conflict"
+      ]
+    },
+    "start_upgrade_check": {
+      "current_attempt": 1,
+      "concrete_target_file_count": 11,
+      "would_upgrade_from_start": true,
+      "triggered_reasons": [
+        "max_files_before_upgrade"
+      ]
+    },
+    "allowed_paths": [
+      "lib/**",
+      "assets/**",
+      "pubspec.yaml",
+      "test/**",
+      "android/app/build.gradle.kts",
+      "android/app/src/main/res/values/strings.xml"
+    ],
+    "protected_paths": [
+      "android/app/src/main/AndroidManifest.xml",
+      "android/app/src/main/kotlin/**",
+      "android/gradle/**",
+      "android/local.properties",
+      "ios/**",
+      "linux/**",
+      "macos/**",
+      "windows/**"
+    ],
+    "command_profile_ref": "flutter-builder-p0"
+  },
+  "planning_policy": {
+    "policy_version": "phase1-boundary-v1",
+    "stages": [
+      {
+        "stage": "requirement_structuring",
+        "route": "planning_model",
+        "rationale": "需求整理允许强模型参与，但输出必须收敛到受控 PRD 结构。"
+      },
+      {
+        "stage": "domain_modeling",
+        "route": "planning_model",
+        "rationale": "领域对象抽取属于高不确定性语义建模，默认走 planning_model。"
+      },
+      {
+        "stage": "task_allocation",
+        "route": "decision_model",
+        "rationale": "任务拆解、依赖裁决和 route hint 分配默认走 decision_model。"
+      },
+      {
+        "stage": "acceptance_planning",
+        "route": "decision_model",
+        "rationale": "验收边界与冲突消解属于裁决层，不交给自由执行层。"
+      },
+      {
+        "stage": "build_input_projection",
+        "route": "deterministic",
+        "rationale": "builder-input 只是运行时投影包，默认禁止自由生成模型参与。"
+      }
+    ]
+  },
+  "human_notes": [
+    {
+      "note_id": "note-generic-topology-scope",
+      "scope": "engineering",
+      "summary": "当前需求只围绕集合浏览和实体变更和本地持久化展开，未声明承载单元和流程不要自动补齐。"
+    }
+  ],
+  "manual_constraints": [
+    "当前待办模板默认本地优先，不接入推送、协作、日历同步。",
+    "模板当前仍复用 open-lite 中性交互承载骨架，但不能牺牲待办状态和任务字段等核心语义。",
+    "当前阶段仍以稳定 Builder 输入包和多页面 seed 为主，不把远端 API 作为默认前提。",
+    "需求拆解后二开应优先复用概览、集合浏览、实体变更、结果检查四类承载单元，而不是新增第二套平行骨架。",
+    "当前需求未声明的承载单元不得被 compile 自动补齐。"
+  ],
+  "requirement_highlights": [
+    "首页需要看到待整理、进行中、已完成数量。",
+    "表单页需要录入标题、分类、状态和备注。",
+    "列表页需要快速浏览全部待办。",
+    "详情页需要查看单条任务的完整说明。"
+  ],
+  "supporting_assumptions": [
+    "默认离线单机运行。",
+    "模板服务单一核心任务闭环。",
+    "本地持久化是当前默认数据源。"
+  ]
+}

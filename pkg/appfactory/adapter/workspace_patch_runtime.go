@@ -68,6 +68,31 @@ func captureWorkspaceSnapshot(workspaceRoot string) (workspaceSnapshot, error) {
 	return result, nil
 }
 
+func captureWorkspaceSnapshotForPaths(workspaceRoot string, relPaths []string) (workspaceSnapshot, error) {
+	result := workspaceSnapshot{}
+	seen := make(map[string]struct{}, len(relPaths))
+	for _, relPath := range relPaths {
+		relPath = filepath.ToSlash(filepath.Clean(strings.TrimSpace(relPath)))
+		if relPath == "" || relPath == "." || shouldSkipWorkspacePath(relPath) {
+			continue
+		}
+		if _, ok := seen[relPath]; ok {
+			continue
+		}
+		seen[relPath] = struct{}{}
+		absPath := filepath.Join(workspaceRoot, filepath.FromSlash(relPath))
+		data, err := os.ReadFile(absPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("read workspace file %s: %w", relPath, err)
+		}
+		result[relPath] = string(data)
+	}
+	return result, nil
+}
+
 func shouldSkipWorkspacePath(relPath string) bool {
 	relPath = filepath.ToSlash(strings.TrimSpace(relPath))
 	if relPath == "" || relPath == "." {
@@ -170,6 +195,14 @@ func restoreWorkspaceSnapshot(workspaceRoot string, baseline, current workspaceS
 		}
 	}
 	return nil
+}
+
+func restoreWorkspaceSnapshotForPaths(workspaceRoot string, baseline workspaceSnapshot, relPaths []string) error {
+	current, err := captureWorkspaceSnapshotForPaths(workspaceRoot, relPaths)
+	if err != nil {
+		return err
+	}
+	return restoreWorkspaceSnapshot(workspaceRoot, baseline, current)
 }
 
 func snapshotUnionPaths(before, after workspaceSnapshot) []string {

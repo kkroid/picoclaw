@@ -1,0 +1,29 @@
+{
+  "schema_version": "0.1.0",
+  "approval_id": "approval-prd-prd-weight-tracker-sample-001",
+  "approval_type": "prd",
+  "job_id": "job-weight-tracker-sample-001",
+  "prd_id": "prd-weight-tracker-sample-001",
+  "subject_version": "prd-weight-tracker-sample-001@0.1.0@sha256:14b8f7032e2b2b96@sha256:d7f537db92af2db2",
+  "status": "approved",
+  "requested_by": {
+    "actor_type": "system",
+    "actor_id": "appfactory-prepare"
+  },
+  "decision": {
+    "decision": "approved",
+    "decided_by": {
+      "actor_type": "system",
+      "actor_id": "appfactory-prepare"
+    },
+    "decided_at": "2026-04-10T12:30:00Z",
+    "comment": "系统为当前最小编排链路生成已批准 PRD 快照，用于后续执行接线。"
+  },
+  "summary": "当前需求已整理为可执行 PRD 快照。",
+  "evidence_paths": [
+    "PRD.md",
+    "PRD.json",
+    "requirement.md"
+  ],
+  "created_at": "2026-04-10T12:30:00Z"
+}

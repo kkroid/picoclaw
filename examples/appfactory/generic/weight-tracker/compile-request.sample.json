@@ -1,0 +1,9 @@
+{
+  "requirement_text": "做一个体重记录 app，只要首页摘要、新增记录、历史列表和单条详情，不考虑登录和云同步。",
+  "requirement_source": "jobs-ui",
+  "title": "体重记录 App",
+  "job_id": "job-weight-tracker-sample-001",
+  "prd_id": "prd-weight-tracker-sample-001",
+  "real_checks": true,
+  "executor_image": "picoclaw/appfactory-builder:local"
+}

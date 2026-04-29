@@ -1,0 +1,945 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-generic-open-lite",
+  "prd_id": "prd-generic-open-lite",
+  "template_id": "flutter-open-lite",
+  "planning_policy": {
+    "policy_version": "phase1-boundary-v1",
+    "stages": [
+      {
+        "stage": "requirement_structuring",
+        "route": "planning_model",
+        "rationale": "需求整理允许强模型参与，但输出必须收敛到受控 PRD 结构。"
+      },
+      {
+        "stage": "domain_modeling",
+        "route": "planning_model",
+        "rationale": "领域对象抽取属于高不确定性语义建模，默认走 planning_model。"
+      },
+      {
+        "stage": "task_allocation",
+        "route": "decision_model",
+        "rationale": "任务拆解、依赖裁决和 route hint 分配默认走 decision_model。"
+      },
+      {
+        "stage": "acceptance_planning",
+        "route": "decision_model",
+        "rationale": "验收边界与冲突消解属于裁决层，不交给自由执行层。"
+      },
+      {
+        "stage": "build_input_projection",
+        "route": "deterministic",
+        "rationale": "builder-input 只是运行时投影包，默认禁止自由生成模型参与。"
+      }
+    ]
+  },
+  "prepared_prd_subject_version": "\u003cnormalized\u003e",
+  "prepared_template_subject_version": "\u003cnormalized\u003e",
+  "workspace_path": "\u003cnormalized\u003e",
+  "artifact_dir": "\u003cnormalized\u003e",
+  "goal_summary": "将体重记录需求整理成基于 flutter-open-lite 的中性交互承载 Android MVP 输入包，围绕概览、历史集合、实体变更、结果检查和本地持久化保留体重领域文案。",
+  "task_bundle": [
+    {
+      "task_id": "task-create-record-model",
+      "title": "创建领域记录模型",
+      "category": "domain",
+      "task_type": "dual_file_wiring",
+      "risk_level": "high",
+      "route_hint": "strong_model",
+      "allocation_transition": {
+        "allocation_id": "task-create-record-model",
+        "semantic_intent_refs": [
+          "ac-list",
+          "ac-form",
+          "ac-detail",
+          "mrp-entity-fit",
+          "check-profile-open-lite-domain-language"
+        ],
+        "binding_refs": [
+          "domain-model"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "owned_paths": [
+          "lib/models/record.dart"
+        ],
+        "success_evidence": [
+          "领域记录模型已创建",
+          "不再保留默认 generic record 字段"
+        ]
+      },
+      "objective": "根据 domain model JSON 创建最终的领域记录实体，替代默认 generic record 语义。",
+      "priority": "p0",
+      "target_paths": [
+        "lib/models/record.dart"
+      ],
+      "completion_criteria": [
+        "领域记录字段已明确",
+        "导出的模型类型可被控制器和页面直接消费"
+      ]
+    },
+    {
+      "task_id": "task-create-summary-model",
+      "title": "创建首页摘要模型",
+      "category": "summary",
+      "task_type": "dual_file_wiring",
+      "risk_level": "high",
+      "route_hint": "strong_model",
+      "allocation_transition": {
+        "allocation_id": "task-create-summary-model",
+        "semantic_intent_refs": [
+          "ac-overview",
+          "mrp-summary-fit",
+          "check-profile-open-lite-domain-language"
+        ],
+        "binding_refs": [
+          "domain-model"
+        ],
+        "surface_refs": [
+          "surface-overview"
+        ],
+        "entity_refs": [
+          "entity-weight-record",
+          "entity-weight-summary"
+        ],
+        "owned_paths": [
+          "lib/models/dashboard_summary.dart"
+        ],
+        "blocked_by": [
+          "task-create-record-model"
+        ],
+        "success_evidence": [
+          "首页摘要模型已创建",
+          "摘要字段与领域关键指标保持一致"
+        ]
+      },
+      "objective": "根据领域记录模型创建首页摘要模型，让首页指标直接承接领域语义。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-record-model"
+      ],
+      "target_paths": [
+        "lib/models/dashboard_summary.dart"
+      ],
+      "completion_criteria": [
+        "摘要字段已明确",
+        "摘要模型可由领域记录推导"
+      ]
+    },
+    {
+      "task_id": "task-create-repository",
+      "title": "创建本地仓储实现",
+      "category": "storage",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-create-repository",
+        "semantic_intent_refs": [
+          "ac-persistence",
+          "check-open-lite-local-persistence-wiring"
+        ],
+        "binding_refs": [
+          "storage-boundary"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record",
+          "entity-weight-summary"
+        ],
+        "owned_paths": [
+          "lib/repositories/record_repository.dart"
+        ],
+        "blocked_by": [
+          "task-create-record-model"
+        ],
+        "success_evidence": [
+          "仓储实现已创建",
+          "领域记录读写入口稳定"
+        ]
+      },
+      "objective": "固定本地持久化边界，为后续控制器和页面提供稳定的记录读写入口。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-record-model"
+      ],
+      "target_paths": [
+        "lib/repositories/record_repository.dart"
+      ],
+      "completion_criteria": [
+        "本地持久化实现明确",
+        "记录读写入口稳定"
+      ]
+    },
+    {
+      "task_id": "task-create-home-controller",
+      "title": "创建概览承载控制器",
+      "category": "summary",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-create-home-controller",
+        "semantic_intent_refs": [
+          "ac-overview",
+          "check-profile-open-lite-domain-language"
+        ],
+        "binding_refs": [
+          "flow-controller"
+        ],
+        "surface_refs": [
+          "surface-overview"
+        ],
+        "entity_refs": [
+          "entity-weight-record",
+          "entity-weight-summary"
+        ],
+        "owned_paths": [
+          "lib/controllers/home_controller.dart"
+        ],
+        "blocked_by": [
+          "task-create-repository",
+          "task-create-summary-model"
+        ],
+        "success_evidence": [
+          "概览承载控制器已创建",
+          "概览入口可消费领域摘要模型"
+        ]
+      },
+      "objective": "围绕领域记录与摘要模型创建概览承载控制器，承接概览入口与最近记录读取。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-repository",
+        "task-create-summary-model"
+      ],
+      "target_paths": [
+        "lib/controllers/home_controller.dart"
+      ],
+      "completion_criteria": [
+        "概览承载控制器可读取摘要与最近记录",
+        "概览摘要字段与领域语义一致"
+      ]
+    },
+    {
+      "task_id": "task-create-form-controller",
+      "title": "创建实体变更控制器",
+      "category": "flow",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-create-form-controller",
+        "semantic_intent_refs": [
+          "ac-form",
+          "check-open-lite-record-flow-wiring",
+          "check-profile-open-lite-domain-language"
+        ],
+        "binding_refs": [
+          "flow-controller"
+        ],
+        "surface_refs": [
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "owned_paths": [
+          "lib/controllers/record_form_controller.dart"
+        ],
+        "blocked_by": [
+          "task-create-repository",
+          "task-create-record-model"
+        ],
+        "success_evidence": [
+          "实体变更控制器已创建",
+          "新增与编辑动作围绕领域字段收口"
+        ]
+      },
+      "objective": "围绕领域记录创建实体变更控制器，负责输入状态、校验和保存动作。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-repository",
+        "task-create-record-model"
+      ],
+      "target_paths": [
+        "lib/controllers/record_form_controller.dart"
+      ],
+      "completion_criteria": [
+        "实体变更状态与领域字段一致",
+        "保存动作可写入仓储"
+      ]
+    },
+    {
+      "task_id": "task-create-list-controller",
+      "title": "创建集合浏览控制器",
+      "category": "flow",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-create-list-controller",
+        "semantic_intent_refs": [
+          "ac-list",
+          "ac-detail",
+          "check-profile-open-lite-domain-language"
+        ],
+        "binding_refs": [
+          "flow-controller"
+        ],
+        "surface_refs": [
+          "surface-collection",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "owned_paths": [
+          "lib/controllers/record_list_controller.dart"
+        ],
+        "blocked_by": [
+          "task-create-repository",
+          "task-create-record-model"
+        ],
+        "success_evidence": [
+          "集合浏览控制器已创建",
+          "集合浏览入口可浏览领域记录",
+          "结果检查入口与集合数据保持一致"
+        ]
+      },
+      "objective": "围绕领域记录提供集合读取、排序和结果检查跳转所需的控制器接口。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-repository",
+        "task-create-record-model"
+      ],
+      "target_paths": [
+        "lib/controllers/record_list_controller.dart"
+      ],
+      "completion_criteria": [
+        "集合浏览控制器可提供领域记录集合",
+        "集合浏览入口可浏览领域记录",
+        "结果检查入口与集合数据保持一致"
+      ]
+    },
+    {
+      "task_id": "task-create-copy",
+      "title": "创建领域文案投影",
+      "category": "content",
+      "task_type": "dual_file_wiring",
+      "risk_level": "high",
+      "route_hint": "strong_model",
+      "allocation_transition": {
+        "allocation_id": "task-create-copy",
+        "semantic_intent_refs": [
+          "mrp-domain-wording",
+          "check-profile-open-lite-domain-branding",
+          "check-profile-open-lite-domain-language"
+        ],
+        "binding_refs": [
+          "domain-copy"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record",
+          "entity-weight-summary"
+        ],
+        "owned_paths": [
+          "lib/template/open_lite_copy.dart"
+        ],
+        "blocked_by": [
+          "task-create-record-model"
+        ],
+        "success_evidence": [
+          "领域文案投影文件已创建",
+          "默认 seed 文案已被领域文案替换"
+        ]
+      },
+      "objective": "基于参考模板创建 open_lite_copy.dart，使页面标题、标签和空态文案直接映射到领域语义。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-record-model"
+      ],
+      "target_paths": [
+        "lib/template/open_lite_copy.dart"
+      ],
+      "completion_criteria": [
+        "页面标题和表单标签体现领域命名",
+        "默认 seed 文案不再残留"
+      ]
+    },
+    {
+      "task_id": "task-create-android-branding",
+      "title": "创建 Android 启动器文案",
+      "category": "content",
+      "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
+      "allocation_transition": {
+        "allocation_id": "task-create-android-branding",
+        "semantic_intent_refs": [
+          "mrp-domain-wording",
+          "check-profile-open-lite-domain-branding"
+        ],
+        "binding_refs": [
+          "android-branding"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "owned_paths": [
+          "android/app/src/main/res/values/strings.xml"
+        ],
+        "blocked_by": [
+          "task-create-copy"
+        ],
+        "success_evidence": [
+          "Android 启动器名称已创建",
+          "领域品牌文案已同步到 strings.xml"
+        ]
+      },
+      "objective": "在 strings.xml 中创建 Android 启动器名称与品牌文案，确保不再残留默认 seed branding。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-copy"
+      ],
+      "target_paths": [
+        "android/app/src/main/res/values/strings.xml"
+      ],
+      "completion_criteria": [
+        "Android 启动器名称已切换到领域文案",
+        "默认 seed branding 不再残留"
+      ]
+    },
+    {
+      "task_id": "task-create-android-build-config",
+      "title": "创建 Android 构建文案入口",
+      "category": "content",
+      "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
+      "allocation_transition": {
+        "allocation_id": "task-create-android-build-config",
+        "semantic_intent_refs": [
+          "check-profile-open-lite-domain-branding"
+        ],
+        "binding_refs": [
+          "android-branding"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "owned_paths": [
+          "android/app/build.gradle.kts"
+        ],
+        "blocked_by": [
+          "task-create-android-branding"
+        ],
+        "success_evidence": [
+          "Android branding 构建入口已创建",
+          "build.gradle.kts 保留单点覆盖能力"
+        ]
+      },
+      "objective": "在 build.gradle.kts 中保留 Android branding 的单点覆盖入口，避免品牌改动分散到其他文件。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-android-branding"
+      ],
+      "target_paths": [
+        "android/app/build.gradle.kts"
+      ],
+      "completion_criteria": [
+        "Android branding 单点覆盖入口存在",
+        "applicationId 或 launcher branding 的改动路径明确"
+      ]
+    },
+    {
+      "task_id": "task-bind-overview-surface",
+      "title": "绑定概览承载单元",
+      "category": "screen",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-bind-overview-surface",
+        "semantic_intent_refs": [
+          "ac-overview",
+          "mrp-domain-wording"
+        ],
+        "binding_refs": [
+          "surface-overview"
+        ],
+        "surface_refs": [
+          "surface-overview"
+        ],
+        "entity_refs": [
+          "entity-weight-record",
+          "entity-weight-summary"
+        ],
+        "owned_paths": [
+          "lib/views/home_page.dart"
+        ],
+        "blocked_by": [
+          "task-create-home-controller",
+          "task-create-copy"
+        ],
+        "success_evidence": [
+          "概览承载单元已绑定",
+          "领域摘要与最近记录入口已接入"
+        ]
+      },
+      "objective": "根据概览承载控制器和领域文案绑定概览承载单元，承接领域摘要与最近记录入口。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-home-controller",
+        "task-create-copy"
+      ],
+      "target_paths": [
+        "lib/views/home_page.dart"
+      ],
+      "completion_criteria": [
+        "概览承载单元可渲染领域摘要",
+        "承载单元标题与领域语义一致"
+      ]
+    },
+    {
+      "task_id": "task-bind-collection-surface",
+      "title": "绑定集合浏览承载单元",
+      "category": "screen",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-bind-collection-surface",
+        "semantic_intent_refs": [
+          "ac-list",
+          "ac-detail"
+        ],
+        "binding_refs": [
+          "surface-collection"
+        ],
+        "surface_refs": [
+          "surface-collection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "owned_paths": [
+          "lib/views/record_list_page.dart"
+        ],
+        "blocked_by": [
+          "task-create-list-controller",
+          "task-create-copy"
+        ],
+        "success_evidence": [
+          "集合浏览承载单元已绑定",
+          "集合结果可浏览领域记录",
+          "结果检查入口与集合数据保持一致"
+        ]
+      },
+      "objective": "根据集合浏览控制器和领域文案绑定集合浏览承载单元，提供记录浏览与结果定位入口。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-list-controller",
+        "task-create-copy"
+      ],
+      "target_paths": [
+        "lib/views/record_list_page.dart"
+      ],
+      "completion_criteria": [
+        "集合浏览承载单元可浏览领域记录",
+        "结果检查入口与集合数据保持一致"
+      ]
+    },
+    {
+      "task_id": "task-bind-mutation-surface",
+      "title": "绑定实体变更承载单元",
+      "category": "screen",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-bind-mutation-surface",
+        "semantic_intent_refs": [
+          "ac-form",
+          "mrp-domain-wording"
+        ],
+        "binding_refs": [
+          "surface-mutation"
+        ],
+        "surface_refs": [
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "owned_paths": [
+          "lib/views/record_form_page.dart"
+        ],
+        "blocked_by": [
+          "task-create-form-controller",
+          "task-create-copy"
+        ],
+        "success_evidence": [
+          "实体变更承载单元已绑定",
+          "字段输入链路已接线到控制器"
+        ]
+      },
+      "objective": "根据实体变更控制器和领域文案绑定实体变更承载单元，承接领域字段输入。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-form-controller",
+        "task-create-copy"
+      ],
+      "target_paths": [
+        "lib/views/record_form_page.dart"
+      ],
+      "completion_criteria": [
+        "实体变更承载单元字段与领域记录一致",
+        "保存动作已接线到控制器"
+      ]
+    },
+    {
+      "task_id": "task-bind-inspection-surface",
+      "title": "绑定结果检查承载单元",
+      "category": "screen",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-bind-inspection-surface",
+        "semantic_intent_refs": [
+          "ac-detail",
+          "ac-delete",
+          "mrp-domain-wording"
+        ],
+        "binding_refs": [
+          "surface-inspection"
+        ],
+        "surface_refs": [
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "owned_paths": [
+          "lib/views/record_detail_page.dart"
+        ],
+        "blocked_by": [
+          "task-create-record-model",
+          "task-create-copy"
+        ],
+        "success_evidence": [
+          "结果检查承载单元已绑定",
+          "结果检查可围绕单条领域记录展示"
+        ]
+      },
+      "objective": "根据领域记录模型和文案绑定结果检查承载单元，承接单条记录展示、编辑和删除入口。",
+      "priority": "p0",
+      "dependencies": [
+        "task-create-record-model",
+        "task-create-copy"
+      ],
+      "target_paths": [
+        "lib/views/record_detail_page.dart"
+      ],
+      "completion_criteria": [
+        "结果检查承载单元可展示单条领域记录",
+        "编辑和删除入口已预留"
+      ]
+    },
+    {
+      "task_id": "task-bind-app-entry",
+      "title": "接线应用入口与承载单元路由",
+      "category": "screen",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-bind-app-entry",
+        "semantic_intent_refs": [
+          "ac-navigation",
+          "check-generic-open-scope"
+        ],
+        "binding_refs": [
+          "app-entry"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record",
+          "entity-weight-summary"
+        ],
+        "owned_paths": [
+          "lib/main.dart"
+        ],
+        "blocked_by": [
+          "task-bind-overview-surface",
+          "task-bind-collection-surface",
+          "task-bind-mutation-surface",
+          "task-bind-inspection-surface",
+          "task-create-home-controller",
+          "task-create-list-controller",
+          "task-create-form-controller",
+          "task-create-repository"
+        ],
+        "success_evidence": [
+          "应用入口已接线",
+          "核心承载单元导航骨架可用"
+        ]
+      },
+      "objective": "把已创建的控制器、承载单元和仓储接线到应用入口，形成稳定的中性交互骨架。",
+      "priority": "p0",
+      "dependencies": [
+        "task-bind-overview-surface",
+        "task-bind-collection-surface",
+        "task-bind-mutation-surface",
+        "task-bind-inspection-surface",
+        "task-create-home-controller",
+        "task-create-list-controller",
+        "task-create-form-controller",
+        "task-create-repository"
+      ],
+      "target_paths": [
+        "lib/main.dart"
+      ],
+      "completion_criteria": [
+        "应用入口完成接线",
+        "概览、集合浏览、实体变更、结果检查承载单元导航可达"
+      ]
+    },
+    {
+      "task_id": "task-create-test",
+      "title": "创建最小 Widget 测试",
+      "category": "flow",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-create-test",
+        "semantic_intent_refs": [
+          "ac-navigation",
+          "ac-form",
+          "ac-detail",
+          "check-open-lite-counter-demo-removed",
+          "check-open-lite-record-flow-wiring",
+          "check-profile-open-lite-domain-language"
+        ],
+        "binding_refs": [
+          "widget-test"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "surface-inspection"
+        ],
+        "entity_refs": [
+          "entity-weight-record",
+          "entity-weight-summary"
+        ],
+        "owned_paths": [
+          "test/widget_test.dart"
+        ],
+        "blocked_by": [
+          "task-bind-app-entry"
+        ],
+        "success_evidence": [
+          "最小 Widget 测试已创建",
+          "测试断言与当前领域文案和主流程保持同步"
+        ]
+      },
+      "objective": "为当前领域承载单元和主流程创建最小 widget 测试，确保后续 analyze/test 收口有稳定入口。",
+      "priority": "p0",
+      "dependencies": [
+        "task-bind-app-entry"
+      ],
+      "target_paths": [
+        "test/widget_test.dart"
+      ],
+      "completion_criteria": [
+        "test/widget_test.dart 已同步当前领域文案",
+        "测试入口可覆盖主承载单元或主流程"
+      ]
+    }
+  ],
+  "acceptance_checks": [
+    {
+      "check_id": "check-context-ready",
+      "label": "准备上下文文件",
+      "stage": "baseline",
+      "required": true,
+      "commands": [
+        "echo context-ready"
+      ],
+      "success_criteria": "上下文装载命令返回 0。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-generic-open-scope",
+      "label": "确认通用模板能力边界",
+      "stage": "baseline",
+      "required": true,
+      "commands": [
+        "echo generic-open-lite-scope-overview-collection-mutation-inspection"
+      ],
+      "success_criteria": "能力边界已收敛到概览、集合浏览、实体变更、结果检查和本地持久化。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-plan-ready",
+      "label": "确认 Builder 输入包可执行",
+      "stage": "cheap",
+      "required": true,
+      "commands": [
+        "echo builder-input-ready"
+      ],
+      "success_criteria": "Builder 输入包与最小计划文件已生成。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-structural-template-files-ready",
+      "label": "确认 Flutter seed 工作区存在",
+      "stage": "baseline",
+      "required": true,
+      "commands": [
+        "grep -q . pubspec.yaml lib/main.dart test/widget_test.dart"
+      ],
+      "success_criteria": "默认 seed 工作区关键文件已就位。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-legacy-thin-fallback-probe",
+      "label": "确认默认 thin fallback 写入探针",
+      "stage": "cheap",
+      "required": true,
+      "commands": [
+        "grep -E \"Generated by PicoClaw thin executor.|'goalSummary':\" lib/picoclaw_executor_probe.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "success_criteria": "默认 thin executor fallback 已在允许目录中写入探针文件，用于证明 legacy fallback 链可用。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-legacy-thin-fallback-metadata",
+      "label": "确认 fallback 探针包含执行元数据",
+      "stage": "cheap",
+      "required": true,
+      "commands": [
+        "grep -E \"'taskCount': [0-9]+,|'acceptanceCheckCount': [0-9]+,\" lib/picoclaw_executor_probe.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "success_criteria": "fallback 探针里已带上 task 与 acceptance check 元数据，供定位 legacy fallback 输入边界，不代表真实 builder-runtime 产出。",
+      "timeout_seconds": 30
+    }
+  ],
+  "allowed_paths": [
+    "lib/**",
+    "assets/**",
+    "pubspec.yaml",
+    "test/**"
+  ],
+  "protected_paths": [
+    "android/**",
+    "ios/**",
+    "linux/**",
+    "macos/**",
+    "windows/**"
+  ],
+  "knowledge_pack": [
+    {
+      "skill_id": "prd-to-task-bundle",
+      "role": "把 PRD 压成 Flutter profile 可执行任务包",
+      "usage_stage": "planning",
+      "scope": "flutter-android-p0",
+      "notes": "只服务 Flutter 首个 profile，不属于执行器内核。"
+    },
+    {
+      "skill_id": "flutter-mvc-template",
+      "role": "固定 Flutter MVC 目录、依赖与页面落点",
+      "usage_stage": "layout",
+      "scope": "flutter-android-p0",
+      "notes": "负责模板和目录规则，不负责状态机与调度。"
+    },
+    {
+      "skill_id": "builder-direct-edit",
+      "role": "约束 Builder 在 Flutter 工作区中直接改码",
+      "usage_stage": "edit",
+      "scope": "flutter-android-p0",
+      "notes": "负责单轮直接改码行为，不负责超时、重试和预算。"
+    },
+    {
+      "skill_id": "flutter-build-closure",
+      "role": "在 Flutter 工作区接近完成时做低风险收口",
+      "usage_stage": "closure",
+      "scope": "flutter-android-p0",
+      "notes": "只处理 analyze/test/build 收口，不重做功能实现。"
+    }
+  ],
+  "command_profile": {
+    "allowed_commands": [
+      "echo",
+      "grep"
+    ],
+    "allowed_stages": [
+      "baseline",
+      "cheap"
+    ],
+    "denied_commands": [
+      "rm",
+      "sudo"
+    ],
+    "env_allowlist": [
+      "PATH",
+      "HOME"
+    ],
+    "max_parallel_commands": 1,
+    "max_single_command_seconds": 60,
+    "network_policy": "disabled",
+    "profile_name": "prepare-p0",
+    "writable_roots": [
+      "lib",
+      "assets",
+      "."
+    ]
+  },
+  "context_files": {
+    "implementation_plan_path": "implementation-plan.md",
+    "manual_constraints_path": "manual-constraints.md",
+    "prd_json_path": "PRD.json",
+    "prd_markdown_path": "PRD.md",
+    "supporting_files": [
+      "requirement.md",
+      "prd-approval.json",
+      "template-approval.json",
+      "planning-context.json",
+      "domain-model.json",
+      "template-slot-map.json",
+      "task-allocation.json",
+      "acceptance-plan.json"
+    ],
+    "template_fit_report_path": "template-fit-report.md"
+  },
+  "iteration_budget": 3,
+  "token_budget": 4000,
+  "human_notes": [
+    {
+      "note_id": "note-weight-domain",
+      "scope": "engineering",
+      "summary": "Builder 后续必须把中性 record 骨架收口为体重记录 app，而不是停在 open-lite 默认文案。"
+    },
+    {
+      "note_id": "note-weight-summary",
+      "scope": "product",
+      "summary": "首页摘要必须承接最新体重、记录数量和趋势，不允许只保留通用计数。"
+    }
+  ]
+}

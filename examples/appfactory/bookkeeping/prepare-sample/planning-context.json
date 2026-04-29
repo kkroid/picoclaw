@@ -1,0 +1,182 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-bookkeeping-prepare-sample",
+  "prd_id": "prd-bookkeeping-prepare-sample",
+  "template_id": "flutter-finance-lite",
+  "prd_subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:301024ece902c062",
+  "template_subject_version": "selected-template@flutter-finance-lite@v0.1.0@sha256:044bdae5cb92f850",
+  "planning_policy_version": "phase1-boundary-v1",
+  "planning_model_snapshot": {
+    "requirement_structuring": "planning_model",
+    "domain_modeling": "planning_model",
+    "task_allocation": "decision_model",
+    "acceptance_planning": "decision_model",
+    "build_input_projection": "deterministic"
+  },
+  "execution_route_snapshot": {
+    "default_route_hint": "default_model",
+    "route_hint_counts": {
+      "default_model": 5
+    },
+    "task_routes": [
+      {
+        "allocation_id": "task-domain-models",
+        "category": "domain",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/models/entry.dart",
+          "lib/models/summary.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-storage-wiring",
+        "category": "storage",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/repositories/entry_repository.dart",
+          "pubspec.yaml"
+        ]
+      },
+      {
+        "allocation_id": "task-bind-core-surfaces",
+        "category": "screen",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/main.dart",
+          "lib/views/home_page.dart",
+          "lib/views/entry_form_page.dart",
+          "lib/views/entry_list_page.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-flow-wiring",
+        "category": "flow",
+        "task_type": "dual_file_wiring",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/controllers/home_controller.dart",
+          "lib/controllers/entry_form_controller.dart",
+          "lib/controllers/entry_list_controller.dart",
+          "lib/repositories/entry_repository.dart",
+          "test/widget_test.dart"
+        ]
+      },
+      {
+        "allocation_id": "task-validation-closure",
+        "category": "validation",
+        "task_type": "closure_repair",
+        "route_hint": "default_model",
+        "target_paths": [
+          "lib/main.dart",
+          "lib/views/**",
+          "lib/controllers/**",
+          "lib/repositories/**",
+          "test/**",
+          "pubspec.yaml"
+        ]
+      }
+    ],
+    "upgrade_policy": {
+      "source": "config/config.example.json:appfactory.builder_runtime.upgrade_threshold",
+      "max_attempts_before_upgrade": 2,
+      "max_files_before_upgrade": 2,
+      "max_schema_drift_before_upgrade": 1,
+      "max_unrelated_operation_rate": 0.4,
+      "upgrade_on_validation_fail": true,
+      "upgrade_on_patch_parse_fail": true,
+      "upgrade_on_scope_violation": true,
+      "upgrade_on_semantic_conflict": true,
+      "supported_retry_upgrade_signals": [
+        "parse_failure",
+        "schema_drift",
+        "unrelated_edits",
+        "scope_violation",
+        "validation_failure",
+        "semantic_conflict"
+      ]
+    },
+    "start_upgrade_check": {
+      "current_attempt": 1,
+      "concrete_target_file_count": 12,
+      "would_upgrade_from_start": true,
+      "triggered_reasons": [
+        "max_files_before_upgrade"
+      ]
+    },
+    "allowed_paths": [
+      "lib/**",
+      "assets/**",
+      "pubspec.yaml",
+      "test/**"
+    ],
+    "protected_paths": [
+      "android/**",
+      "ios/**",
+      "linux/**",
+      "macos/**",
+      "windows/**"
+    ],
+    "command_profile_ref": "prepare-p0"
+  },
+  "planning_policy": {
+    "policy_version": "phase1-boundary-v1",
+    "stages": [
+      {
+        "stage": "requirement_structuring",
+        "route": "planning_model",
+        "rationale": "需求整理允许强模型参与，但输出必须收敛到受控 PRD 结构。"
+      },
+      {
+        "stage": "domain_modeling",
+        "route": "planning_model",
+        "rationale": "领域对象抽取属于高不确定性语义建模，默认走 planning_model。"
+      },
+      {
+        "stage": "task_allocation",
+        "route": "decision_model",
+        "rationale": "任务拆解、依赖裁决和 route hint 分配默认走 decision_model。"
+      },
+      {
+        "stage": "acceptance_planning",
+        "route": "decision_model",
+        "rationale": "验收边界与冲突消解属于裁决层，不交给自由执行层。"
+      },
+      {
+        "stage": "build_input_projection",
+        "route": "deterministic",
+        "rationale": "builder-input 只是运行时投影包，默认禁止自由生成模型参与。"
+      }
+    ]
+  },
+  "human_notes": [
+    {
+      "note_id": "note-scope",
+      "scope": "engineering",
+      "summary": "当前实验只验证需求整理、交接探针和 Builder 链路，不追求真实 APK。"
+    },
+    {
+      "note_id": "note-template",
+      "scope": "product",
+      "summary": "优先匹配 flutter-finance-lite，避免引入复杂模板依赖。"
+    }
+  ],
+  "manual_constraints": [
+    "当前阶段不接入登录、远程同步、上架流程。",
+    "日志和构建报告保留英文输出，文档与计划说明使用中文。",
+    "Builder 只允许执行白名单命令，避免在 P0 阶段扩散风险。",
+    "默认无 real build 路径只验证 seed 工作区和交接探针，不再把仓库内硬编码业务 Dart 生成当作完成标准。"
+  ],
+  "requirement_highlights": [
+    "需求入口是自然语言，不再要求人工手写 builder-input。",
+    "当前例子是简单记账 App，只考虑功能实现，不考虑上架。",
+    "验证重点是 PRD、计划和 Builder 输入包能否稳定生成。"
+  ],
+  "supporting_assumptions": [
+    "默认离线单机使用。",
+    "数据仅做本地存储。",
+    "视觉样式复用模板默认风格，后续再单独收敛。"
+  ]
+}

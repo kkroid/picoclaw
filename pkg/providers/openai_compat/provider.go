@@ -9,11 +9,13 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/sipeed/picoclaw/pkg/providers/common"
+
 	"github.com/sipeed/picoclaw/pkg/providers/protocoltypes"
 	"github.com/sipeed/picoclaw/pkg/providers/streamctx"
 )
@@ -42,6 +44,13 @@ type Provider struct {
 type Option func(*Provider)
 
 const defaultRequestTimeout = common.DefaultRequestTimeout
+
+const (
+	maxRateLimitRetries = 4
+	rateLimitRetryBase  = 2 * time.Second
+	rateLimitRetryMax   = 20 * time.Second
+	degradedFunctionErr = "DEGRADED function cannot be invoked"
+)
 
 func WithMaxTokensField(maxTokensField string) Option {
 	return func(p *Provider) {
@@ -180,27 +189,56 @@ func (p *Provider) Chat(
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", p.apiBase+"/chat/completions", bytes.NewReader(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
+	for attempt := 0; ; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, "POST", p.apiBase+"/chat/completions", bytes.NewReader(jsonData))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
 
-	req.Header.Set("Content-Type", "application/json")
-	if p.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+p.apiKey)
-	}
+		req.Header.Set("Content-Type", "application/json")
+		if p.apiKey != "" {
+			req.Header.Set("Authorization", "Bearer "+p.apiKey)
+		}
 
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
+		resp, err := p.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to send request: %w", err)
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, common.HandleErrorResponse(resp, p.apiBase)
-	}
+		if resp.StatusCode == http.StatusTooManyRequests && attempt < maxRateLimitRetries {
+			delay := rateLimitRetryDelay(resp, attempt)
+			_ = resp.Body.Close()
+			// 429 在 builder-runtime 连续多次 patch generation 时容易出现；
+			// 这里做一个受限重试，避免把瞬时限流直接放大成整轮失败。
+			if err := waitForRetry(ctx, delay); err != nil {
+				return nil, err
+			}
+			continue
+		}
 
-	return common.ReadAndParseResponse(resp, p.apiBase)
+		if resp.StatusCode != http.StatusOK {
+			bodyBytes, readErr := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if readErr != nil {
+				return nil, fmt.Errorf("failed to read error response: %w", readErr)
+			}
+			if shouldRetryTransientProviderFailure(resp.StatusCode, bodyBytes) && attempt < maxRateLimitRetries {
+				delay := rateLimitRetryDelay(resp, attempt)
+				if err := waitForRetry(ctx, delay); err != nil {
+					return nil, err
+				}
+				continue
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			apiErr := common.HandleErrorResponse(resp, p.apiBase)
+			_ = resp.Body.Close()
+			return nil, apiErr
+		}
+
+		out, parseErr := common.ReadAndParseResponse(resp, p.apiBase)
+		_ = resp.Body.Close()
+		return out, parseErr
+	}
 }
 
 // ChatStream implements streaming via OpenAI-compatible SSE (stream: true).
@@ -439,7 +477,8 @@ func isNativeSearchHost(apiBase string) bool {
 	}
 	host := u.Hostname()
 	return host == "api.openai.com" || strings.HasSuffix(host, ".openai.azure.com")
-}
+	}
+
 
 // supportsPromptCacheKey reports whether the given API base is known to
 // support the prompt_cache_key request field. Currently only OpenAI's own
@@ -452,4 +491,67 @@ func supportsPromptCacheKey(apiBase string) bool {
 	}
 	host := u.Hostname()
 	return host == "api.openai.com" || strings.HasSuffix(host, ".openai.azure.com")
+}
+
+func rateLimitRetryDelay(resp *http.Response, attempt int) time.Duration {
+	if resp != nil {
+		if delay, ok := parseRetryAfter(resp.Header.Get("Retry-After")); ok {
+			return minDuration(delay, rateLimitRetryMax)
+		}
+	}
+	delay := rateLimitRetryBase << attempt
+	return minDuration(delay, rateLimitRetryMax)
+}
+
+func parseRetryAfter(value string) (time.Duration, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+	if seconds, err := strconv.Atoi(value); err == nil {
+		if seconds < 0 {
+			return 0, false
+		}
+		return time.Duration(seconds) * time.Second, true
+	}
+	when, err := http.ParseTime(value)
+	if err != nil {
+		return 0, false
+	}
+	delay := time.Until(when)
+	if delay < 0 {
+		return 0, true
+	}
+	return delay, true
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func minDuration(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func shouldRetryTransientProviderFailure(statusCode int, body []byte) bool {
+	if statusCode == http.StatusTooManyRequests {
+		return true
+	}
+	if statusCode != http.StatusBadRequest {
+		return false
+	}
+	return strings.Contains(string(body), degradedFunctionErr)
 }

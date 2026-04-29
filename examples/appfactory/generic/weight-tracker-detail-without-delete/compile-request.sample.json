@@ -1,0 +1,9 @@
+{
+  "requirement_text": "做一个体重记录 app，无首页，只读查看历史列表和详情页，不需要删除，优先保证本地可用。",
+  "requirement_source": "jobs-ui",
+  "title": "体重记录 App（只读详情）",
+  "job_id": "job-weight-tracker-detail-without-delete-sample-001",
+  "prd_id": "prd-weight-tracker-detail-without-delete-sample-001",
+  "real_checks": true,
+  "executor_image": "picoclaw/appfactory-builder:local"
+}

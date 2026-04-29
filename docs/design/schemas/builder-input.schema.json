@@ -10,6 +10,7 @@
     "job_id",
     "prd_id",
     "template_id",
+    "planning_policy",
     "workspace_path",
     "artifact_dir",
     "goal_summary",
@@ -26,7 +27,7 @@
     "schema_version": {
       "type": "string",
       "const": "0.1.0",
-      "description": "输入包 schema 版本。"
+      "description": "输入包 schema 版本；当前契约仅支持 0.1.0，运行时会显式拒绝未知版本。"
     },
     "job_id": {
       "type": "string",
@@ -42,6 +43,9 @@
       "type": "string",
       "minLength": 1,
       "description": "受控模板注册表中的模板标识。"
+    },
+    "planning_policy": {
+      "$ref": "#/$defs/planningPolicy"
     },
     "workspace_path": {
       "type": "string",
@@ -152,6 +156,59 @@
         }
       }
     },
+    "planningPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_version",
+        "stages"
+      ],
+      "properties": {
+        "policy_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/planningStagePolicy"
+          }
+        }
+      }
+    },
+    "planningStagePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "route"
+      ],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "enum": [
+            "requirement_structuring",
+            "domain_modeling",
+            "task_allocation",
+            "acceptance_planning",
+            "build_input_projection"
+          ]
+        },
+        "route": {
+          "type": "string",
+          "enum": [
+            "planning_model",
+            "decision_model",
+            "deterministic"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "taskBundleItem": {
       "type": "object",
       "additionalProperties": false,
@@ -176,8 +233,10 @@
           "type": "string",
           "enum": [
             "domain",
+            "content",
             "storage",
             "screen",
+            "summary",
             "flow",
             "validation"
           ]
@@ -191,6 +250,26 @@
             "test_repair",
             "closure_repair"
           ]
+        },
+        "risk_level": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "route_hint": {
+          "type": "string",
+          "enum": [
+            "deterministic",
+            "default_model",
+            "upgrade_model",
+            "strong_model"
+          ]
+        },
+        "allocation_transition": {
+          "$ref": "#/$defs/taskAllocationTransition"
         },
         "objective": {
           "type": "string",
@@ -238,6 +317,71 @@
           }
         },
         "risk_notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "taskAllocationTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allocation_id"
+      ],
+      "properties": {
+        "allocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "semantic_intent_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "screen_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "entity_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "relation_group_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "shared_ownership_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "owned_paths": {
+          "$ref": "#/$defs/pathList"
+        },
+        "blocked_by": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "success_evidence": {
           "type": "array",
           "items": {
             "type": "string",

@@ -8,3 +8,6 @@ config/
 *.md
 LICENSE
 assets/
+!LICENSE
+!examples/appfactory/templates/**/*.md
+!examples/appfactory/generic/**/*.md

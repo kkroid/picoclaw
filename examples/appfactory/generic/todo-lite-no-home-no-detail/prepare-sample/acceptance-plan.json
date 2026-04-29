@@ -1,0 +1,269 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-todo-lite-no-home-no-detail-sample-001",
+  "prd_id": "prd-todo-lite-no-home-no-detail-sample-001",
+  "template_id": "flutter-open-lite",
+  "structure_checks": [
+    {
+      "check_id": "check-flutter-pub-get",
+      "label": "安装 Flutter 依赖",
+      "description": "Flutter 依赖安装成功。",
+      "stage": "baseline",
+      "commands": [
+        "flutter pub get"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-flutter-pub-get",
+      "timeout_seconds": 300
+    },
+    {
+      "check_id": "check-open-lite-counter-demo-removed",
+      "label": "阻断 open-lite 默认 counter 模板",
+      "description": "工作区中不再保留 Flutter 默认 counter demo 文案、状态字段、页面类名或 smoke test。",
+      "stage": "cheap",
+      "commands": [
+        "grep -q . lib/main.dart lib/models/record.dart lib/views/record_form_page.dart lib/controllers/record_form_controller.dart lib/views/record_list_page.dart lib/controllers/record_list_controller.dart lib/repositories/record_repository.dart \u0026\u0026 ! grep -E 'Flutter Demo Home Page|You have pushed the button this many times|Counter increments smoke test|_counter|_incrementCounter|MyHomePage' lib/main.dart test/widget_test.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-open-lite-counter-demo-removed",
+      "slot_refs": [
+        "widget-test"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-open-lite-record-flow-wiring",
+      "label": "确认 open-lite CRUD 页面与控制器已接线",
+      "description": "代码中存在真实的新建、编辑、删除和详情接线，而不是只有静态按钮或单屏占位。",
+      "stage": "cheap",
+      "commands": [
+        "grep -E 'TextEditingController|TextFormField|DropdownButtonFormField|showDatePicker|RecordStatus|categoryController' lib/views/record_form_page.dart lib/controllers/record_form_controller.dart \u003e/dev/null 2\u003e\u00261 \u0026\u0026 grep -E 'RecordListPage' lib/main.dart \u003e/dev/null 2\u003e\u00261 \u0026\u0026 grep -E 'RecordListPage' lib/views/record_list_page.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-open-lite-record-flow-wiring",
+      "slot_refs": [
+        "flow-controller",
+        "widget-test"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-open-lite-local-persistence-wiring",
+      "label": "确认 open-lite 本地持久化已接线",
+      "description": "代码或依赖中出现明确的 Hive 本地持久化实现，而不是只展示静态记录。",
+      "stage": "cheap",
+      "commands": [
+        "grep -E 'hive_flutter|Hive' pubspec.yaml lib/repositories/record_repository.dart lib/main.dart \u003e/dev/null 2\u003e\u00261 \u0026\u0026 ! grep -E 'shared_preferences|SharedPreferences' pubspec.yaml lib/repositories/record_repository.dart lib/main.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-open-lite-local-persistence-wiring",
+      "slot_refs": [
+        "storage-boundary"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-profile-open-lite-domain-branding",
+      "label": "阻断 open-lite 默认 seed branding",
+      "description": "非空领域需求下，默认 seed branding 已从 Flutter 标题、首页标题和 Android 启动器名称中移除。",
+      "stage": "cheap",
+      "commands": [
+        "! grep -ER 'Open Lite Seed|open_lite_seed' lib android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/strings.xml \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-profile-open-lite-domain-branding",
+      "slot_refs": [
+        "domain-copy",
+        "android-branding"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-profile-open-lite-domain-language",
+      "label": "确认领域字段与文案已进入 open-lite 工作区",
+      "description": "生成代码或配置中必须出现待办领域词、任务字段或状态摘要字段。",
+      "stage": "cheap",
+      "commands": [
+        "grep -ER '待办|task_id|inbox_count|done_count|进行中' lib test android/app/src/main/res/values/strings.xml \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-profile-open-lite-domain-language",
+      "slot_refs": [
+        "domain-model",
+        "flow-controller",
+        "domain-copy",
+        "widget-test"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-flutter-analyze",
+      "label": "执行静态检查",
+      "description": "Flutter analyze 无错误。",
+      "stage": "cheap",
+      "commands": [
+        "flutter analyze"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-flutter-analyze",
+      "timeout_seconds": 300
+    },
+    {
+      "check_id": "check-flutter-test",
+      "label": "执行模板测试",
+      "description": "Widget test 全部通过。",
+      "stage": "cheap",
+      "commands": [
+        "flutter test"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-flutter-test",
+      "timeout_seconds": 300
+    }
+  ],
+  "semantic_checks": [
+    {
+      "check_id": "ac-list",
+      "label": "待办集合浏览承载单元可浏览",
+      "description": "集合浏览承载单元必须展示完整待办、支持按状态筛选，并允许进入结果检查入口。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '待办事项 App（无首页无详情）|task_id|taskId|title|category|status|note' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-list",
+      "slot_refs": [
+        "surface-collection"
+      ],
+      "field_refs": [
+        "task_id",
+        "title",
+        "category",
+        "status",
+        "note"
+      ],
+      "evidence_pattern": "待办事项 App（无首页无详情）|task_id|taskId|title|category|status|note"
+    },
+    {
+      "check_id": "ac-form",
+      "label": "待办变更承载单元链路完整",
+      "description": "用户可以通过实体变更承载单元创建或编辑一条待办并立即看到结果。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '待办事项 App（无首页无详情）|task_id|taskId|title|category|status|note' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-form",
+      "slot_refs": [
+        "surface-mutation"
+      ],
+      "field_refs": [
+        "task_id",
+        "title",
+        "category",
+        "status",
+        "note"
+      ],
+      "evidence_pattern": "待办事项 App（无首页无详情）|task_id|taskId|title|category|status|note"
+    },
+    {
+      "check_id": "ac-persistence",
+      "label": "本地持久化可恢复",
+      "description": "应用重启后仍能读取本地记录数据。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '待办事项 App（无首页无详情）|task_id|taskId|title|category|status|note' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-persistence",
+      "slot_refs": [
+        "surface-collection"
+      ],
+      "field_refs": [
+        "task_id",
+        "title",
+        "category",
+        "status",
+        "note"
+      ],
+      "evidence_pattern": "待办事项 App（无首页无详情）|task_id|taskId|title|category|status|note"
+    },
+    {
+      "check_id": "ac-navigation",
+      "label": "核心承载单元可导航",
+      "description": "当前需求声明的集合浏览和实体变更承载单元之间路径明确且可达。",
+      "stage": "cheap",
+      "commands": [
+        "paths=''; [ -d lib ] \u0026\u0026 paths=\"$paths lib\"; [ -d test ] \u0026\u0026 paths=\"$paths test\"; [ -f android/app/src/main/res/values/strings.xml ] \u0026\u0026 paths=\"$paths android/app/src/main/res/values/strings.xml\"; [ -n \"$paths\" ] \u0026\u0026 grep -ER '待办事项 App（无首页无详情）' $paths \u003e/dev/null 2\u003e\u00261"
+      ],
+      "required": true,
+      "source_type": "semantic_acceptance_rule",
+      "source_ref": "ac-navigation",
+      "evidence_pattern": "待办事项 App（无首页无详情）"
+    },
+    {
+      "check_id": "mrp-domain-wording",
+      "label": "检查待办领域文案是否完整进入 PRD",
+      "description": "待办标题、状态分布和任务字段不能被通用 record 话术覆盖。",
+      "required": true,
+      "source_type": "manual_review_point",
+      "source_ref": "mrp-domain-wording",
+      "slot_refs": [
+        "domain-copy",
+        "android-branding",
+        "surface-mutation"
+      ]
+    },
+    {
+      "check_id": "mrp-entity-fit",
+      "label": "确认领域实体能映射到 open-lite 中性交互承载骨架",
+      "description": "compile 后必须在复用集合浏览和实体变更承载单元的同时保留领域字段。",
+      "required": true,
+      "source_type": "manual_review_point",
+      "source_ref": "mrp-entity-fit",
+      "slot_refs": [
+        "domain-model"
+      ]
+    }
+  ],
+  "behavior_checks": [
+    {
+      "check_id": "flow-create-record",
+      "label": "创建待办",
+      "description": "从集合浏览入口进入新建动作 -\u003e 填写表单并保存 -\u003e 返回集合浏览入口查看最新结果",
+      "required": true,
+      "source_type": "user_flow",
+      "source_ref": "flow-create-record",
+      "slot_refs": [
+        "surface-collection",
+        "surface-mutation"
+      ]
+    }
+  ],
+  "delivery_checks": [
+    {
+      "check_id": "check-flutter-build-apk",
+      "label": "构建 Debug APK",
+      "description": "产出 app-debug.apk。",
+      "stage": "milestone",
+      "commands": [
+        "flutter build apk --debug --no-pub"
+      ],
+      "required": true,
+      "source_type": "acceptance_check",
+      "source_ref": "check-flutter-build-apk",
+      "timeout_seconds": 1800
+    }
+  ]
+}

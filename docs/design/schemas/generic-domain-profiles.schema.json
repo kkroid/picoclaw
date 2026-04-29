@@ -1,0 +1,201 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://picoclaw.dev/schemas/generic-domain-profiles.schema.json",
+  "title": "Generic Domain Profiles",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["SchemaVersion", "Profiles"],
+  "properties": {
+    "SchemaVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/profile"
+      }
+    }
+  },
+  "definitions": {
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ProfileID", "MatchTokens", "Signals"],
+      "properties": {
+        "ProfileID": {
+          "type": "string",
+          "minLength": 1
+        },
+        "MatchTokens": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "Signals": {
+          "$ref": "#/definitions/signals"
+        }
+      }
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "AppTitle",
+        "DomainLabel",
+        "SummaryLabel",
+        "OverviewTitle",
+        "OverviewSummary",
+        "CreateTitle",
+        "CreateSummary",
+        "UpdateTitle",
+        "UpdateSummary",
+        "DeleteTitle",
+        "DeleteSummary",
+        "InspectTitle",
+        "InspectSummary",
+        "HomeFeatureTitle",
+        "HomeFeatureSummary",
+        "ListFeatureTitle",
+        "ListFeatureSummary",
+        "FormFeatureTitle",
+        "FormFeatureSummary",
+        "DeleteFeatureTitle",
+        "DeleteFeatureSummary",
+        "HomeScreenName",
+        "HomeScreenPurpose",
+        "ListScreenName",
+        "ListScreenPurpose",
+        "EditorScreenName",
+        "EditorScreenPurpose",
+        "DetailScreenName",
+        "DetailScreenPurpose",
+        "CreateFieldsExpected",
+        "UpdateFieldsExpected",
+        "DetailFieldsExpected",
+        "Summary",
+        "ProblemStatement",
+        "Goals",
+        "Highlights",
+        "Entity",
+        "SummaryEntity",
+        "OverviewAcceptance",
+        "ListAcceptance",
+        "FormAcceptance",
+        "DeleteAcceptance",
+        "NavigationAcceptance",
+        "ManualReviewSummary",
+        "ManualReviewReason",
+        "SummaryReviewSummary",
+        "SummaryReviewReason",
+        "GoalSummary",
+        "TemplateFitDomainGap",
+        "ImplementationPhases",
+        "ManualConstraints",
+        "HumanNotes",
+        "TargetUserSummary",
+        "TargetUserPainPoints",
+        "ValidatorPainPoints",
+        "DomainCheckPattern",
+        "DomainCheckSummary"
+      ],
+      "properties": {
+        "AppTitle": {"type": "string", "minLength": 1},
+        "DomainLabel": {"type": "string", "minLength": 1},
+        "SummaryLabel": {"type": "string", "minLength": 1},
+        "OverviewTitle": {"type": "string", "minLength": 1},
+        "OverviewSummary": {"type": "string", "minLength": 1},
+        "CreateTitle": {"type": "string", "minLength": 1},
+        "CreateSummary": {"type": "string", "minLength": 1},
+        "UpdateTitle": {"type": "string", "minLength": 1},
+        "UpdateSummary": {"type": "string", "minLength": 1},
+        "DeleteTitle": {"type": "string", "minLength": 1},
+        "DeleteSummary": {"type": "string", "minLength": 1},
+        "InspectTitle": {"type": "string", "minLength": 1},
+        "InspectSummary": {"type": "string", "minLength": 1},
+        "FilterTitle": {"type": "string"},
+        "FilterSummary": {"type": "string"},
+        "HasFilter": {"type": "boolean"},
+        "HomeFeatureTitle": {"type": "string", "minLength": 1},
+        "HomeFeatureSummary": {"type": "string", "minLength": 1},
+        "ListFeatureTitle": {"type": "string", "minLength": 1},
+        "ListFeatureSummary": {"type": "string", "minLength": 1},
+        "FormFeatureTitle": {"type": "string", "minLength": 1},
+        "FormFeatureSummary": {"type": "string", "minLength": 1},
+        "DeleteFeatureTitle": {"type": "string", "minLength": 1},
+        "DeleteFeatureSummary": {"type": "string", "minLength": 1},
+        "HomeScreenName": {"type": "string", "minLength": 1},
+        "HomeScreenPurpose": {"type": "string", "minLength": 1},
+        "ListScreenName": {"type": "string", "minLength": 1},
+        "ListScreenPurpose": {"type": "string", "minLength": 1},
+        "EditorScreenName": {"type": "string", "minLength": 1},
+        "EditorScreenPurpose": {"type": "string", "minLength": 1},
+        "DetailScreenName": {"type": "string", "minLength": 1},
+        "DetailScreenPurpose": {"type": "string", "minLength": 1},
+        "CreateFieldsExpected": {"type": "string", "minLength": 1},
+        "UpdateFieldsExpected": {"type": "string", "minLength": 1},
+        "DetailFieldsExpected": {"type": "string", "minLength": 1},
+        "FilterExpected": {"type": "string"},
+        "Summary": {"type": "string", "minLength": 1},
+        "ProblemStatement": {"type": "string", "minLength": 1},
+        "Goals": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "Highlights": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "Entity": {"$ref": "template-fit-report.schema.json#/definitions/dataEntity"},
+        "SummaryEntity": {"$ref": "template-fit-report.schema.json#/definitions/dataEntity"},
+        "OverviewAcceptance": {"type": "string", "minLength": 1},
+        "ListAcceptance": {"type": "string", "minLength": 1},
+        "FormAcceptance": {"type": "string", "minLength": 1},
+        "DeleteAcceptance": {"type": "string", "minLength": 1},
+        "NavigationAcceptance": {"type": "string", "minLength": 1},
+        "ManualReviewSummary": {"type": "string", "minLength": 1},
+        "ManualReviewReason": {"type": "string", "minLength": 1},
+        "SummaryReviewSummary": {"type": "string", "minLength": 1},
+        "SummaryReviewReason": {"type": "string", "minLength": 1},
+        "GoalSummary": {"type": "string", "minLength": 1},
+        "TemplateFitDomainGap": {"type": "string", "minLength": 1},
+        "ImplementationPhases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "ManualConstraints": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "HumanNotes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {"type": "string"}
+          }
+        },
+        "TargetUserSummary": {"type": "string", "minLength": 1},
+        "TargetUserPainPoints": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "ValidatorPainPoints": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "DomainCheckPattern": {"type": "string", "minLength": 1},
+        "DomainCheckSummary": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

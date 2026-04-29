@@ -1,0 +1,220 @@
+{
+  "schema_version": "0.1.0",
+  "template_id": "flutter-finance-lite",
+  "name": "Flutter Finance Lite",
+  "description": "面向离线记账和收支录入 MVP 的 Flutter Android 模板。",
+  "repo_url": "examples/appfactory/templates/flutter-finance-lite",
+  "pinned_ref": "v0.1.0",
+  "license": "MIT",
+  "stack": "flutter",
+  "android_support": true,
+  "capabilities": [
+    "bottom-navigation",
+    "form",
+    "list",
+    "local-storage",
+    "summary-card"
+  ],
+  "excluded_capabilities": [
+    "auth",
+    "payments",
+    "ads",
+    "push",
+    "realtime-collaboration"
+  ],
+  "tags": [
+    "finance-domain",
+    "offline-first",
+    "bookkeeping",
+    "android"
+  ],
+  "network_profile": "offline-friendly",
+  "ui_complexity": "medium",
+  "build_proof": {
+    "status": "unknown",
+    "verified_at": "2026-04-10T00:00:00Z",
+    "commands": [
+      "flutter analyze",
+      "flutter test",
+      "flutter build apk --debug"
+    ],
+    "artifact_path": "examples/appfactory/templates/flutter-finance-lite"
+  },
+  "test_proof": {
+    "status": "unknown",
+    "verified_at": "2026-04-10T00:00:00Z",
+    "commands": [
+      "flutter test"
+    ],
+    "artifact_path": "examples/appfactory/templates/flutter-finance-lite/test"
+  },
+  "health_status": "healthy",
+  "risk_notes": [
+    "模板默认保留记账领域词和收支结构，不适合作为 generic domain 的通用 seed。",
+    "当前模板只覆盖首页概览、录入和账单列表，复杂多实体 finance 场景仍应切换到更具体的模板。"
+  ],
+  "selection_hints": [
+    "适合首页概览、记一笔、账单列表和本地持久化这类离线记账 MVP。",
+    "适合作为 bookkeeping / finance 类 compile 的固定执行模板，而不是 generic 需求的默认落点。"
+  ],
+  "slot_map": {
+    "schema_version": "0.1.0",
+    "template_id": "flutter-finance-lite",
+    "template_subject_version": "selected-template@flutter-finance-lite@v0.1.0@sha256:044bdae5cb92f850",
+    "slots": [
+      {
+        "binding_id": "surface-overview",
+        "slot_id": "finance-lite-overview-slot",
+        "slot_kind": "summary",
+        "target_paths": [
+          "lib/views/home_page.dart",
+          "lib/controllers/home_controller.dart",
+          "lib/models/summary.dart"
+        ],
+        "override_policy": "replace",
+        "required_inputs": [
+          "domain-model.json",
+          "planning-context.json"
+        ],
+        "acceptance_impacts": [
+          "ac-home",
+          "ac-navigation"
+        ],
+        "emit_eligible": false
+      },
+      {
+        "binding_id": "surface-collection",
+        "slot_id": "finance-lite-collection-slot",
+        "slot_kind": "list",
+        "target_paths": [
+          "lib/views/entry_list_page.dart",
+          "lib/controllers/entry_list_controller.dart"
+        ],
+        "override_policy": "replace",
+        "required_inputs": [
+          "domain-model.json",
+          "task-allocation.json"
+        ],
+        "acceptance_impacts": [
+          "ac-ledger"
+        ],
+        "emit_eligible": false
+      },
+      {
+        "binding_id": "surface-mutation",
+        "slot_id": "finance-lite-mutation-slot",
+        "slot_kind": "form",
+        "target_paths": [
+          "lib/views/entry_form_page.dart",
+          "lib/controllers/entry_form_controller.dart"
+        ],
+        "override_policy": "replace",
+        "required_inputs": [
+          "domain-model.json",
+          "task-allocation.json"
+        ],
+        "acceptance_impacts": [
+          "ac-entry"
+        ],
+        "emit_eligible": false
+      },
+      {
+        "binding_id": "app-entry",
+        "slot_id": "finance-lite-app-entry-slot",
+        "slot_kind": "app_entry",
+        "target_paths": [
+          "lib/main.dart"
+        ],
+        "override_policy": "replace",
+        "required_inputs": [
+          "planning-context.json",
+          "domain-model.json"
+        ],
+        "acceptance_impacts": [
+          "ac-home",
+          "ac-navigation"
+        ],
+        "emit_eligible": true
+      },
+      {
+        "binding_id": "domain-copy",
+        "slot_id": "finance-lite-domain-copy-slot",
+        "slot_kind": "copy",
+        "target_paths": [
+          "lib/views/home_page.dart",
+          "lib/views/entry_form_page.dart",
+          "lib/views/entry_list_page.dart"
+        ],
+        "override_policy": "synchronize",
+        "required_inputs": [
+          "planning-context.json",
+          "domain-model.json"
+        ],
+        "acceptance_impacts": [
+          "mrp-copy"
+        ],
+        "emit_eligible": true
+      },
+      {
+        "binding_id": "android-branding",
+        "slot_id": "finance-lite-branding-slot",
+        "slot_kind": "branding",
+        "target_paths": [
+          "android/app/src/main/res/values/strings.xml",
+          "android/app/build.gradle.kts"
+        ],
+        "override_policy": "synchronize",
+        "required_inputs": [
+          "planning-context.json",
+          "domain-model.json"
+        ],
+        "acceptance_impacts": [
+          "check-counter-demo-removed"
+        ],
+        "emit_eligible": true
+      },
+      {
+        "binding_id": "storage-boundary",
+        "slot_id": "finance-lite-storage-slot",
+        "slot_kind": "storage",
+        "target_paths": [
+          "lib/repositories/entry_repository.dart",
+          "pubspec.yaml"
+        ],
+        "override_policy": "extend",
+        "required_inputs": [
+          "domain-model.json",
+          "task-allocation.json"
+        ],
+        "acceptance_impacts": [
+          "ac-persistence"
+        ],
+        "emit_eligible": true
+      },
+      {
+        "binding_id": "widget-test",
+        "slot_id": "finance-lite-widget-test-slot",
+        "slot_kind": "test",
+        "target_paths": [
+          "test/widget_test.dart"
+        ],
+        "override_policy": "synchronize",
+        "required_inputs": [
+          "acceptance-plan.json",
+          "task-allocation.json"
+        ],
+        "acceptance_impacts": [
+          "ac-entry",
+          "ac-ledger",
+          "ac-navigation",
+          "check-counter-demo-removed"
+        ],
+        "emit_eligible": true
+      }
+    ]
+  },
+  "owner": {
+    "name": "AppFactory Planning Engine"
+  },
+  "last_checked_at": "2026-04-10T00:00:00Z"
+}

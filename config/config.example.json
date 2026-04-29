@@ -275,6 +275,15 @@
       "api_base": "https://api2.example.com/v1"
     },
     {
+      "model_name": "gemma4-26b-local",
+      "model": "openai/gemma4:26b",
+      "api_base": "http://127.0.0.1:11434/v1",
+      "fallbacks": [
+        "qwen2.5-coder-32b-local",
+        "gpt-5.4"
+      ]
+    },
+    {
       "model_name": "qwen2.5-coder-14b-local",
       "model": "openai/qwen2.5-coder:14b",
       "api_base": "http://127.0.0.1:11434/v1",
@@ -293,10 +302,18 @@
     }
   ],
   "appfactory": {
+    "planning_engine": {
+      "planning_model": {
+        "primary": "gpt-5.4"
+      },
+      "decision_model": {
+        "primary": "gpt-5.4"
+      }
+    },
     "builder_runtime": {
       "enabled": false,
       "default_model": {
-        "primary": "qwen2.5-coder-14b-local",
+        "primary": "gemma4-26b-local",
         "fallbacks": [
           "gpt-5.4"
         ]
@@ -310,19 +327,19 @@
       "task_routes": [
         {
           "task_type": "single_file_edit",
-          "model": "qwen2.5-coder-14b-local"
+          "model": "gemma4-26b-local"
         },
         {
           "task_type": "dual_file_wiring",
-          "model": "qwen2.5-coder-14b-local"
+          "model": "gemma4-26b-local"
         },
         {
           "task_type": "analyze_repair",
-          "model": "qwen2.5-coder-14b-local"
+          "model": "gemma4-26b-local"
         },
         {
           "task_type": "test_repair",
-          "model": "qwen2.5-coder-14b-local"
+          "model": "gemma4-26b-local"
         },
         {
           "task_type": "closure_repair",
@@ -332,9 +349,12 @@
       "upgrade_threshold": {
         "max_attempts_before_upgrade": 2,
         "max_files_before_upgrade": 2,
+        "max_schema_drift_before_upgrade": 1,
+        "max_unrelated_operation_rate": 0.4,
         "upgrade_on_validation_fail": true,
         "upgrade_on_patch_parse_fail": true,
-        "upgrade_on_scope_violation": true
+        "upgrade_on_scope_violation": true,
+        "upgrade_on_semantic_conflict": true
       }
     }
   },

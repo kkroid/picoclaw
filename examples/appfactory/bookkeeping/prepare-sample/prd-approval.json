@@ -1,0 +1,29 @@
+{
+  "schema_version": "0.1.0",
+  "approval_id": "approval-prd-prd-bookkeeping-prepare-sample",
+  "approval_type": "prd",
+  "job_id": "job-bookkeeping-prepare-sample",
+  "prd_id": "prd-bookkeeping-prepare-sample",
+  "subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:301024ece902c062@sha256:030f5b268c39b7a1",
+  "status": "approved",
+  "requested_by": {
+    "actor_type": "system",
+    "actor_id": "appfactory-prepare"
+  },
+  "decision": {
+    "decision": "approved",
+    "decided_by": {
+      "actor_type": "system",
+      "actor_id": "appfactory-prepare"
+    },
+    "decided_at": "2026-04-11T11:00:00Z",
+    "comment": "系统为当前最小编排链路生成已批准 PRD 快照，用于后续执行接线。"
+  },
+  "summary": "当前需求已整理为可执行 PRD 快照。",
+  "evidence_paths": [
+    "PRD.md",
+    "PRD.json",
+    "requirement.md"
+  ],
+  "created_at": "2026-04-11T11:00:00Z"
+}

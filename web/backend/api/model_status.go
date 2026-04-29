@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/sipeed/picoclaw/pkg/config"
+	"github.com/sipeed/picoclaw/pkg/httpx"
 )
 
 const modelProbeTimeout = 800 * time.Millisecond
@@ -252,7 +253,10 @@ func getJSON(rawURL string, out any, apiKey string) error {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
-	client := &http.Client{Timeout: modelProbeTimeout}
+	client, err := httpx.CreateHTTPClient("", modelProbeTimeout)
+	if err != nil {
+		return err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

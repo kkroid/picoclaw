@@ -1,0 +1,3443 @@
+package adapter
+
+import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"sort"
+	"strings"
+	"unicode"
+)
+
+var builderRuntimeOpenLiteTotalCountArgPattern = regexp.MustCompile(`,\s*int\s+totalCount\b`)
+var builderRuntimeOpenLiteTotalCountPlaceholderPattern = regexp.MustCompile(`\s*/\s*\$(?:\{)?totalCount(?:\})?`)
+var builderRuntimeOpenLiteParameterizedGetterPattern = regexp.MustCompile(`\bget\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
+var builderRuntimeOpenLiteSlashSeparatedGetterPattern = regexp.MustCompile(`(?m)^(\s*[A-Za-z0-9_<>,?]+\s+get\s+)[A-Za-z_][A-Za-z0-9_]*\s*/\s*([A-Za-z_][A-Za-z0-9_]*)(\s*(?:=>|\{))`)
+var builderRuntimeOpenLiteTruncatedViewAllActionGetterPattern = regexp.MustCompile(`(?m)^(\s*)String\s+get\s+viewAllAction\s*$`)
+var builderRuntimeOpenLiteMisspelledViewAllActionGetterPattern = regexp.MustCompile(`(?m)^(\s*)String\s+get\s+viewAllActionlar\s*=>.*$`)
+var builderRuntimeOpenLiteAppTitleGetterPattern = regexp.MustCompile(`(?m)^\s*String\s+get\s+appTitle\s*=>\s*'([^']*)';\s*$`)
+var builderRuntimeRecordDetailPageUpdatedAtTilePattern = regexp.MustCompile(`(?s)_InfoTile\(\s*label:\s*openLiteCopy\.detailDateLabel,\s*value:\s*'\$\{[A-Za-z_][A-Za-z0-9_]*\.updatedAt\.year\}-\$\{[A-Za-z_][A-Za-z0-9_]*\.updatedAt\.month\.toString\(\)\.padLeft\(2, '0'\)\}-\$\{[A-Za-z_][A-Za-z0-9_]*\.updatedAt\.day\.toString\(\)\.padLeft\(2, '0'\)\}',\s*\),`)
+var builderRuntimeOpenLiteFormPagePickDateSignaturePattern = regexp.MustCompile(`(?m)^[ \t]*Future<void>\s+_pickDate\(\)\s+async\s*\{`)
+var builderRuntimeOpenLiteFormPageDateTilePattern = regexp.MustCompile(`(?s)\n\s*const SizedBox\(height:\s*16\),\n\s*ListTile\(\s*contentPadding:.*?onPressed:\s*_pickDate,\s*icon:\s*const Icon\(Icons\.calendar_today\),\s*\),\s*\),\n\s*const SizedBox\(height:\s*16\),`)
+var builderRuntimeOpenLiteSelectedFilterFieldPattern = regexp.MustCompile(`(?m)^\s*([A-Z][A-Za-z0-9_]*)\?\s+_selectedFilter\b`)
+var builderRuntimeOpenLiteSelectedFilterGetterPattern = regexp.MustCompile(`(?m)^\s*([A-Z][A-Za-z0-9_]*)\?\s+get\s+selectedFilter\b`)
+var builderRuntimeOpenLiteRecordFormControllerClassPattern = regexp.MustCompile(`(?m)^\s*class\s+RecordFormController\b`)
+var builderRuntimeOpenLiteMainSeedColorPattern = regexp.MustCompile(`seedColor:\s*(?:const\s+)?Color\(([^)]+)\)`)
+var builderRuntimeOpenLiteDartHexColorLiteralPattern = regexp.MustCompile(`(?i)^0x[0-9a-f]{8}$`)
+var builderRuntimeOpenLiteMainListControllerDeclarationPattern = regexp.MustCompile(`(?m)^[ \t]*final\s+listController\s*=\s*RecordList\s*Controller\(\s*repository:\s*repository\s*\);[ \t]*(?:\n|$)`)
+var builderRuntimeOpenLiteMainGenericListControllerDeclarationPattern = regexp.MustCompile(`(?m)^[ \t]*final\s+listController\s*=\s*[A-Z][A-Za-z0-9_]*(?:List|Collection)Controller\(\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*repository\s*\);[ \t]*(?:\n|$)`)
+var builderRuntimeOpenLiteMainOnCreateRecordCallbackPattern = regexp.MustCompile(`(?s)onCreateRecord:\s*\(\)\s*async\s*\{.*?\n\s*\},`)
+var builderRuntimeOpenLiteMainOnOpenRecordDetailCallbackPattern = regexp.MustCompile(`(?s)onOpenRecordDetail:\s*\(record\)\s*async\s*\{.*?\n\s*\},`)
+var builderRuntimeOpenLiteMainNavigatorPushDoubleOpenParenPattern = regexp.MustCompile(`Navigator\.of\(context\)\.push(<[^>\n]+>)?\s*\(\(`)
+var builderRuntimeOpenLiteMainNavigatorPushPattern = regexp.MustCompile(`Navigator\.of\(context\)\.push(<[^>\n]+>)?\(`)
+var builderRuntimeOpenLiteCreateStatePrivateReturnPattern = regexp.MustCompile(`(?m)^([ \t]*)_([A-Z][A-Za-z0-9_]*)State\s+createState\(\)\s*=>\s*_[A-Z][A-Za-z0-9_]*State\(\);\s*$`)
+var builderRuntimeOpenLiteMainOnDeleteNullReturnPattern = regexp.MustCompile(`(?s)(onDelete:\s*\([^)]*\)\s*async\s*\{.*?)(\n[ \t]*)return null;(\n[ \t]*\},)`)
+var builderRuntimeOpenLiteMainFormControllerFieldPattern = regexp.MustCompile(`(?m)^[ \t]*late\s+final\s+([A-Z][A-Za-z0-9_]*FormController)\s+formController;\s*$`)
+var builderRuntimeOpenLiteOnOpenRecordDetailParamPattern = regexp.MustCompile(`(?m)^(\s*required this\.onOpenRecordDetail,\s*)$`)
+var builderRuntimeOpenLiteOnOpenRecordDetailFieldPattern = regexp.MustCompile(`(?m)^(\s*final\s+Future<void>\s+Function\([A-Z][A-Za-z0-9_]*\s+record\)\s+onOpenRecordDetail;\s*)$`)
+var builderRuntimeOpenLiteStatusLabelMethodPattern = regexp.MustCompile(`(?m)^\s*String\s+statusLabel\([^)]*\)\s*\{`)
+var builderRuntimeOpenLiteStatuslessCopyGetterPattern = regexp.MustCompile(`(?m)^\s*String\s+get\s+(?:detailStatusLabel|inboxFilterLabel|inProgressFilterLabel|doneFilterLabel)\s*=>.*(?:\n|$)`)
+var builderRuntimeOpenLiteTitlelessCopyGetterPattern = regexp.MustCompile(`(?m)^\s*String\s+get\s+(?:titleFieldLabel|titleFieldRequiredError)\s*=>.*(?:\n|$)`)
+var builderRuntimeOpenLiteCategorylessCopyGetterPattern = regexp.MustCompile(`(?m)^\s*String\s+get\s+(?:categoryFieldLabel|detailCategoryLabel)\s*=>.*(?:\n|$)`)
+var builderRuntimeOpenLiteRecordImportPattern = regexp.MustCompile(`(?m)^import '../models/record\.dart';\n?`)
+
+type builderRuntimeOpenLiteSurfaceRegistryConstructorContract struct {
+	controllerParam    string
+	controllerType     string
+	repositoryParam    string
+	recordParam        string
+	initialParam       string
+	detailCallbackName string
+	detailCallbackType string
+	createCallbackName string
+	viewAllCallbackName string
+	editCallbackName   string
+	deleteCallbackName string
+	requiredParams     []string
+}
+
+type builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags struct {
+	supportsCreate  bool
+	supportsDetail  bool
+	supportsInit    bool
+	supportsRefresh bool
+	supportsUpdate  bool
+	supportsEdit    bool
+	hasCategory     bool
+	hasStatus       bool
+	hasTitleField   bool
+	hasNoteField    bool
+}
+
+type builderRuntimeOpenLiteSurfaceRegistryFieldSemantics struct {
+	primaryTextField         string
+	secondaryTextField       string
+	statusField              string
+	statusEnumType           string
+	statusCopyLabelMethodName string
+	timeField                string
+	noteField                string
+}
+
+type builderRuntimeOpenLiteSurfaceRegistryFallbackMode string
+
+const (
+	builderRuntimeOpenLiteSurfaceRegistryFallbackExplicitSurface   builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "explicit_surface"
+	builderRuntimeOpenLiteSurfaceRegistryFallbackWorkspaceCandidate builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "workspace_candidate"
+	builderRuntimeOpenLiteSurfaceRegistryFallbackLikelyPath        builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "likely_path"
+	builderRuntimeOpenLiteSurfaceRegistryFallbackLegacyTemplate    builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "legacy_template"
+	builderRuntimeOpenLiteSurfaceRegistryFallbackUnresolved        builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "unresolved"
+)
+
+type builderRuntimeOpenLiteSurfaceRegistryResolutionSource string
+
+const (
+	builderRuntimeOpenLiteSurfaceRegistryResolutionExplicitSurface   builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "explicit_surface"
+	builderRuntimeOpenLiteSurfaceRegistryResolutionWorkspaceCandidate builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "workspace_candidate"
+	builderRuntimeOpenLiteSurfaceRegistryResolutionLikelyPath        builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "likely_path"
+	builderRuntimeOpenLiteSurfaceRegistryResolutionLegacyTemplate    builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "legacy_template"
+	builderRuntimeOpenLiteSurfaceRegistryResolutionUnresolved        builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "unresolved"
+)
+
+type builderRuntimeOpenLiteSurfaceRegistryEntry struct {
+	registryKey         string
+	bindingRef          string
+	surfaceRef          string
+	pathClass           string
+	templateRole        string
+	resolvedPath        string
+	resolvedClassName   string
+	modelImportPath     string
+	modelType           string
+	repositoryImportPath string
+	repositoryType      string
+	controllerImportPath string
+	constructorContract builderRuntimeOpenLiteSurfaceRegistryConstructorContract
+	capabilityFlags     builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags
+	fieldSemantics      builderRuntimeOpenLiteSurfaceRegistryFieldSemantics
+	fallbackMode        builderRuntimeOpenLiteSurfaceRegistryFallbackMode
+	resolutionSource    builderRuntimeOpenLiteSurfaceRegistryResolutionSource
+}
+
+type builderRuntimeOpenLiteCollectionSurfaceRegistrySnapshot struct {
+	controller builderRuntimeOpenLiteSurfaceRegistryEntry
+	view       builderRuntimeOpenLiteSurfaceRegistryEntry
+}
+
+type builderRuntimeOpenLiteOverviewSurfaceRegistrySnapshot struct {
+	controller builderRuntimeOpenLiteSurfaceRegistryEntry
+	view       builderRuntimeOpenLiteSurfaceRegistryEntry
+}
+
+type builderRuntimeOpenLiteDetailSurfaceRegistrySnapshot struct {
+	view                builderRuntimeOpenLiteSurfaceRegistryEntry
+	mutation            builderRuntimeOpenLiteSurfaceRegistryEntry
+	controller          builderRuntimeOpenLiteSurfaceRegistryEntry
+	detailCandidate     builderRuntimeDetailViewCandidate
+	mutationCandidate   builderRuntimeMutationViewCandidate
+	controllerCandidate builderRuntimeCollectionControllerCandidate
+}
+
+type builderRuntimeOpenLiteMutationSurfaceRegistrySnapshot struct {
+	view       builderRuntimeOpenLiteSurfaceRegistryEntry
+	controller builderRuntimeOpenLiteSurfaceRegistryEntry
+}
+
+func builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, pathClass, templateRole string) string {
+	parts := []string{strings.TrimSpace(bindingRef), strings.TrimSpace(surfaceRef), strings.TrimSpace(pathClass), strings.TrimSpace(templateRole)}
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part != "" {
+			filtered = append(filtered, part)
+		}
+	}
+	return strings.Join(filtered, ":")
+}
+
+func builderRuntimeOpenLiteSurfaceRegistryResolution(workspacePath, path string) (builderRuntimeOpenLiteSurfaceRegistryFallbackMode, builderRuntimeOpenLiteSurfaceRegistryResolutionSource) {
+	trimmedPath := strings.TrimSpace(path)
+	if trimmedPath == "" {
+		return builderRuntimeOpenLiteSurfaceRegistryFallbackUnresolved, builderRuntimeOpenLiteSurfaceRegistryResolutionUnresolved
+	}
+	if builderRuntimeWorkspaceHasSemanticFile(workspacePath, trimmedPath) {
+		return builderRuntimeOpenLiteSurfaceRegistryFallbackWorkspaceCandidate, builderRuntimeOpenLiteSurfaceRegistryResolutionWorkspaceCandidate
+	}
+	return builderRuntimeOpenLiteSurfaceRegistryFallbackLegacyTemplate, builderRuntimeOpenLiteSurfaceRegistryResolutionLegacyTemplate
+}
+
+func builderRuntimeOpenLiteSurfaceRegistryResolutionWithTemplateFallback(workspacePath, path string) (builderRuntimeOpenLiteSurfaceRegistryFallbackMode, builderRuntimeOpenLiteSurfaceRegistryResolutionSource) {
+	fallbackMode, resolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolution(workspacePath, path)
+	if fallbackMode == builderRuntimeOpenLiteSurfaceRegistryFallbackUnresolved {
+		return builderRuntimeOpenLiteSurfaceRegistryFallbackLegacyTemplate, builderRuntimeOpenLiteSurfaceRegistryResolutionLegacyTemplate
+	}
+	return fallbackMode, resolutionSource
+}
+
+func builderRuntimeOpenLiteRelativeImport(fromPath, toPath, fallback string) string {
+	trimmedFrom := strings.TrimSpace(fromPath)
+	trimmedTo := strings.TrimSpace(toPath)
+	if trimmedFrom == "" || trimmedTo == "" {
+		return fallback
+	}
+	relPath, err := filepath.Rel(filepath.Dir(filepath.FromSlash(trimmedFrom)), filepath.FromSlash(trimmedTo))
+	if err != nil {
+		return fallback
+	}
+	relPath = filepath.ToSlash(relPath)
+	if strings.TrimSpace(relPath) == "" {
+		return fallback
+	}
+	return relPath
+}
+
+func builderRuntimeOpenLiteCollectionRegistryModel(workspacePath string, candidate builderRuntimeCollectionViewCandidate) (string, string) {
+	modelType := builderRuntimeOpenLitePrimaryRecordTypeName(workspacePath)
+	modelPath := builderRuntimeOpenLitePrimaryRecordModelPath(workspacePath)
+	if resolvedItemType, ok := builderRuntimeCollectionViewResolvedItemType(workspacePath, candidate); ok && strings.TrimSpace(resolvedItemType) != "" {
+		modelType = strings.TrimSpace(resolvedItemType)
+		if itemModelPath := builderRuntimeModelImportPathForType(workspacePath, modelType); itemModelPath != "" {
+			modelPath = itemModelPath
+		}
+	}
+	if strings.TrimSpace(modelType) == "" {
+		modelType = "TodoItem"
+	}
+	if strings.TrimSpace(modelPath) == "" {
+		modelPath = "lib/models/record.dart"
+	}
+	return modelType, modelPath
+}
+
+func builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath string, hints ...string) builderRuntimeOpenLiteCollectionSurfaceRegistrySnapshot {
+	surface := builderRuntimePrimaryCollectionSurfaceCandidate(workspacePath, hints...)
+	modelType, modelPath := builderRuntimeOpenLiteCollectionRegistryModel(workspacePath, surface.view)
+	fieldSemantics := builderRuntimeOpenLiteCollectionFieldSemantics(workspacePath)
+	repositoryPath := strings.TrimSpace(surface.repository.path)
+	if repositoryPath == "" {
+		repositoryPath = "lib/repositories/record_repository.dart"
+	}
+	repositoryType := strings.TrimSpace(surface.repository.repositoryType)
+	if repositoryType == "" {
+		repositoryType = "RecordRepository"
+	}
+	controllerPath := strings.TrimSpace(surface.controller.path)
+	if controllerPath == "" {
+		controllerPath = "lib/controllers/record_list_controller.dart"
+	}
+	controllerClass := strings.TrimSpace(surface.controller.className)
+	if controllerClass == "" {
+		controllerClass = "RecordListController"
+	}
+	controllerFallbackMode, controllerResolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolutionWithTemplateFallback(workspacePath, controllerPath)
+	controllerRepositoryParam := strings.TrimSpace(surface.controller.repositoryParam)
+	if controllerRepositoryParam == "" {
+		controllerRepositoryParam = "repository"
+	}
+	viewPath := strings.TrimSpace(surface.view.path)
+	if viewPath == "" {
+		viewPath = "lib/views/record_list_page.dart"
+	}
+	viewClass := strings.TrimSpace(surface.view.className)
+	if viewClass == "" {
+		viewClass = "RecordListPage"
+	}
+	viewFallbackMode, viewResolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolutionWithTemplateFallback(workspacePath, viewPath)
+	controllerParam := strings.TrimSpace(surface.view.controllerParam)
+	if controllerParam == "" {
+		controllerParam = "controller"
+	}
+	controllerType := strings.TrimSpace(surface.view.controllerType)
+	if controllerType == "" {
+		controllerType = controllerClass
+	}
+	detailCallbackName := strings.TrimSpace(surface.view.detailCallbackName)
+	if detailCallbackName == "" {
+		detailCallbackName = "onOpenRecordDetail"
+	}
+	detailCallbackType := strings.TrimSpace(surface.view.detailCallbackType)
+	if detailCallbackType == "" {
+		detailCallbackType = "Future<void> Function(" + modelType + " record)"
+	}
+	createCallbackName := strings.TrimSpace(surface.view.createCallbackName)
+	if createCallbackName == "" {
+		createCallbackName = "onCreateRecord"
+	}
+	bindingRef := builderRuntimeCollectionSurfaceRef
+	surfaceRef := builderRuntimeCollectionSurfaceRef
+	return builderRuntimeOpenLiteCollectionSurfaceRegistrySnapshot{
+		controller: builderRuntimeOpenLiteSurfaceRegistryEntry{
+			registryKey:          builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, "controller", "collection_controller"),
+			bindingRef:           bindingRef,
+			surfaceRef:           surfaceRef,
+			pathClass:            "controller",
+			templateRole:         "collection_controller",
+			resolvedPath:         controllerPath,
+			resolvedClassName:    controllerClass,
+			modelImportPath:      builderRuntimeOpenLiteRelativeImport(controllerPath, modelPath, "../models/record.dart"),
+			modelType:            modelType,
+			repositoryImportPath: builderRuntimeOpenLiteRelativeImport(controllerPath, repositoryPath, "../repositories/record_repository.dart"),
+			repositoryType:       repositoryType,
+			constructorContract: builderRuntimeOpenLiteSurfaceRegistryConstructorContract{
+				repositoryParam: controllerRepositoryParam,
+			},
+			capabilityFlags: builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags{
+				supportsInit:    surface.controller.supportsInit,
+				supportsRefresh: surface.controller.supportsRefresh,
+				supportsUpdate:  surface.controller.supportsUpdate,
+			},
+			fieldSemantics:  fieldSemantics,
+			fallbackMode:     controllerFallbackMode,
+			resolutionSource: controllerResolutionSource,
+		},
+		view: builderRuntimeOpenLiteSurfaceRegistryEntry{
+			registryKey:          builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, "view", "collection_view"),
+			bindingRef:           bindingRef,
+			surfaceRef:           surfaceRef,
+			pathClass:            "view",
+			templateRole:         "collection_view",
+			resolvedPath:         viewPath,
+			resolvedClassName:    viewClass,
+			controllerImportPath: builderRuntimeOpenLiteRelativeImport(viewPath, controllerPath, "../controllers/record_list_controller.dart"),
+			modelImportPath:      builderRuntimeOpenLiteRelativeImport(viewPath, modelPath, "../models/record.dart"),
+			modelType:            modelType,
+			constructorContract: builderRuntimeOpenLiteSurfaceRegistryConstructorContract{
+				controllerParam:    controllerParam,
+				controllerType:     controllerType,
+				detailCallbackName: detailCallbackName,
+				detailCallbackType: detailCallbackType,
+				createCallbackName: createCallbackName,
+			},
+			capabilityFlags: builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags{
+				supportsCreate: createCallbackName != "",
+				supportsDetail: detailCallbackName != "",
+				hasCategory:    !builderRuntimeOpenLiteShouldDropCategoryField(workspacePath),
+				hasStatus:      builderRuntimeOpenLiteRecordModelHasStatus(workspacePath),
+			},
+			fieldSemantics:  fieldSemantics,
+			fallbackMode:     viewFallbackMode,
+			resolutionSource: viewResolutionSource,
+		},
+	}
+}
+
+func builderRuntimeOpenLiteOverviewSurfaceRegistry(workspacePath string, hints ...string) builderRuntimeOpenLiteOverviewSurfaceRegistrySnapshot {
+	surface := builderRuntimePrimaryOverviewSurfaceCandidate(workspacePath, hints...)
+	repositoryPath := strings.TrimSpace(surface.repository.path)
+	if repositoryPath == "" {
+		repositoryPath = "lib/repositories/record_repository.dart"
+	}
+	repositoryType := strings.TrimSpace(surface.repository.repositoryType)
+	if repositoryType == "" {
+		repositoryType = "RecordRepository"
+	}
+	controllerPath := strings.TrimSpace(surface.controller.path)
+	if controllerPath == "" {
+		controllerPath = "lib/controllers/home_controller.dart"
+	}
+	controllerClass := strings.TrimSpace(surface.controller.className)
+	if controllerClass == "" {
+		controllerClass = "HomeController"
+	}
+	controllerFallbackMode, controllerResolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolutionWithTemplateFallback(workspacePath, controllerPath)
+	controllerRepositoryParam := strings.TrimSpace(surface.controller.repositoryParam)
+	if controllerRepositoryParam == "" {
+		controllerRepositoryParam = "repository"
+	}
+	viewPath := strings.TrimSpace(surface.view.path)
+	if viewPath == "" {
+		viewPath = "lib/views/home_page.dart"
+	}
+	viewClass := strings.TrimSpace(surface.view.className)
+	if viewClass == "" {
+		viewClass = "HomePage"
+	}
+	viewFallbackMode, viewResolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolutionWithTemplateFallback(workspacePath, viewPath)
+	controllerParam := strings.TrimSpace(surface.view.controllerParam)
+	if controllerParam == "" {
+		controllerParam = "controller"
+	}
+	controllerType := strings.TrimSpace(surface.view.controllerType)
+	if controllerType == "" {
+		controllerType = controllerClass
+	}
+	createCallbackName := strings.TrimSpace(surface.view.createCallbackName)
+	if createCallbackName == "" {
+		createCallbackName = "onCreateRecord"
+	}
+	viewAllCallbackName := strings.TrimSpace(surface.view.viewAllCallbackName)
+	if viewAllCallbackName == "" {
+		viewAllCallbackName = "onViewAllRecords"
+	}
+	bindingRef := builderRuntimeOverviewSurfaceRef
+	surfaceRef := builderRuntimeOverviewSurfaceRef
+	return builderRuntimeOpenLiteOverviewSurfaceRegistrySnapshot{
+		controller: builderRuntimeOpenLiteSurfaceRegistryEntry{
+			registryKey:          builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, "controller", "overview_controller"),
+			bindingRef:           bindingRef,
+			surfaceRef:           surfaceRef,
+			pathClass:            "controller",
+			templateRole:         "overview_controller",
+			resolvedPath:         controllerPath,
+			resolvedClassName:    controllerClass,
+			repositoryImportPath: builderRuntimeOpenLiteRelativeImport(controllerPath, repositoryPath, "../repositories/record_repository.dart"),
+			repositoryType:       repositoryType,
+			constructorContract: builderRuntimeOpenLiteSurfaceRegistryConstructorContract{
+				repositoryParam: controllerRepositoryParam,
+			},
+			fallbackMode:     controllerFallbackMode,
+			resolutionSource: controllerResolutionSource,
+		},
+		view: builderRuntimeOpenLiteSurfaceRegistryEntry{
+			registryKey:          builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, "view", "overview_view"),
+			bindingRef:           bindingRef,
+			surfaceRef:           surfaceRef,
+			pathClass:            "view",
+			templateRole:         "overview_view",
+			resolvedPath:         viewPath,
+			resolvedClassName:    viewClass,
+			controllerImportPath: builderRuntimeOpenLiteRelativeImport(viewPath, controllerPath, "../controllers/home_controller.dart"),
+			constructorContract: builderRuntimeOpenLiteSurfaceRegistryConstructorContract{
+				controllerParam:     controllerParam,
+				controllerType:      controllerType,
+				createCallbackName:  createCallbackName,
+				viewAllCallbackName: viewAllCallbackName,
+			},
+			fallbackMode:     viewFallbackMode,
+			resolutionSource: viewResolutionSource,
+		},
+	}
+}
+
+func builderRuntimeOpenLiteDetailSurfaceRegistry(workspacePath string, hints ...string) builderRuntimeOpenLiteDetailSurfaceRegistrySnapshot {
+	detailSurface := builderRuntimePrimaryDetailSurfaceCandidate(workspacePath, hints...)
+	collectionSurface := builderRuntimePrimaryCollectionSurfaceCandidate(workspacePath, hints...)
+	repositoryPath := strings.TrimSpace(collectionSurface.repository.path)
+	if repositoryPath == "" {
+		repositoryPath = "lib/repositories/record_repository.dart"
+	}
+	repositoryType := strings.TrimSpace(collectionSurface.repository.repositoryType)
+	if repositoryType == "" {
+		repositoryType = "RecordRepository"
+	}
+	viewPath := strings.TrimSpace(detailSurface.view.path)
+	viewClass := strings.TrimSpace(detailSurface.view.className)
+	mutationPath := strings.TrimSpace(detailSurface.mutation.view.path)
+	mutationClass := strings.TrimSpace(detailSurface.mutation.view.className)
+	controllerPath := strings.TrimSpace(detailSurface.controller.path)
+	controllerClass := strings.TrimSpace(detailSurface.controller.className)
+	viewFallbackMode, viewResolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolution(workspacePath, viewPath)
+	mutationFallbackMode, mutationResolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolution(workspacePath, mutationPath)
+	controllerFallbackMode, controllerResolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolution(workspacePath, controllerPath)
+	bindingRef := builderRuntimeInspectionSurfaceRef
+	surfaceRef := builderRuntimeInspectionSurfaceRef
+	return builderRuntimeOpenLiteDetailSurfaceRegistrySnapshot{
+		view: builderRuntimeOpenLiteSurfaceRegistryEntry{
+			registryKey:       builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, "view", "inspection_view"),
+			bindingRef:        bindingRef,
+			surfaceRef:        surfaceRef,
+			pathClass:         "view",
+			templateRole:      "inspection_view",
+			resolvedPath:      viewPath,
+			resolvedClassName: viewClass,
+			constructorContract: builderRuntimeOpenLiteSurfaceRegistryConstructorContract{
+				recordParam:        detailSurface.view.recordParam,
+				editCallbackName:   detailSurface.view.editCallbackName,
+				deleteCallbackName: detailSurface.view.deleteCallbackName,
+				requiredParams:     append([]string(nil), detailSurface.view.requiredParams...),
+			},
+			fallbackMode:     viewFallbackMode,
+			resolutionSource: viewResolutionSource,
+		},
+		mutation: builderRuntimeOpenLiteSurfaceRegistryEntry{
+			registryKey:       builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, "view", "mutation_view"),
+			bindingRef:        bindingRef,
+			surfaceRef:        surfaceRef,
+			pathClass:         "view",
+			templateRole:      "mutation_view",
+			resolvedPath:      mutationPath,
+			resolvedClassName: mutationClass,
+			constructorContract: builderRuntimeOpenLiteSurfaceRegistryConstructorContract{
+				repositoryParam: detailSurface.mutation.view.repositoryParam,
+				initialParam:    detailSurface.mutation.view.initialParam,
+			},
+			fallbackMode:     mutationFallbackMode,
+			resolutionSource: mutationResolutionSource,
+		},
+		controller: builderRuntimeOpenLiteSurfaceRegistryEntry{
+			registryKey:          builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, "controller", "collection_controller"),
+			bindingRef:           bindingRef,
+			surfaceRef:           surfaceRef,
+			pathClass:            "controller",
+			templateRole:         "collection_controller",
+			resolvedPath:         controllerPath,
+			resolvedClassName:    controllerClass,
+			repositoryImportPath: builderRuntimeOpenLiteRelativeImport(controllerPath, repositoryPath, "../repositories/record_repository.dart"),
+			repositoryType:       repositoryType,
+			constructorContract: builderRuntimeOpenLiteSurfaceRegistryConstructorContract{
+				repositoryParam: detailSurface.controller.repositoryParam,
+			},
+			fallbackMode:     controllerFallbackMode,
+			resolutionSource: controllerResolutionSource,
+		},
+		detailCandidate:     detailSurface.view,
+		mutationCandidate:   detailSurface.mutation.view,
+		controllerCandidate: detailSurface.controller,
+	}
+}
+
+func builderRuntimeOpenLiteMutationSurfaceRegistry(workspacePath string, hints ...string) builderRuntimeOpenLiteMutationSurfaceRegistrySnapshot {
+	surface := builderRuntimePrimaryMutationSurfaceCandidate(workspacePath, hints...)
+	repository := builderRuntimePrimaryRepositoryCandidate(workspacePath, hints...)
+	repositoryPath := strings.TrimSpace(repository.path)
+	if repositoryPath == "" {
+		repositoryPath = "lib/repositories/record_repository.dart"
+	}
+	repositoryType := strings.TrimSpace(repository.repositoryType)
+	if repositoryType == "" {
+		repositoryType = "RecordRepository"
+	}
+	viewPath := strings.TrimSpace(surface.view.path)
+	if viewPath == "" {
+		viewPath = "lib/views/record_form_page.dart"
+	}
+	viewClass := strings.TrimSpace(surface.view.className)
+	if viewClass == "" {
+		viewClass = "RecordFormPage"
+	}
+	viewFallbackMode, viewResolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolutionWithTemplateFallback(workspacePath, viewPath)
+	controllerPath := strings.TrimSpace(surface.controller.path)
+	if controllerPath == "" {
+		controllerPath = builderRuntimeOpenLiteMutationControllerPath(workspacePath)
+	}
+	controllerClass := strings.TrimSpace(surface.controller.className)
+	controllerContent := builderRuntimeOpenLiteMutationControllerContent(workspacePath)
+	if controllerClass == "" {
+		controllerClass = builderRuntimeOpenLiteFirstNamedDartClass(controllerContent)
+	}
+	if controllerClass == "" {
+		controllerClass = "RecordFormController"
+	}
+	controllerFallbackMode, controllerResolutionSource := builderRuntimeOpenLiteSurfaceRegistryResolutionWithTemplateFallback(workspacePath, controllerPath)
+	hasTitleField := strings.Contains(controllerContent, "titleController")
+	hasNoteField := strings.Contains(controllerContent, "noteController")
+	hasStatusFlow := builderRuntimeOpenLiteRecordModelHasStatus(workspacePath)
+	hasExplicitMutationView := strings.TrimSpace(surface.view.path) != ""
+	bindingRef := builderRuntimeMutationSurfaceRef
+	surfaceRef := builderRuntimeMutationSurfaceRef
+	return builderRuntimeOpenLiteMutationSurfaceRegistrySnapshot{
+		view: builderRuntimeOpenLiteSurfaceRegistryEntry{
+			registryKey:       builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, "view", "mutation_view"),
+			bindingRef:        bindingRef,
+			surfaceRef:        surfaceRef,
+			pathClass:         "view",
+			templateRole:      "mutation_view",
+			resolvedPath:      viewPath,
+			resolvedClassName: viewClass,
+			constructorContract: builderRuntimeOpenLiteSurfaceRegistryConstructorContract{
+				controllerParam: surface.view.controllerParam,
+				controllerType:  surface.view.controllerType,
+				repositoryParam: surface.view.repositoryParam,
+				initialParam:    surface.view.initialParam,
+			},
+			capabilityFlags: builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags{
+				hasStatus:    hasStatusFlow,
+				supportsEdit: hasTitleField && (!hasExplicitMutationView || surface.view.initialParam != ""),
+			},
+			fallbackMode:     viewFallbackMode,
+			resolutionSource: viewResolutionSource,
+		},
+		controller: builderRuntimeOpenLiteSurfaceRegistryEntry{
+			registryKey:          builderRuntimeOpenLiteRegistryKey(bindingRef, surfaceRef, "controller", "mutation_controller"),
+			bindingRef:           bindingRef,
+			surfaceRef:           surfaceRef,
+			pathClass:            "controller",
+			templateRole:         "mutation_controller",
+			resolvedPath:         controllerPath,
+			resolvedClassName:    controllerClass,
+			repositoryImportPath: builderRuntimeOpenLiteRelativeImport(controllerPath, repositoryPath, "../repositories/record_repository.dart"),
+			repositoryType:       repositoryType,
+			constructorContract: builderRuntimeOpenLiteSurfaceRegistryConstructorContract{
+				repositoryParam: surface.controller.repositoryParam,
+			},
+			capabilityFlags: builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags{
+				hasStatus:     hasStatusFlow,
+				hasTitleField: hasTitleField,
+				hasNoteField:  hasNoteField,
+			},
+			fallbackMode:     controllerFallbackMode,
+			resolutionSource: controllerResolutionSource,
+		},
+	}
+}
+
+func builderRuntimeOpenLiteFirstNamedDartClass(content string) string {
+	matches := builderRuntimeNamedDartTypeDeclarationPattern.FindAllStringSubmatch(content, -1)
+	for _, match := range matches {
+		if len(match) < 3 || strings.TrimSpace(match[1]) != "class" {
+			continue
+		}
+		className := strings.TrimSpace(match[2])
+		if className != "" {
+			return className
+		}
+	}
+	return ""
+}
+
+func appendBuilderRuntimeOpenLiteTemplateCopyPromptGuidance(builder *strings.Builder, forbiddenSchemaTokens []string) {
+	builder.WriteString("For current template copy files under lib/template/*.dart, expose only copy helpers justified by the current record.dart, dashboard_summary.dart, and screen flows in context. Remove default seed helper methods whose required fields or workflow concepts are absent from the current models.\n")
+	if slices.Contains(forbiddenSchemaTokens, "totalCount") {
+		builder.WriteString("Current summary model does not define totalCount. Do not emit summaryCountLabel, recentRecordsCountLabel, listCountLabel, or any current template copy helper signature that requires totalCount. Never emit the identifier totalCount anywhere in the current template copy file. If count copy is still needed, keep count-only helpers such as summaryCountLabel(int count), recentRecordsCountLabel(int count), and listCountLabel(int visibleCount).\n")
+	}
+	if slices.Contains(forbiddenSchemaTokens, "RecordStatus") || slices.Contains(forbiddenSchemaTokens, ".status") {
+		builder.WriteString("Current record model does not define a status workflow. Do not emit RecordStatus-based labels, filter wording, or statusLabel helpers in the current template copy file.\n")
+	}
+}
+
+func appendBuilderRuntimeOpenLiteSchemaRemapGuidance(builder *strings.Builder) {
+	builder.WriteString("When remapping flutter-open-lite away from the default generic record schema, do not leave stale references to title, category, status, updatedAt, totalCount, inboxCount, inProgressCount, or doneCount unless the final record or summary model still defines them. If record.dart or dashboard_summary.dart changes, update every dependent controller, repository, widget, and test in the current file context to the final schema before finishing the patch.\n")
+	builder.WriteString("If the final schema no longer defines status- or updatedAt-style fields, remove or rewrite every selectedStatus state, RecordStatus enum branch, status filter chip, status badge, and repository sort/order call that still depends on those generic fields. Replace them with domain-appropriate behavior derived from the final schema such as recordedAt ordering, weight history display, note text, or other actual domain fields.\n")
+	builder.WriteString("Unless the final schema explicitly keeps status-based workflow buckets, do not reference RecordStatus, RecordListFilter, openLiteCopy.statusLabel, openLiteCopy.inboxFilterLabel, openLiteCopy.inProgressFilterLabel, openLiteCopy.doneFilterLabel, summary.inboxCount, summary.inProgressCount, or summary.doneCount in the final patch.\n")
+}
+
+func appendBuilderRuntimeOpenLiteWeightRecordTemplateCopyFailureGuidance(builder *strings.Builder) {
+	builder.WriteString("For current template copy files, keep domain copy focused on weight records and remove any status label helpers or workflow-bucket wording that depends on RecordStatus.\n")
+}
+
+func normalizeBuilderRuntimeTemplateCopyContent(workspacePath, content string) string {
+	return normalizeBuilderRuntimeOpenLiteCopyContent(workspacePath, content)
+}
+
+func normalizeBuilderRuntimeOpenLiteCopyContent(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	if canonical := builderRuntimeOpenLiteCanonicalRelationRichCopyContent(workspacePath, content); strings.TrimSpace(canonical) != "" {
+		if builderRuntimeNormalizeSourceForComparison(content) != builderRuntimeNormalizeSourceForComparison(canonical) {
+			return canonical
+		}
+		return content
+	}
+	updated := normalizeBuilderRuntimeOpenLiteEscapedNewlineGetterNames(content)
+	updated = builderRuntimeOpenLiteMisspelledViewAllActionGetterPattern.ReplaceAllString(updated, "${1}String get viewAllActionLabel => '查看任务列表';")
+	updated = builderRuntimeOpenLiteSlashSeparatedGetterPattern.ReplaceAllString(updated, "$1$2$3")
+	updated = builderRuntimeOpenLiteTruncatedViewAllActionGetterPattern.ReplaceAllString(updated, "${1}String get viewAllActionLabel => '查看全部';")
+	updated = builderRuntimeOpenLiteParameterizedGetterPattern.ReplaceAllString(updated, "$1(")
+	if strings.Contains(updated, "totalCount") && builderRuntimeOpenLiteShouldDropTotalCount(workspacePath) {
+		lines := strings.Split(updated, "\n")
+		activeReplacement := ""
+		braceDepth := 0
+		for index, line := range lines {
+			switch {
+			case strings.Contains(line, "summaryCountLabel(") && strings.Contains(line, "totalCount"):
+				lines[index] = normalizeBuilderRuntimeOpenLiteCopyLine(line, "count")
+				activeReplacement, braceDepth = builderRuntimeOpenLiteCopyMethodNormalizationState(lines[index], "count")
+				continue
+			case strings.Contains(line, "recentRecordsCountLabel(") && strings.Contains(line, "totalCount"):
+				lines[index] = normalizeBuilderRuntimeOpenLiteCopyLine(line, "count")
+				activeReplacement, braceDepth = builderRuntimeOpenLiteCopyMethodNormalizationState(lines[index], "count")
+				continue
+			case strings.Contains(line, "listCountLabel(") && strings.Contains(line, "totalCount"):
+				lines[index] = normalizeBuilderRuntimeOpenLiteCopyLine(line, "visibleCount")
+				activeReplacement, braceDepth = builderRuntimeOpenLiteCopyMethodNormalizationState(lines[index], "visibleCount")
+				continue
+			}
+			if activeReplacement == "" {
+				continue
+			}
+			lines[index] = normalizeBuilderRuntimeOpenLiteCopyLine(line, activeReplacement)
+			braceDepth += strings.Count(lines[index], "{")
+			braceDepth -= strings.Count(lines[index], "}")
+			if braceDepth <= 0 {
+				activeReplacement = ""
+				braceDepth = 0
+			}
+		}
+		updated = strings.Join(lines, "\n")
+		updated = builderRuntimeOpenLiteTotalCountArgPattern.ReplaceAllString(updated, "")
+		updated = builderRuntimeOpenLiteTotalCountPlaceholderPattern.ReplaceAllString(updated, "")
+		updated = strings.ReplaceAll(updated, "totalCount", "count")
+	}
+	if builderRuntimeOpenLiteShouldDropStatusWorkflow(workspacePath) {
+		updated = builderRuntimeRemoveDartMethodBlock(updated, builderRuntimeOpenLiteStatusLabelMethodPattern)
+		updated = builderRuntimeOpenLiteStatuslessCopyGetterPattern.ReplaceAllString(updated, "")
+		if !strings.Contains(updated, "RecordStatus") {
+			updated = builderRuntimeOpenLiteRecordImportPattern.ReplaceAllString(updated, "")
+		}
+	}
+	if builderRuntimeOpenLiteShouldDropTitleField(workspacePath) {
+		updated = builderRuntimeOpenLiteTitlelessCopyGetterPattern.ReplaceAllString(updated, "")
+	}
+	if builderRuntimeOpenLiteShouldDropCategoryField(workspacePath) {
+		updated = builderRuntimeOpenLiteCategorylessCopyGetterPattern.ReplaceAllString(updated, "")
+	}
+	updated = builderRuntimeOpenLiteRetargetCopyStatusTypeToCurrentModel(workspacePath, updated)
+	return updated
+}
+
+func builderRuntimeOpenLiteRetargetCopyStatusTypeToCurrentModel(workspacePath, content string) string {
+	if strings.TrimSpace(workspacePath) == "" || strings.TrimSpace(content) == "" {
+		return content
+	}
+	fieldSemantics := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath).view.fieldSemantics
+	statusEnumType := strings.TrimSpace(fieldSemantics.statusEnumType)
+	if statusEnumType == "" {
+		return content
+	}
+	updated := strings.ReplaceAll(content, "RecordStatus", statusEnumType)
+	statusCopyLabelMethodName := strings.TrimSpace(fieldSemantics.statusCopyLabelMethodName)
+	if statusCopyLabelMethodName != "" && statusCopyLabelMethodName != "statusLabel" {
+		updated = regexp.MustCompile(`\bstatusLabel\s*\(`).ReplaceAllString(updated, statusCopyLabelMethodName+"(")
+	}
+	updated = builderRuntimeOpenLiteRetargetCopyStatusEnumMembers(workspacePath, statusEnumType, updated)
+	modelPath := builderRuntimeOpenLitePrimaryRecordModelPath(workspacePath)
+	if strings.TrimSpace(modelPath) == "" {
+		return updated
+	}
+	modelImportPath := builderRuntimeOpenLiteRelativeImport("lib/template/open_lite_copy.dart", modelPath, "../models/record.dart")
+	if strings.TrimSpace(modelImportPath) == "" {
+		return updated
+	}
+	targetImport := "import '" + modelImportPath + "';"
+	if strings.Contains(updated, "import '../models/record.dart';") {
+		updated = strings.ReplaceAll(updated, "import '../models/record.dart';", targetImport)
+	} else if strings.Contains(updated, "statusLabel(") && !strings.Contains(updated, targetImport) {
+		updated = targetImport + "\n\n" + strings.TrimLeft(updated, "\n")
+	}
+	return updated
+}
+
+func builderRuntimeOpenLiteRetargetCopyStatusEnumMembers(workspacePath, statusEnumType, content string) string {
+	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
+	trimmedStatusEnumType := strings.TrimSpace(statusEnumType)
+	if trimmedWorkspacePath == "" || trimmedStatusEnumType == "" || strings.TrimSpace(content) == "" {
+		return content
+	}
+	enumMembers := builderRuntimeOpenLiteStatusEnumMembers(trimmedWorkspacePath, trimmedStatusEnumType)
+	if len(enumMembers) == 0 {
+		return content
+	}
+	updated := content
+	updated = strings.ReplaceAll(updated, trimmedStatusEnumType+".inbox", trimmedStatusEnumType+"."+enumMembers[0])
+	updated = strings.ReplaceAll(updated, trimmedStatusEnumType+".todo", trimmedStatusEnumType+"."+enumMembers[0])
+	if len(enumMembers) >= 2 {
+		updated = strings.ReplaceAll(updated, trimmedStatusEnumType+".inProgress", trimmedStatusEnumType+"."+enumMembers[1])
+		updated = strings.ReplaceAll(updated, trimmedStatusEnumType+".doing", trimmedStatusEnumType+"."+enumMembers[1])
+	}
+	if len(enumMembers) >= 3 {
+		updated = strings.ReplaceAll(updated, trimmedStatusEnumType+".done", trimmedStatusEnumType+"."+enumMembers[2])
+	}
+	return updated
+}
+
+func builderRuntimeOpenLiteStatusEnumMembers(workspacePath, statusEnumType string) []string {
+	recordContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	trimmedStatusEnumType := strings.TrimSpace(statusEnumType)
+	if strings.TrimSpace(recordContent) == "" || trimmedStatusEnumType == "" {
+		return nil
+	}
+	pattern := regexp.MustCompile(`(?s)enum\s+` + regexp.QuoteMeta(trimmedStatusEnumType) + `\s*\{([^}]*)\}`)
+	match := pattern.FindStringSubmatch(recordContent)
+	if len(match) < 2 {
+		return nil
+	}
+	parts := strings.Split(match[1], ",")
+	if len(parts) == 0 {
+		return nil
+	}
+	members := make([]string, 0, len(parts))
+	seen := map[string]struct{}{}
+	identifierPattern := regexp.MustCompile(`^[a-z][A-Za-z0-9_]*$`)
+	for _, part := range parts {
+		candidate := strings.TrimSpace(part)
+		if candidate == "" || !identifierPattern.MatchString(candidate) {
+			continue
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		members = append(members, candidate)
+	}
+	return members
+}
+
+func normalizeBuilderRuntimeOpenLiteMainContent(workspacePath string, needsCollectionCreateEntry bool, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	updated := strings.ReplaceAll(content, "runrunApp(", "runApp(")
+	updated = normalizeBuilderRuntimeOpenLiteMainHomePageConstructorCalls(workspacePath, updated)
+	appClassName := builderRuntimeRunAppWidgetClassName(updated)
+	if appClassName == "" {
+		return updated
+	}
+	repositoryType := builderRuntimeOpenLiteRecordRepositoryTypeName(workspacePath)
+	if repositoryType == "" {
+		repositoryType = "RecordRepository"
+	}
+	concreteRepositoryType := builderRuntimeOpenLiteConcreteRecordRepositoryTypeName(workspacePath)
+	if concreteRepositoryType == "" {
+		concreteRepositoryType = "HiveRecordRepository"
+	}
+	updated = normalizeBuilderRuntimeOpenLiteMainLocalImports(updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainRepositoryImports(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainUnusedRecordImport(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainCollectionControllerVariable(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainCollectionControllerImports(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainCollectionViewImports(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainOverviewControllerImports(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainOverviewViewImports(workspacePath, updated)
+	runAppCall := "runApp(const " + appClassName + "());"
+	if strings.Contains(updated, runAppCall) {
+		updated = strings.Replace(updated, runAppCall, "runApp("+appClassName+"(repository: repository));", 1)
+	}
+	if strings.Contains(updated, "await Hive.initFlutter();") && !strings.Contains(updated, "await repository.init();") {
+		repositoryInit := "  final repository = " + concreteRepositoryType + "();\n  await repository.init();"
+		updated = strings.Replace(updated, "  await Hive.initFlutter();", repositoryInit, 1)
+	}
+	oldConstructor := "  const " + appClassName + "({super.key});"
+	newConstructor := "  const " + appClassName + "({super.key, required this.repository});"
+	if !builderRuntimeDartConstructorAcceptsNamedParameter(updated, appClassName, "repository") && strings.Contains(updated, oldConstructor) {
+		updated = strings.Replace(updated, oldConstructor, newConstructor, 1)
+	}
+	fieldDeclaration := "final " + repositoryType + " repository;"
+	if !strings.Contains(updated, fieldDeclaration) {
+		updated = builderRuntimeInsertFieldIntoStatelessWidget(updated, appClassName, fieldDeclaration)
+	}
+	updated = strings.ReplaceAll(updated, "repository: "+concreteRepositoryType+"()", "repository: repository")
+	updated = strings.ReplaceAll(updated, "recordRepository: "+concreteRepositoryType+"()", "recordRepository: repository")
+	updated = normalizeBuilderRuntimeOpenLiteMainDetailCallback(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainCollectionCreateFlow(workspacePath, needsCollectionCreateEntry, updated, appClassName)
+	updated = normalizeBuilderRuntimeOpenLiteMainRecordFormCallbacks(workspacePath, needsCollectionCreateEntry, updated, appClassName)
+	updated = normalizeBuilderRuntimeOpenLiteMainDetailViewImports(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainCollectionControllerImports(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainCollectionViewImports(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainMutationViewImports(workspacePath, updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainNavigatorPushCalls(updated, appClassName)
+	updated = normalizeBuilderRuntimeOpenLiteMainTodoStatefulDrift(updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainThemeTokens(updated)
+	updated = normalizeBuilderRuntimeOpenLiteMainSeedColorTokens(updated)
+	if !strings.Contains(updated, "Hive.") {
+		updated = strings.ReplaceAll(updated, "import 'package:hive_flutter/hive_flutter.dart';\n", "")
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteMainTodoStatefulDrift(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	updated := strings.ReplaceAll(content, "    super.disposed();", "    super.dispose();")
+	updated = builderRuntimeOpenLiteCreateStatePrivateReturnPattern.ReplaceAllString(updated, "${1}State<${2}> createState() => _${2}State();")
+	updated = builderRuntimeOpenLiteMainOnDeleteNullReturnPattern.ReplaceAllString(updated, "$1$3")
+	if strings.Count(updated, "listController") == 1 {
+		listControllerClass := ""
+		if matches := regexp.MustCompile(`(?m)^[ \t]*final\s+listController\s*=\s*([A-Z][A-Za-z0-9_]*(?:List|Collection)Controller)\(\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*repository\s*\);[ \t]*(?:\n|$)`).FindStringSubmatch(updated); len(matches) >= 2 {
+			listControllerClass = strings.TrimSpace(matches[1])
+		}
+		updated = builderRuntimeOpenLiteMainListControllerDeclarationPattern.ReplaceAllString(updated, "")
+		updated = builderRuntimeOpenLiteMainGenericListControllerDeclarationPattern.ReplaceAllString(updated, "")
+		if listControllerClass != "" {
+			updated = builderRuntimeOpenLiteDropControllerImportIfUnused(updated, listControllerClass)
+		}
+	}
+	if matches := builderRuntimeOpenLiteMainFormControllerFieldPattern.FindStringSubmatch(updated); len(matches) >= 2 && strings.Count(updated, "formController") == 3 {
+		controllerClass := strings.TrimSpace(matches[1])
+		if controllerClass != "" {
+			updated = builderRuntimeOpenLiteMainFormControllerFieldPattern.ReplaceAllString(updated, "")
+			assignmentPattern := regexp.MustCompile(`(?m)^[ \t]*formController\s*=\s*` + regexp.QuoteMeta(controllerClass) + `\(\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*widget\.[A-Za-z_][A-Za-z0-9_]*\s*\);\s*$`)
+			updated = assignmentPattern.ReplaceAllString(updated, "")
+			disposePattern := regexp.MustCompile(`(?m)^[ \t]*formController\.dispose\(\);\s*$`)
+			updated = disposePattern.ReplaceAllString(updated, "")
+			updated = builderRuntimeOpenLiteDropControllerImportIfUnused(updated, controllerClass)
+		}
+	}
+	if !strings.Contains(updated, "RecordFormController") {
+		updated = strings.ReplaceAll(updated, "import 'controllers/record_form_controller.dart';\n", "")
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteMainHomePageConstructorCalls(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	candidates, err := builderRuntimeMainViewConstructorCandidates(workspacePath, content)
+	if err != nil || len(candidates) == 0 {
+		return content
+	}
+	updated := content
+	usedNoop := false
+	usedNoopRecord := false
+	for _, candidate := range candidates {
+		viewContent, readErr := builderRuntimeSemanticFileContent(workspacePath, nil, candidate.path)
+		if readErr != nil || strings.TrimSpace(viewContent) == "" {
+			continue
+		}
+		_, required := builderRuntimeDartConstructorNamedParameters(viewContent, candidate.className)
+		if len(required) == 0 {
+			continue
+		}
+		argsList := builderRuntimeConstructedClassArgs(updated, candidate.className)
+		for _, args := range argsList {
+			provided := builderRuntimeTopLevelNamedArgumentSet(args)
+			missing := make([]string, 0, len(required))
+			for name := range required {
+				if _, ok := provided[name]; !ok {
+					missing = append(missing, name)
+				}
+			}
+			if len(missing) == 0 {
+				continue
+			}
+			sort.Strings(missing)
+			injectedArgs := strings.TrimRight(args, " \t\n")
+			if strings.TrimSpace(injectedArgs) != "" && !strings.HasSuffix(strings.TrimSpace(injectedArgs), ",") {
+				injectedArgs += ","
+			}
+			for _, name := range missing {
+				expression, requiresNoop, requiresNoopRecord := builderRuntimeOpenLiteMainHomePageFallbackArgument(workspacePath, candidate, name, updated)
+				if strings.TrimSpace(expression) == "" {
+					continue
+				}
+				usedNoop = usedNoop || requiresNoop
+				usedNoopRecord = usedNoopRecord || requiresNoopRecord
+				indent := builderRuntimeOpenLiteMainArgumentIndent(args)
+				injectedArgs += "\n" + indent + name + ": " + expression + ","
+			}
+			if strings.Contains(args, "\n") {
+				injectedArgs += "\n"
+			}
+			updated = strings.Replace(updated, candidate.className+"("+args+")", candidate.className+"("+injectedArgs+")", 1)
+		}
+	}
+	if usedNoop {
+		updated = builderRuntimeOpenLiteEnsureTopLevelHelper(updated, "Future<void> _noop() async {}")
+	}
+	if usedNoopRecord {
+		updated = builderRuntimeOpenLiteEnsureTopLevelHelper(updated, "Future<void> _noopRecord(Object record) async {}")
+	}
+	return updated
+}
+
+func builderRuntimeOpenLiteMainHomePageFallbackArgument(workspacePath string, candidate builderRuntimeViewConstructorCandidate, name, content string) (expression string, requiresNoop bool, requiresNoopRecord bool) {
+	trimmedName := strings.TrimSpace(name)
+	overviewRegistry := builderRuntimeOpenLiteOverviewSurfaceRegistry(workspacePath, candidate.path, candidate.className, trimmedName)
+	controllerParam := strings.TrimSpace(overviewRegistry.view.constructorContract.controllerParam)
+	if controllerParam == "" {
+		controllerParam = "controller"
+	}
+	createCallbackName := strings.TrimSpace(overviewRegistry.view.constructorContract.createCallbackName)
+	if createCallbackName == "" {
+		createCallbackName = "onCreateRecord"
+	}
+	viewAllCallbackName := strings.TrimSpace(overviewRegistry.view.constructorContract.viewAllCallbackName)
+	if viewAllCallbackName == "" {
+		viewAllCallbackName = "onViewAllRecords"
+	}
+	switch trimmedName {
+	case controllerParam:
+		if strings.Contains(content, "_homeController") {
+			return "_homeController", false, false
+		}
+		repositoryExpr := builderRuntimeOpenLiteMainRepositoryValueExpression(content, overviewRegistry.controller.repositoryType)
+		if overviewRegistry.controller.resolvedClassName != "" && overviewRegistry.controller.constructorContract.repositoryParam != "" && repositoryExpr != "" {
+			return overviewRegistry.controller.resolvedClassName + "(" + overviewRegistry.controller.constructorContract.repositoryParam + ": " + repositoryExpr + ")", false, false
+		}
+		if strings.Contains(content, "HomeController(repository: repository)") {
+			return "HomeController(repository: repository)", false, false
+		}
+		return "Object()", false, false
+	case createCallbackName:
+		if strings.Contains(content, "_navigateToCreateRecord") {
+			return "_navigateToCreateRecord", false, false
+		}
+		if strings.Contains(content, "_openCreateRecord") {
+			return "_openCreateRecord", false, false
+		}
+		if suffix := strings.TrimSpace(strings.TrimPrefix(trimmedName, "on")); suffix != "" {
+			if helperRef := "_open" + suffix; strings.Contains(content, helperRef) {
+				return helperRef, false, false
+			}
+			if helperRef := "_navigateTo" + suffix; strings.Contains(content, helperRef) {
+				return helperRef, false, false
+			}
+		}
+		return "_noop", true, false
+	case viewAllCallbackName:
+		if strings.Contains(content, "_navigateToViewAllRecords") {
+			return "_navigateToViewAllRecords", false, false
+		}
+		if strings.Contains(content, "_openViewAllRecords") {
+			return "_openViewAllRecords", false, false
+		}
+		if strings.Contains(content, "_openTaskList") {
+			return "_openTaskList", false, false
+		}
+		if suffix := strings.TrimSpace(strings.TrimPrefix(trimmedName, "on")); suffix != "" {
+			if helperRef := "_open" + suffix; strings.Contains(content, helperRef) {
+				return helperRef, false, false
+			}
+			if helperRef := "_navigateTo" + suffix; strings.Contains(content, helperRef) {
+				return helperRef, false, false
+			}
+		}
+		return "_noop", true, false
+	case "onOpenRecordDetail", "onOpenTaskDetail":
+		if strings.Contains(content, "_navigateToRecordDetail") {
+			return "_navigateToRecordDetail", false, false
+		}
+		if strings.Contains(content, "_openTaskDetail") {
+			return "_openTaskDetail", false, false
+		}
+		if navigateSuffix := strings.TrimSpace(strings.TrimPrefix(trimmedName, "onOpen")); navigateSuffix != "" {
+			if helperRef := "_navigateTo" + navigateSuffix; strings.Contains(content, helperRef) {
+				return helperRef, false, false
+			}
+		}
+		return "_noopRecord", false, true
+	default:
+		if strings.HasPrefix(trimmedName, "onOpen") && strings.Contains(strings.ToLower(trimmedName), "detail") {
+			if helperName := builderRuntimeOpenLiteLowerCamelIdentifier(strings.TrimPrefix(trimmedName, "on")); helperName != "" {
+				helperRef := "_" + helperName
+				if strings.Contains(content, helperRef) {
+					return helperRef, false, false
+				}
+			}
+			if navigateSuffix := strings.TrimSpace(strings.TrimPrefix(trimmedName, "onOpen")); navigateSuffix != "" {
+				if helperRef := "_navigateTo" + navigateSuffix; strings.Contains(content, helperRef) {
+					return helperRef, false, false
+				}
+			}
+			return "_noopRecord", false, true
+		}
+		if strings.HasPrefix(strings.TrimSpace(name), "on") {
+			return "_noop", true, false
+		}
+		return "", false, false
+	}
+}
+
+func builderRuntimeOpenLiteMainRepositoryValueExpression(content, repositoryType string) string {
+	trimmedContent := strings.TrimSpace(content)
+	if trimmedContent == "" {
+		return ""
+	}
+	if strings.Contains(trimmedContent, "widget.repository") {
+		return "widget.repository"
+	}
+	if strings.Contains(trimmedContent, "required this.repository") || strings.Contains(trimmedContent, "final repository =") || strings.Contains(trimmedContent, " repository =") {
+		return "repository"
+	}
+	trimmedRepositoryType := strings.TrimSpace(repositoryType)
+	if trimmedRepositoryType != "" && strings.Contains(trimmedContent, "final "+trimmedRepositoryType+" repository;") {
+		return "repository"
+	}
+	return ""
+}
+
+func builderRuntimeOpenLiteMainArgumentIndent(args string) string {
+	if strings.Contains(args, "\n") {
+		lines := strings.Split(args, "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" {
+				continue
+			}
+			return line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+		}
+	}
+	return "        "
+}
+
+func builderRuntimeOpenLiteEnsureTopLevelHelper(content, helper string) string {
+	trimmedHelper := strings.TrimSpace(helper)
+	if trimmedHelper == "" || strings.Contains(content, trimmedHelper) {
+		return content
+	}
+	for _, marker := range []string{"\nFuture<void> main", "\nvoid main", "\nclass "} {
+		if strings.Contains(content, marker) {
+			return strings.Replace(content, marker, "\n"+trimmedHelper+"\n"+marker, 1)
+		}
+	}
+	return content + "\n" + trimmedHelper + "\n"
+}
+
+func normalizeBuilderRuntimeOpenLiteMainThemeTokens(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	lines := strings.Split(content, "\n")
+	seenUseMaterial3 := make(map[string]struct{}, 2)
+	normalized := make([]string, 0, len(lines))
+	for _, line := range lines {
+		updatedLine := line
+		trimmed := strings.TrimSpace(updatedLine)
+		if strings.Contains(trimmed, "useMaterial async:") {
+			trimmed = strings.Replace(trimmed, "useMaterial async:", "useMaterial3:", 1)
+			updatedLine = strings.Replace(updatedLine, strings.TrimSpace(updatedLine), trimmed, 1)
+		}
+		trimmed = strings.TrimSpace(updatedLine)
+		if strings.HasPrefix(trimmed, "useMaterial3:") {
+			if _, exists := seenUseMaterial3[trimmed]; exists {
+				continue
+			}
+			seenUseMaterial3[trimmed] = struct{}{}
+		}
+		normalized = append(normalized, updatedLine)
+	}
+	return strings.Join(normalized, "\n")
+}
+
+func normalizeBuilderRuntimeOpenLiteMainSeedColorTokens(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	return builderRuntimeOpenLiteMainSeedColorPattern.ReplaceAllStringFunc(content, func(match string) string {
+		submatches := builderRuntimeOpenLiteMainSeedColorPattern.FindStringSubmatch(match)
+		if len(submatches) < 2 {
+			return match
+		}
+		if builderRuntimeOpenLiteDartHexColorLiteralPattern.MatchString(strings.TrimSpace(submatches[1])) {
+			return match
+		}
+		return "seedColor: const Color(0xFF1565C0)"
+	})
+}
+
+func normalizeBuilderRuntimeOpenLiteMainLocalImports(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	lines := strings.Split(content, "\n")
+	seenImports := make(map[string]struct{}, len(lines))
+	normalized := make([]string, 0, len(lines))
+	for _, line := range lines {
+		updatedLine := line
+		match := dartLocalImportPattern.FindStringSubmatch(line)
+		if len(match) >= 2 {
+			ref := strings.TrimSpace(match[1])
+			if strings.HasPrefix(ref, ".") {
+				normalizedRef := ref
+				for strings.HasPrefix(normalizedRef, "../") {
+					normalizedRef = strings.TrimPrefix(normalizedRef, "../")
+				}
+				for strings.HasPrefix(normalizedRef, "./") {
+					normalizedRef = strings.TrimPrefix(normalizedRef, "./")
+				}
+				if normalizedRef != "" && normalizedRef != ref {
+					updatedLine = strings.Replace(updatedLine, ref, normalizedRef, 1)
+				}
+			}
+		}
+		trimmed := strings.TrimSpace(updatedLine)
+		if strings.HasPrefix(trimmed, "import ") || strings.HasPrefix(trimmed, "export ") || strings.HasPrefix(trimmed, "part ") {
+			if _, exists := seenImports[trimmed]; exists {
+				continue
+			}
+			seenImports[trimmed] = struct{}{}
+		}
+		normalized = append(normalized, updatedLine)
+	}
+	return strings.Join(normalized, "\n")
+}
+
+func normalizeBuilderRuntimeOpenLiteMainRepositoryImports(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	repository := builderRuntimePrimaryRepositoryCandidate(workspacePath, content)
+	if repository.path == "" {
+		return content
+	}
+	if !strings.Contains(content, repository.repositoryType) && !strings.Contains(content, repository.concreteType) && !strings.Contains(content, repository.inMemoryType) {
+		return content
+	}
+	expectedImport := "import '" + strings.TrimPrefix(repository.path, "lib/") + "';"
+	lines := strings.Split(content, "\n")
+	normalized := make([]string, 0, len(lines))
+	seenExpected := false
+	replacedUnexpected := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case trimmed == expectedImport:
+			if seenExpected {
+				continue
+			}
+			seenExpected = true
+			normalized = append(normalized, expectedImport)
+		case strings.HasPrefix(trimmed, "import 'repositories/") && strings.HasSuffix(trimmed, ".dart';"):
+			if !seenExpected {
+				normalized = append(normalized, expectedImport)
+				seenExpected = true
+			}
+			replacedUnexpected = true
+		default:
+			normalized = append(normalized, line)
+		}
+	}
+	updated := strings.Join(normalized, "\n")
+	if seenExpected || replacedUnexpected {
+		return updated
+	}
+	insertionIndex := -1
+	updatedLines := strings.Split(updated, "\n")
+	for index, line := range updatedLines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "import ") {
+			insertionIndex = index + 1
+			continue
+		}
+		if insertionIndex >= 0 && trimmed != "" {
+			break
+		}
+	}
+	if insertionIndex < 0 {
+		return expectedImport + "\n" + updated
+	}
+	updatedLines = append(updatedLines[:insertionIndex], append([]string{expectedImport}, updatedLines[insertionIndex:]...)...)
+	return strings.Join(updatedLines, "\n")
+}
+
+func normalizeBuilderRuntimeOpenLiteMainUnusedRecordImport(workspacePath, content string) string {
+	const recordImport = "import 'models/record.dart';\n"
+	if strings.TrimSpace(content) == "" || !strings.Contains(content, recordImport) {
+		return content
+	}
+	recordType := builderRuntimeOpenLitePrimaryRecordTypeName(workspacePath)
+	if recordType == "" {
+		recordType = "AppRecord"
+	}
+	statusType := "RecordStatus"
+	if recordContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath); strings.TrimSpace(recordContent) != "" {
+		if resolvedStatusType := builderRuntimeDeclaredFieldTypes(recordContent)["status"]; resolvedStatusType != "" {
+			statusType = resolvedStatusType
+		}
+	}
+	withoutImport := strings.Replace(content, recordImport, "", 1)
+	for _, symbol := range []string{recordType, statusType} {
+		if builderRuntimeContentContainsDartIdentifier(withoutImport, symbol) {
+			return content
+		}
+	}
+	return withoutImport
+}
+
+func builderRuntimeContentContainsDartIdentifier(content, identifier string) bool {
+	trimmedIdentifier := strings.TrimSpace(identifier)
+	if strings.TrimSpace(content) == "" || trimmedIdentifier == "" {
+		return false
+	}
+	pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(trimmedIdentifier) + `\b`)
+	return pattern.MatchString(content)
+}
+
+type builderRuntimeOpenLiteResolvedArgument struct {
+	expression string
+	prelude    []string
+}
+
+func normalizeBuilderRuntimeOpenLiteMainDetailCallback(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	collectionRegistry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath, content)
+	detailCallbackName := strings.TrimSpace(collectionRegistry.view.constructorContract.detailCallbackName)
+	if detailCallbackName == "" {
+		detailCallbackName = "onOpenRecordDetail"
+	}
+	detailCallbackPattern := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(detailCallbackName) + `\s*:\s*\([^\)]*\)\s*(?:async\s*)?\{\s*(?:(?://[^\n]*\n)|/\*.*?\*/|\s)*\}`)
+	if detailCallbackPattern.FindStringIndex(content) == nil {
+		return content
+	}
+	detailRegistry := builderRuntimeOpenLiteDetailSurfaceRegistry(workspacePath, content)
+	detailView := detailRegistry.detailCandidate
+	mutationView := detailRegistry.mutationCandidate
+	collectionController := detailRegistry.controllerCandidate
+	resolvedDetailArgs := builderRuntimeOpenLiteMainDetailResolvedArgumentExpressions(workspacePath, detailView, collectionController)
+	if detailRegistry.view.resolvedPath != "" && !builderRuntimeDetailViewSupportsMainCallbackWiring(detailView, resolvedDetailArgs) {
+		return content
+	}
+	if detailRegistry.view.resolvedPath != "" {
+		if detailView.editCallbackName != "" && (mutationView.path == "" || mutationView.initialParam == "") {
+			return content
+		}
+		updated := normalizeBuilderRuntimeOpenLiteEnsureDetailPageImport(content, detailRegistry.view.resolvedPath)
+		if detailRegistry.mutation.resolvedPath != "" {
+			updated = normalizeBuilderRuntimeOpenLiteEnsureFormPageImport(updated, detailRegistry.mutation.resolvedPath)
+		}
+		updated = normalizeBuilderRuntimeOpenLiteEnsureListControllerVariable(updated, collectionController)
+		replacement := builderRuntimeOpenLiteMainDetailSurfaceCallbackReplacementWithResolvedArgs(detailCallbackName, updated, detailView, mutationView, collectionController, resolvedDetailArgs)
+		updated = detailCallbackPattern.ReplaceAllString(updated, replacement)
+		return normalizeBuilderRuntimeOpenLiteMainDetailViewImports(workspacePath, updated)
+	}
+	if mutationView.path == "" || mutationView.initialParam == "" || collectionController.path == "" {
+		return content
+	}
+	updated := normalizeBuilderRuntimeOpenLiteEnsureFormPageImport(content, detailRegistry.mutation.resolvedPath)
+	updated = normalizeBuilderRuntimeOpenLiteEnsureListControllerVariable(updated, collectionController)
+	replacement := builderRuntimeOpenLiteMainDetailCallbackReplacement(detailCallbackName, updated, mutationView, collectionController)
+	return detailCallbackPattern.ReplaceAllString(updated, replacement)
+}
+
+func normalizeBuilderRuntimeOpenLiteMainCollectionCreateFlow(workspacePath string, needsCollectionCreateEntry bool, content, appClassName string) string {
+	if strings.TrimSpace(content) == "" || !needsCollectionCreateEntry {
+		return content
+	}
+	collectionRegistry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath, content)
+	mutationRegistry := builderRuntimeOpenLiteMutationSurfaceRegistry(workspacePath, content)
+	createCallbackName := strings.TrimSpace(collectionRegistry.view.constructorContract.createCallbackName)
+	if createCallbackName == "" {
+		createCallbackName = "onCreateRecord"
+	}
+	mutationView := builderRuntimeMutationViewCandidate{
+		path:            strings.TrimSpace(mutationRegistry.view.resolvedPath),
+		className:       strings.TrimSpace(mutationRegistry.view.resolvedClassName),
+		repositoryParam: strings.TrimSpace(mutationRegistry.view.constructorContract.repositoryParam),
+		initialParam:    strings.TrimSpace(mutationRegistry.view.constructorContract.initialParam),
+	}
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, mutationView.path) {
+		mutationView.path = ""
+	}
+	collectionController := builderRuntimeCollectionControllerCandidate{
+		path:            strings.TrimSpace(collectionRegistry.controller.resolvedPath),
+		className:       strings.TrimSpace(collectionRegistry.controller.resolvedClassName),
+		repositoryParam: strings.TrimSpace(collectionRegistry.controller.constructorContract.repositoryParam),
+		supportsInit:    collectionRegistry.controller.capabilityFlags.supportsInit,
+		supportsRefresh: collectionRegistry.controller.capabilityFlags.supportsRefresh,
+		supportsUpdate:  collectionRegistry.controller.capabilityFlags.supportsUpdate,
+	}
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, collectionController.path) {
+		collectionController.path = ""
+	}
+	if mutationView.path == "" || collectionController.path == "" || !collectionController.supportsRefresh {
+		return content
+	}
+	updated := normalizeBuilderRuntimeOpenLiteEnsureFormPageImport(content, mutationView.path)
+	updated = normalizeBuilderRuntimeOpenLiteEnsureListControllerVariable(updated, collectionController)
+	updated = strings.ReplaceAll(updated, "            listController.updateRecord(updatedRecord);", "            await listController.refresh();")
+	if !strings.Contains(updated, createCallbackName+":") && strings.Contains(updated, "        controller: listController,\n") {
+		updated = strings.Replace(updated, "        controller: listController,\n", strings.Join([]string{
+			"        controller: listController,",
+			"        " + createCallbackName + ": () async {",
+			"          final createdRecord = await _navigatorKey.currentState!.push<dynamic>(",
+			"            MaterialPageRoute(",
+			"              builder: (context) => " + mutationView.className + "(",
+			"                " + mutationView.repositoryParam + ": repository,",
+			"              ),",
+			"            ),",
+			"          );",
+			"          if (createdRecord != null) {",
+			"            await listController.refresh();",
+			"          }",
+			"        },",
+		}, "\n")+"\n", 1)
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteMainNavigatorPushCalls(content, appClassName string) string {
+	if strings.TrimSpace(content) == "" || strings.TrimSpace(appClassName) == "" || !strings.Contains(content, "Navigator.of(context).push") {
+		return content
+	}
+	updated := normalizeBuilderRuntimeOpenLiteEnsureNavigatorKey(content, appClassName)
+	updated = builderRuntimeOpenLiteMainNavigatorPushDoubleOpenParenPattern.ReplaceAllString(updated, "Navigator.of(context).push$1(")
+	updated = builderRuntimeOpenLiteMainNavigatorPushPattern.ReplaceAllString(updated, "_navigatorKey.currentState!.push$1(")
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteMainRecordFormCallbacks(workspacePath string, needsCollectionCreateEntry bool, content, appClassName string) string {
+	if strings.TrimSpace(content) == "" || strings.TrimSpace(appClassName) == "" {
+		return content
+	}
+	collectionRegistry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath, content)
+	mutationRegistry := builderRuntimeOpenLiteMutationSurfaceRegistry(workspacePath, content)
+	createCallbackName := strings.TrimSpace(collectionRegistry.view.constructorContract.createCallbackName)
+	if createCallbackName == "" {
+		createCallbackName = "onCreateRecord"
+	}
+	detailCallbackName := strings.TrimSpace(collectionRegistry.view.constructorContract.detailCallbackName)
+	if detailCallbackName == "" {
+		detailCallbackName = "onOpenRecordDetail"
+	}
+	mutationView := builderRuntimeMutationViewCandidate{
+		path:            strings.TrimSpace(mutationRegistry.view.resolvedPath),
+		className:       strings.TrimSpace(mutationRegistry.view.resolvedClassName),
+		repositoryParam: strings.TrimSpace(mutationRegistry.view.constructorContract.repositoryParam),
+		initialParam:    strings.TrimSpace(mutationRegistry.view.constructorContract.initialParam),
+	}
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, mutationView.path) {
+		mutationView.path = ""
+	}
+	collectionController := builderRuntimeCollectionControllerCandidate{
+		path:            strings.TrimSpace(collectionRegistry.controller.resolvedPath),
+		className:       strings.TrimSpace(collectionRegistry.controller.resolvedClassName),
+		repositoryParam: strings.TrimSpace(collectionRegistry.controller.constructorContract.repositoryParam),
+		supportsInit:    collectionRegistry.controller.capabilityFlags.supportsInit,
+		supportsRefresh: collectionRegistry.controller.capabilityFlags.supportsRefresh,
+		supportsUpdate:  collectionRegistry.controller.capabilityFlags.supportsUpdate,
+	}
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, collectionController.path) {
+		collectionController.path = ""
+	}
+	if mutationView.path == "" || collectionController.path == "" || !collectionController.supportsRefresh {
+		return content
+	}
+	updated := normalizeBuilderRuntimeOpenLiteEnsureNavigatorKey(content, appClassName)
+	updated = normalizeBuilderRuntimeOpenLiteEnsureListControllerVariable(updated, collectionController)
+	if needsCollectionCreateEntry && strings.Contains(updated, createCallbackName+":") {
+		createCallbackPattern := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(createCallbackName) + `:\s*\(\)\s*async\s*\{.*?\n\s*\},`)
+		updated = createCallbackPattern.ReplaceAllString(updated, strings.Join([]string{
+			createCallbackName + ": () async {",
+			"          final createdRecord = await _navigatorKey.currentState!.push<dynamic>(",
+			"            MaterialPageRoute(",
+			"              builder: (context) => " + mutationView.className + "(",
+			"                " + mutationView.repositoryParam + ": repository,",
+			"              ),",
+			"            ),",
+			"          );",
+			"          if (createdRecord != null) {",
+			"            await listController.refresh();",
+			"          }",
+			"        },",
+		}, "\n"))
+	}
+	if strings.Contains(updated, detailCallbackName+":") && mutationView.initialParam != "" && strings.Contains(updated, mutationView.initialParam+": record") {
+		detailCallbackPattern := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(detailCallbackName) + `:\s*\(record\)\s*async\s*\{.*?\n\s*\},`)
+		updated = detailCallbackPattern.ReplaceAllString(updated, strings.Join([]string{
+			detailCallbackName + ": (record) async {",
+			"          final updatedRecord = await _navigatorKey.currentState!.push<dynamic>(",
+			"            MaterialPageRoute(",
+			"              builder: (context) => " + mutationView.className + "(",
+			"                " + mutationView.repositoryParam + ": repository,",
+			"                " + mutationView.initialParam + ": record,",
+			"              ),",
+			"            ),",
+			"          );",
+			"          if (updatedRecord != null) {",
+			"            await listController.refresh();",
+			"          }",
+			"        },",
+		}, "\n"))
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteEnsureFormPageImport(content, formViewPath string) string {
+	updated := content
+	trimmedPath := strings.TrimPrefix(strings.TrimSpace(formViewPath), "lib/")
+	if trimmedPath == "" {
+		trimmedPath = "views/record_form_page.dart"
+	}
+	importLine := "import '" + trimmedPath + "';"
+	if strings.Contains(updated, importLine) {
+		return updated
+	}
+	lines := strings.Split(updated, "\n")
+	insertIndex := -1
+	for index, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "import ") {
+			insertIndex = index + 1
+		}
+	}
+	if insertIndex < 0 {
+		return importLine + "\n" + updated
+	}
+	lines = append(lines[:insertIndex], append([]string{importLine}, lines[insertIndex:]...)...)
+	return strings.Join(lines, "\n")
+}
+
+func normalizeBuilderRuntimeOpenLiteEnsureDetailPageImport(content, detailViewPath string) string {
+	updated := content
+	trimmedPath := strings.TrimPrefix(strings.TrimSpace(detailViewPath), "lib/")
+	if trimmedPath == "" {
+		trimmedPath = "views/record_detail_page.dart"
+	}
+	importLine := "import '" + trimmedPath + "';"
+	if strings.Contains(updated, importLine) {
+		return updated
+	}
+	lines := strings.Split(updated, "\n")
+	insertIndex := -1
+	for index, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "import ") {
+			insertIndex = index + 1
+		}
+	}
+	if insertIndex < 0 {
+		return importLine + "\n" + updated
+	}
+	lines = append(lines[:insertIndex], append([]string{importLine}, lines[insertIndex:]...)...)
+	return strings.Join(lines, "\n")
+}
+
+func normalizeBuilderRuntimeOpenLiteEnsureOverviewPageImport(content, overviewViewPath string) string {
+	updated := content
+	trimmedPath := strings.TrimPrefix(strings.TrimSpace(overviewViewPath), "lib/")
+	if trimmedPath == "" {
+		trimmedPath = "views/home_page.dart"
+	}
+	importLine := "import '" + trimmedPath + "';"
+	if strings.Contains(updated, importLine) {
+		return updated
+	}
+	lines := strings.Split(updated, "\n")
+	insertIndex := -1
+	for index, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "import ") {
+			insertIndex = index + 1
+		}
+	}
+	if insertIndex < 0 {
+		return importLine + "\n" + updated
+	}
+	lines = append(lines[:insertIndex], append([]string{importLine}, lines[insertIndex:]...)...)
+	return strings.Join(lines, "\n")
+}
+
+func normalizeBuilderRuntimeOpenLiteEnsureOverviewControllerImport(content, overviewControllerPath string) string {
+	updated := content
+	trimmedPath := strings.TrimPrefix(strings.TrimSpace(overviewControllerPath), "lib/")
+	if trimmedPath == "" {
+		trimmedPath = "controllers/home_controller.dart"
+	}
+	importLine := "import '" + trimmedPath + "';"
+	if strings.Contains(updated, importLine) {
+		return updated
+	}
+	lines := strings.Split(updated, "\n")
+	insertIndex := -1
+	for index, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "import ") {
+			insertIndex = index + 1
+		}
+	}
+	if insertIndex < 0 {
+		return importLine + "\n" + updated
+	}
+	lines = append(lines[:insertIndex], append([]string{importLine}, lines[insertIndex:]...)...)
+	return strings.Join(lines, "\n")
+}
+
+func normalizeBuilderRuntimeOpenLiteEnsureCollectionControllerImport(content, collectionControllerPath string) string {
+	updated := content
+	trimmedPath := strings.TrimPrefix(strings.TrimSpace(collectionControllerPath), "lib/")
+	if trimmedPath == "" {
+		trimmedPath = "controllers/record_list_controller.dart"
+	}
+	importLine := "import '" + trimmedPath + "';"
+	if strings.Contains(updated, importLine) {
+		return updated
+	}
+	lines := strings.Split(updated, "\n")
+	insertIndex := -1
+	for index, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "import ") {
+			insertIndex = index + 1
+		}
+	}
+	if insertIndex < 0 {
+		return importLine + "\n" + updated
+	}
+	lines = append(lines[:insertIndex], append([]string{importLine}, lines[insertIndex:]...)...)
+	return strings.Join(lines, "\n")
+}
+
+func normalizeBuilderRuntimeOpenLiteEnsureCollectionPageImport(content, collectionViewPath string) string {
+	updated := content
+	trimmedPath := strings.TrimPrefix(strings.TrimSpace(collectionViewPath), "lib/")
+	if trimmedPath == "" {
+		trimmedPath = "views/record_list_page.dart"
+	}
+	importLine := "import '" + trimmedPath + "';"
+	if strings.Contains(updated, importLine) {
+		return updated
+	}
+	lines := strings.Split(updated, "\n")
+	insertIndex := -1
+	for index, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "import ") {
+			insertIndex = index + 1
+		}
+	}
+	if insertIndex < 0 {
+		return importLine + "\n" + updated
+	}
+	lines = append(lines[:insertIndex], append([]string{importLine}, lines[insertIndex:]...)...)
+	return strings.Join(lines, "\n")
+}
+
+func normalizeBuilderRuntimeOpenLiteMainCollectionControllerImports(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	updated := content
+	defaultImport := "import 'controllers/record_list_controller.dart';"
+	defaultClassName := "RecordListController"
+	collectionRegistry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath, updated)
+	collectionControllerPath := strings.TrimSpace(collectionRegistry.controller.resolvedPath)
+	collectionControllerClass := strings.TrimSpace(collectionRegistry.controller.resolvedClassName)
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, collectionControllerPath) || collectionControllerClass == "" {
+		return builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	trimmedPath := strings.TrimPrefix(collectionControllerPath, "lib/")
+	if trimmedPath != "" && builderRuntimeContentContainsDartIdentifier(updated, collectionControllerClass) {
+		updated = normalizeBuilderRuntimeOpenLiteEnsureCollectionControllerImport(updated, collectionControllerPath)
+	}
+	currentImport := ""
+	if trimmedPath != "" {
+		currentImport = "import '" + trimmedPath + "';"
+	}
+	if trimmedPath != "controllers/record_list_controller.dart" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	if currentImport != "" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, currentImport, collectionControllerClass)
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteMainCollectionControllerVariable(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	view := builderRuntimePrimaryCollectionViewCandidate(workspacePath, content)
+	collectionController := builderRuntimePrimaryCollectionControllerCandidate(workspacePath, view.path, view.className, view.controllerParam, view.controllerType, content)
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, collectionController.path) || strings.TrimSpace(collectionController.className) == "" || strings.TrimSpace(collectionController.repositoryParam) == "" {
+		return content
+	}
+	canonicalDeclaration := "    final listController = " + collectionController.className + "(" + collectionController.repositoryParam + ": repository);\n"
+	updated := builderRuntimeOpenLiteMainListControllerDeclarationPattern.ReplaceAllString(content, canonicalDeclaration)
+	return normalizeBuilderRuntimeOpenLiteEnsureListControllerVariable(updated, collectionController)
+}
+
+func normalizeBuilderRuntimeOpenLiteMainCollectionViewImports(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	updated := content
+	defaultImport := "import 'views/record_list_page.dart';"
+	defaultClassName := "RecordListPage"
+	collectionRegistry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath, updated)
+	collectionViewPath := strings.TrimSpace(collectionRegistry.view.resolvedPath)
+	collectionViewClass := strings.TrimSpace(collectionRegistry.view.resolvedClassName)
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, collectionViewPath) || collectionViewClass == "" {
+		return builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	trimmedPath := strings.TrimPrefix(collectionViewPath, "lib/")
+	if trimmedPath != "" && builderRuntimeContentContainsDartIdentifier(updated, collectionViewClass) {
+		updated = normalizeBuilderRuntimeOpenLiteEnsureCollectionPageImport(updated, collectionViewPath)
+	}
+	currentImport := ""
+	if trimmedPath != "" {
+		currentImport = "import '" + trimmedPath + "';"
+	}
+	if trimmedPath != "views/record_list_page.dart" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	if currentImport != "" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, currentImport, collectionViewClass)
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteMainOverviewControllerImports(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	updated := content
+	defaultImport := "import 'controllers/home_controller.dart';"
+	defaultClassName := "HomeController"
+	overviewRegistry := builderRuntimeOpenLiteOverviewSurfaceRegistry(workspacePath, updated)
+	overviewControllerPath := strings.TrimSpace(overviewRegistry.controller.resolvedPath)
+	overviewControllerClass := strings.TrimSpace(overviewRegistry.controller.resolvedClassName)
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, overviewControllerPath) || overviewControllerClass == "" {
+		return builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	trimmedPath := strings.TrimPrefix(overviewControllerPath, "lib/")
+	if trimmedPath != "" && builderRuntimeContentContainsDartIdentifier(updated, overviewControllerClass) {
+		updated = normalizeBuilderRuntimeOpenLiteEnsureOverviewControllerImport(updated, overviewControllerPath)
+	}
+	currentImport := ""
+	if trimmedPath != "" {
+		currentImport = "import '" + trimmedPath + "';"
+	}
+	if trimmedPath != "controllers/home_controller.dart" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	if currentImport != "" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, currentImport, overviewControllerClass)
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteMainOverviewViewImports(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	updated := content
+	defaultImport := "import 'views/home_page.dart';"
+	defaultClassName := "HomePage"
+	overviewRegistry := builderRuntimeOpenLiteOverviewSurfaceRegistry(workspacePath, updated)
+	overviewViewPath := strings.TrimSpace(overviewRegistry.view.resolvedPath)
+	overviewViewClass := strings.TrimSpace(overviewRegistry.view.resolvedClassName)
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, overviewViewPath) || overviewViewClass == "" {
+		return builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	trimmedPath := strings.TrimPrefix(overviewViewPath, "lib/")
+	if trimmedPath != "" && builderRuntimeContentContainsDartIdentifier(updated, overviewViewClass) {
+		updated = normalizeBuilderRuntimeOpenLiteEnsureOverviewPageImport(updated, overviewViewPath)
+	}
+	currentImport := ""
+	if trimmedPath != "" {
+		currentImport = "import '" + trimmedPath + "';"
+	}
+	if trimmedPath != "views/home_page.dart" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	if currentImport != "" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, currentImport, overviewViewClass)
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteMainDetailViewImports(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	updated := content
+	defaultImport := "import 'views/record_detail_page.dart';"
+	defaultClassName := "RecordDetailPage"
+	detailRegistry := builderRuntimeOpenLiteDetailSurfaceRegistry(workspacePath, updated)
+	detailViewPath := strings.TrimSpace(detailRegistry.view.resolvedPath)
+	detailViewClass := strings.TrimSpace(detailRegistry.view.resolvedClassName)
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, detailViewPath) || detailViewClass == "" {
+		return builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	trimmedPath := strings.TrimPrefix(detailViewPath, "lib/")
+	if trimmedPath != "" && builderRuntimeContentContainsDartIdentifier(updated, detailViewClass) {
+		updated = normalizeBuilderRuntimeOpenLiteEnsureDetailPageImport(updated, detailViewPath)
+	}
+	currentImport := ""
+	if trimmedPath != "" {
+		currentImport = "import '" + trimmedPath + "';"
+	}
+	if trimmedPath != "views/record_detail_page.dart" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	if currentImport != "" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, currentImport, detailViewClass)
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteMainMutationViewImports(workspacePath, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	updated := content
+	defaultImport := "import 'views/record_form_page.dart';"
+	defaultClassName := "RecordFormPage"
+	mutationRegistry := builderRuntimeOpenLiteMutationSurfaceRegistry(workspacePath, updated)
+	mutationViewPath := strings.TrimSpace(mutationRegistry.view.resolvedPath)
+	mutationViewClass := strings.TrimSpace(mutationRegistry.view.resolvedClassName)
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, mutationViewPath) || mutationViewClass == "" {
+		return builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	trimmedPath := strings.TrimPrefix(mutationViewPath, "lib/")
+	if trimmedPath != "" && builderRuntimeContentContainsDartIdentifier(updated, mutationViewClass) {
+		updated = normalizeBuilderRuntimeOpenLiteEnsureFormPageImport(updated, mutationViewPath)
+	}
+	currentImport := ""
+	if trimmedPath != "" {
+		currentImport = "import '" + trimmedPath + "';"
+	}
+	if trimmedPath != "views/record_form_page.dart" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, defaultImport, defaultClassName)
+	}
+	if currentImport != "" {
+		updated = builderRuntimeOpenLiteDropImportIfUnused(updated, currentImport, mutationViewClass)
+	}
+	return updated
+}
+
+
+func normalizeBuilderRuntimeOpenLiteEnsureListControllerVariable(content string, controller builderRuntimeCollectionControllerCandidate) string {
+	if controller.className == "" || controller.repositoryParam == "" {
+		return content
+	}
+	inlineController := "        controller: " + controller.className + "(" + controller.repositoryParam + ": repository),"
+	canonicalDeclaration := "    final listController = " + controller.className + "(" + controller.repositoryParam + ": repository);\n"
+	updated := content
+	if controller.className == "RecordListController" && controller.repositoryParam == "repository" {
+		updated = builderRuntimeOpenLiteMainListControllerDeclarationPattern.ReplaceAllString(updated, canonicalDeclaration)
+	} else {
+		updated = builderRuntimeOpenLiteMainListControllerDeclarationPattern.ReplaceAllString(updated, canonicalDeclaration)
+	}
+	declarationPattern := regexp.MustCompile(`(?m)^[ \t]*final\s+listController\s*=\s*` + regexp.QuoteMeta(controller.className) + `\s*\(\s*` + regexp.QuoteMeta(controller.repositoryParam) + `\s*:\s*repository\s*\);[ \t]*(?:\n|$)`)
+	updated = declarationPattern.ReplaceAllString(updated, canonicalDeclaration)
+	if strings.Contains(updated, inlineController) {
+		updated = strings.ReplaceAll(updated, inlineController, "        controller: listController,")
+	}
+	if strings.Contains(updated, "controller: listController,") && !strings.Contains(updated, strings.TrimSpace(canonicalDeclaration)) {
+		updated = strings.Replace(updated, "    return MaterialApp(", canonicalDeclaration+"    return MaterialApp(", 1)
+	}
+	return updated
+}
+
+func normalizeBuilderRuntimeOpenLiteEnsureNavigatorKey(content, appClassName string) string {
+	updated := content
+	constConstructor := "  const " + appClassName + "({super.key, required this.repository});"
+	if strings.Contains(updated, constConstructor) {
+		updated = strings.Replace(updated, constConstructor, "  "+appClassName+"({super.key, required this.repository});", 1)
+	}
+	if !strings.Contains(updated, "final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();") {
+		updated = builderRuntimeInsertFieldIntoStatelessWidget(updated, appClassName, "final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();")
+	}
+	if !strings.Contains(updated, "navigatorKey: _navigatorKey,") {
+		updated = strings.Replace(updated, "    return MaterialApp(\n", "    return MaterialApp(\n      navigatorKey: _navigatorKey,\n", 1)
+	}
+	return updated
+}
+
+func builderRuntimeOpenLiteMainDetailCallbackReplacement(detailCallbackName, content string, mutationView builderRuntimeMutationViewCandidate, controller builderRuntimeCollectionControllerCandidate) string {
+	if strings.TrimSpace(detailCallbackName) == "" {
+		detailCallbackName = "onOpenRecordDetail"
+	}
+	if controller.supportsUpdate && strings.Contains(content, "listController") {
+		return strings.Join([]string{
+			detailCallbackName + ": (record) async {",
+			"          final updatedRecord = await Navigator.of(context).push<dynamic>(",
+			"            MaterialPageRoute(",
+			"              builder: (context) => " + mutationView.className + "(",
+			"                " + mutationView.repositoryParam + ": repository,",
+			"                " + mutationView.initialParam + ": record,",
+			"              ),",
+			"            ),",
+			"          );",
+			"          if (updatedRecord != null) {",
+			"            listController.updateRecord(updatedRecord);",
+			"          }",
+			"        }",
+		}, "\n")
+	}
+	return strings.Join([]string{
+		detailCallbackName + ": (record) async {",
+		"          await Navigator.of(context).push<void>(",
+		"            MaterialPageRoute(",
+		"              builder: (context) => " + mutationView.className + "(",
+		"                " + mutationView.repositoryParam + ": repository,",
+		"                " + mutationView.initialParam + ": record,",
+		"              ),",
+		"            ),",
+		"          );",
+		"        }",
+	}, "\n")
+}
+
+func builderRuntimeOpenLiteMainDetailSurfaceCallbackReplacement(detailCallbackName, content string, detailView builderRuntimeDetailViewCandidate, mutationView builderRuntimeMutationViewCandidate, controller builderRuntimeCollectionControllerCandidate) string {
+	return builderRuntimeOpenLiteMainDetailSurfaceCallbackReplacementWithResolvedArgs(detailCallbackName, content, detailView, mutationView, controller, nil)
+}
+
+func builderRuntimeOpenLiteMainDetailSurfaceCallbackReplacementWithResolvedArgs(detailCallbackName, content string, detailView builderRuntimeDetailViewCandidate, mutationView builderRuntimeMutationViewCandidate, controller builderRuntimeCollectionControllerCandidate, resolvedArgs map[string]builderRuntimeOpenLiteResolvedArgument) string {
+	if strings.TrimSpace(detailCallbackName) == "" {
+		detailCallbackName = "onOpenRecordDetail"
+	}
+	lines := []string{
+		detailCallbackName + ": (record) async {",
+	}
+	lines = append(lines, builderRuntimeOpenLiteMainDetailResolvedArgumentPreludeLines(detailView, resolvedArgs)...)
+	lines = append(lines,
+		"          await Navigator.of(context).push<void>(",
+		"            MaterialPageRoute(",
+			"              builder: (context) => " + detailView.className + "(",
+			"                " + detailView.recordParam + ": record,",
+	)
+	for _, name := range detailView.requiredParams {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" || trimmedName == detailView.recordParam || trimmedName == detailView.editCallbackName || trimmedName == detailView.deleteCallbackName {
+			continue
+		}
+		if expression := strings.TrimSpace(resolvedArgs[trimmedName].expression); expression != "" {
+			lines = append(lines, "                "+trimmedName+": "+expression+",")
+		}
+	}
+	if detailView.editCallbackName != "" && mutationView.path != "" && mutationView.initialParam != "" {
+		lines = append(lines,
+			"                "+detailView.editCallbackName+": (updatedRecord) async {",
+			"                  final editedRecord = await Navigator.of(context).push<dynamic>(",
+			"                    MaterialPageRoute(",
+			"                      builder: (context) => "+mutationView.className+"(",
+			"                        "+mutationView.repositoryParam+": repository,",
+			"                        "+mutationView.initialParam+": updatedRecord,",
+			"                      ),",
+			"                    ),",
+			"                  );",
+		)
+		if strings.Contains(content, "listController") && controller.supportsUpdate {
+			lines = append(lines,
+				"                  if (editedRecord != null) {",
+				"                    listController.updateRecord(editedRecord);",
+				"                  }",
+			)
+		} else if strings.Contains(content, "listController") && controller.supportsRefresh {
+			lines = append(lines,
+				"                  if (editedRecord != null) {",
+				"                    await listController.refresh();",
+				"                  }",
+			)
+		}
+		lines = append(lines, "                },")
+	}
+	lines = append(lines,
+		"              ),",
+		"            ),",
+		"          );",
+		"        }",
+	)
+	return strings.Join(lines, "\n")
+}
+
+func builderRuntimeOpenLiteMainDetailResolvedArgumentPreludeLines(detailView builderRuntimeDetailViewCandidate, resolvedArgs map[string]builderRuntimeOpenLiteResolvedArgument) []string {
+	if len(resolvedArgs) == 0 {
+		return nil
+	}
+	lines := make([]string, 0)
+	seen := make(map[string]struct{})
+	for _, name := range detailView.requiredParams {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
+			continue
+		}
+		for _, line := range resolvedArgs[trimmedName].prelude {
+			if _, ok := seen[line]; ok {
+				continue
+			}
+			seen[line] = struct{}{}
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
+func builderRuntimeOpenLiteMainDetailResolvedArgumentExpressions(workspacePath string, detailView builderRuntimeDetailViewCandidate, controller builderRuntimeCollectionControllerCandidate) map[string]builderRuntimeOpenLiteResolvedArgument {
+	if detailView.path == "" || controller.path == "" {
+		return nil
+	}
+	detailContent, _ := builderRuntimeSemanticFileContent(workspacePath, nil, detailView.path)
+	controllerContent, err := builderRuntimeSemanticFileContent(workspacePath, nil, controller.path)
+	if err != nil || strings.TrimSpace(controllerContent) == "" {
+		return nil
+	}
+	resolved := make(map[string]builderRuntimeOpenLiteResolvedArgument)
+	for _, name := range detailView.requiredParams {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" || trimmedName == detailView.recordParam || trimmedName == detailView.editCallbackName || trimmedName == detailView.deleteCallbackName {
+			continue
+		}
+		if builderRuntimeOpenLiteControllerHasReadableMember(controllerContent, trimmedName) {
+			resolved[trimmedName] = builderRuntimeOpenLiteResolvedArgument{expression: "listController." + trimmedName}
+			continue
+		}
+		if derived, ok := builderRuntimeOpenLiteControllerDerivedDetailArgument(workspacePath, detailContent, controllerContent, trimmedName); ok {
+			resolved[trimmedName] = derived
+		}
+	}
+	repository := builderRuntimePrimaryRepositoryCandidate(workspacePath, detailView.path, detailView.className, controller.path, controller.className, controller.repositoryParam)
+	if repository.path != "" {
+		repositoryContent, err := builderRuntimeSemanticFileContent(workspacePath, nil, repository.path)
+		if err == nil && strings.TrimSpace(repositoryContent) != "" {
+			for _, name := range detailView.requiredParams {
+				trimmedName := strings.TrimSpace(name)
+				if trimmedName == "" || trimmedName == detailView.recordParam || trimmedName == detailView.editCallbackName || trimmedName == detailView.deleteCallbackName {
+					continue
+				}
+				if _, ok := resolved[trimmedName]; ok {
+					continue
+				}
+				if derived, ok := builderRuntimeOpenLiteRepositoryDerivedDetailArgument(workspacePath, detailContent, repositoryContent, trimmedName); ok {
+					resolved[trimmedName] = derived
+				}
+			}
+		}
+	}
+	return resolved
+}
+
+func builderRuntimeOpenLiteControllerHasReadableMember(content, name string) bool {
+	trimmedName := strings.TrimSpace(name)
+	if strings.TrimSpace(content) == "" || trimmedName == "" {
+		return false
+	}
+	fieldPattern := regexp.MustCompile(`(?m)^\s*(?:final|late\s+final|late)\s+[^\n;=]+\s+` + regexp.QuoteMeta(trimmedName) + `\s*(?:=|;)`)
+	if fieldPattern.FindStringIndex(content) != nil {
+		return true
+	}
+	getterPattern := regexp.MustCompile(`(?m)^\s*[^\n]+\s+get\s+` + regexp.QuoteMeta(trimmedName) + `\s*(?:=>|\{)`)
+	return getterPattern.FindStringIndex(content) != nil
+}
+
+func builderRuntimeOpenLiteControllerDerivedDetailArgument(workspacePath, detailContent, controllerContent, name string) (builderRuntimeOpenLiteResolvedArgument, bool) {
+	trimmedName := strings.TrimSpace(name)
+	if strings.TrimSpace(workspacePath) == "" || strings.TrimSpace(controllerContent) == "" || trimmedName == "" {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	if derived, ok := builderRuntimeOpenLiteControllerDerivedDetailArgumentForRelation(workspacePath, controllerContent, trimmedName); ok {
+		return derived, true
+	}
+	relationName, isCollection, ok := builderRuntimeOpenLiteDetailArgumentRelationHint(workspacePath, detailContent, trimmedName)
+	if !ok || isCollection {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	return builderRuntimeOpenLiteControllerDerivedDetailArgumentForRelation(workspacePath, controllerContent, relationName)
+}
+
+func builderRuntimeOpenLiteControllerDerivedDetailArgumentForRelation(workspacePath, controllerContent, relationName string) (builderRuntimeOpenLiteResolvedArgument, bool) {
+	trimmedName := strings.TrimSpace(relationName)
+	if strings.TrimSpace(workspacePath) == "" || strings.TrimSpace(controllerContent) == "" || trimmedName == "" {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	recordModelContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	if strings.TrimSpace(recordModelContent) == "" {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	recordField := trimmedName + "Id"
+	fields := builderRuntimeDeclaredFieldNames(recordModelContent)
+	if _, ok := fields[recordField]; !ok {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	lookupMethod := trimmedName + "For"
+	if !builderRuntimeOpenLiteContentHasMethod(controllerContent, lookupMethod) {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	return builderRuntimeOpenLiteResolvedArgument{
+		expression: "listController." + lookupMethod + "(record." + recordField + ")",
+	}, true
+}
+
+func builderRuntimeOpenLiteContentHasMethod(content, name string) bool {
+	trimmedName := strings.TrimSpace(name)
+	if strings.TrimSpace(content) == "" || trimmedName == "" {
+		return false
+	}
+	methodPattern := regexp.MustCompile(`(?m)^\s*[^\n;=]+\s+` + regexp.QuoteMeta(trimmedName) + `\s*\(`)
+	return methodPattern.FindStringIndex(content) != nil
+}
+
+func builderRuntimeOpenLiteRepositoryHasMethod(content, name string) bool {
+	return builderRuntimeOpenLiteContentHasMethod(content, name)
+}
+
+func builderRuntimeOpenLiteRepositoryDerivedDetailArgument(workspacePath, detailContent, repositoryContent, name string) (builderRuntimeOpenLiteResolvedArgument, bool) {
+	if derived, ok := builderRuntimeOpenLiteRepositoryDerivedCollectionArgument(repositoryContent, name); ok {
+		return derived, true
+	}
+	if derived, ok := builderRuntimeOpenLiteRepositoryDerivedSingularRelationArgument(workspacePath, repositoryContent, name); ok {
+		return derived, true
+	}
+	if relationName, isCollection, ok := builderRuntimeOpenLiteDetailArgumentRelationHint(workspacePath, detailContent, name); ok {
+		if isCollection {
+			if derived, ok := builderRuntimeOpenLiteRepositoryDerivedCollectionArgumentWithAlias(repositoryContent, builderRuntimeOpenLitePluralizeIdentifier(relationName), name); ok {
+				return derived, true
+			}
+		} else if derived, ok := builderRuntimeOpenLiteRepositoryDerivedSingularRelationArgumentWithAlias(workspacePath, repositoryContent, relationName, name); ok {
+			return derived, true
+		}
+	}
+	switch strings.TrimSpace(name) {
+	case "taskTags":
+		if !builderRuntimeOpenLiteRepositoryHasMethod(repositoryContent, "loadTaskTagLinks") {
+			return builderRuntimeOpenLiteResolvedArgument{}, false
+		}
+		return builderRuntimeOpenLiteResolvedArgument{
+			expression: "taskTags",
+			prelude: []string{
+				"          final taskTags = (await repository.loadTaskTagLinks())",
+				"              .where((link) => link.taskId == record.taskId)",
+				"              .map((link) => link.tagId as String)",
+				"              .toList();",
+			},
+		}, true
+	case "warehouse":
+		if !builderRuntimeOpenLiteRepositoryHasMethod(repositoryContent, "loadWarehouses") {
+			return builderRuntimeOpenLiteResolvedArgument{}, false
+		}
+		return builderRuntimeOpenLiteResolvedArgument{
+			expression: "warehouse",
+			prelude: []string{
+				"          dynamic warehouse;",
+				"          for (final candidate in await repository.loadWarehouses()) {",
+				"            if (candidate.warehouseId == record.warehouseId) {",
+				"              warehouse = candidate;",
+				"              break;",
+				"            }",
+				"          }",
+			},
+		}, true
+	case "items":
+		if !builderRuntimeOpenLiteRepositoryHasMethod(repositoryContent, "loadLineItems") {
+			return builderRuntimeOpenLiteResolvedArgument{}, false
+		}
+		return builderRuntimeOpenLiteResolvedArgument{
+			expression: "items",
+			prelude: []string{
+				"          final items = (await repository.loadLineItems())",
+				"              .where((candidate) => candidate.sheetId == record.sheetId)",
+				"              .toList();",
+			},
+		}, true
+	case "skus":
+		if !builderRuntimeOpenLiteRepositoryHasMethod(repositoryContent, "loadSkus") {
+			return builderRuntimeOpenLiteResolvedArgument{}, false
+		}
+		return builderRuntimeOpenLiteResolvedArgument{
+			expression: "skus",
+			prelude: []string{
+				"          final skus = await repository.loadSkus();",
+			},
+		}, true
+	default:
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+}
+
+func builderRuntimeOpenLiteRepositoryDerivedCollectionArgument(repositoryContent, name string) (builderRuntimeOpenLiteResolvedArgument, bool) {
+	return builderRuntimeOpenLiteRepositoryDerivedCollectionArgumentWithAlias(repositoryContent, name, name)
+}
+
+func builderRuntimeOpenLiteRepositoryDerivedCollectionArgumentWithAlias(repositoryContent, collectionName, aliasName string) (builderRuntimeOpenLiteResolvedArgument, bool) {
+	trimmedCollectionName := strings.TrimSpace(collectionName)
+	trimmedAliasName := strings.TrimSpace(aliasName)
+	if strings.TrimSpace(repositoryContent) == "" || trimmedCollectionName == "" || trimmedAliasName == "" || !strings.HasSuffix(trimmedCollectionName, "s") {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	loaderName := "load" + strings.ToUpper(trimmedCollectionName[:1]) + trimmedCollectionName[1:]
+	if !builderRuntimeOpenLiteRepositoryHasMethod(repositoryContent, loaderName) {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	return builderRuntimeOpenLiteResolvedArgument{
+		expression: trimmedAliasName,
+		prelude: []string{
+			"          final " + trimmedAliasName + " = await repository." + loaderName + "();",
+		},
+	}, true
+}
+
+func builderRuntimeOpenLiteRepositoryDerivedSingularRelationArgument(workspacePath, repositoryContent, name string) (builderRuntimeOpenLiteResolvedArgument, bool) {
+	return builderRuntimeOpenLiteRepositoryDerivedSingularRelationArgumentWithAlias(workspacePath, repositoryContent, name, name)
+}
+
+func builderRuntimeOpenLiteRepositoryDerivedSingularRelationArgumentWithAlias(workspacePath, repositoryContent, relationName, aliasName string) (builderRuntimeOpenLiteResolvedArgument, bool) {
+	trimmedName := strings.TrimSpace(relationName)
+	trimmedAliasName := strings.TrimSpace(aliasName)
+	if strings.TrimSpace(workspacePath) == "" || strings.TrimSpace(repositoryContent) == "" || trimmedName == "" || strings.HasSuffix(trimmedName, "s") {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	if trimmedAliasName == "" {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	recordModelContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	if strings.TrimSpace(recordModelContent) == "" {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	recordField := trimmedName + "Id"
+	fields := builderRuntimeDeclaredFieldNames(recordModelContent)
+	if _, ok := fields[recordField]; !ok {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	loaderTarget := builderRuntimeOpenLitePluralizeIdentifier(trimmedName)
+	loaderName := "load" + strings.ToUpper(loaderTarget[:1]) + loaderTarget[1:]
+	if !builderRuntimeOpenLiteRepositoryHasMethod(repositoryContent, loaderName) {
+		return builderRuntimeOpenLiteResolvedArgument{}, false
+	}
+	return builderRuntimeOpenLiteResolvedArgument{
+		expression: trimmedAliasName,
+		prelude: []string{
+			"          dynamic " + trimmedAliasName + ";",
+			"          for (final candidate in await repository." + loaderName + "()) {",
+			"            if (candidate." + recordField + " == record." + recordField + ") {",
+			"              " + trimmedAliasName + " = candidate;",
+			"              break;",
+			"            }",
+			"          }",
+		},
+	}, true
+}
+
+func builderRuntimeOpenLiteDetailArgumentRelationHint(workspacePath, detailContent, name string) (string, bool, bool) {
+	trimmedName := strings.TrimSpace(name)
+	if strings.TrimSpace(workspacePath) == "" || strings.TrimSpace(detailContent) == "" || trimmedName == "" {
+		return "", false, false
+	}
+	fieldType := builderRuntimeDartFieldTypeByName(detailContent, trimmedName)
+	modelType, isCollection := builderRuntimeOpenLiteDetailArgumentModelType(fieldType)
+	if modelType == "" {
+		return "", false, false
+	}
+	if modelType == builderRuntimeOpenLitePrimaryRecordTypeName(workspacePath) {
+		return "", false, false
+	}
+	if builderRuntimeModelImportPathForType(workspacePath, modelType) == "" {
+		return "", false, false
+	}
+	relationName := builderRuntimeOpenLiteLowerCamelIdentifier(modelType)
+	if relationName == "" {
+		return "", false, false
+	}
+	return relationName, isCollection, true
+}
+
+func builderRuntimeOpenLiteDetailArgumentModelType(fieldType string) (string, bool) {
+	trimmedType := strings.TrimSpace(strings.TrimSuffix(fieldType, "?"))
+	if trimmedType == "" {
+		return "", false
+	}
+	isCollection := false
+	if strings.HasPrefix(trimmedType, "List<") && strings.HasSuffix(trimmedType, ">") {
+		isCollection = true
+		trimmedType = strings.TrimSpace(strings.TrimSuffix(trimmedType[len("List<"):len(trimmedType)-1], "?"))
+	}
+	if separator := strings.LastIndex(trimmedType, "."); separator >= 0 {
+		trimmedType = strings.TrimSpace(trimmedType[separator+1:])
+	}
+	return trimmedType, isCollection
+}
+
+func builderRuntimeOpenLiteLowerCamelIdentifier(name string) string {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
+		return ""
+	}
+	return strings.ToLower(trimmedName[:1]) + trimmedName[1:]
+}
+
+func builderRuntimeOpenLitePluralizeIdentifier(name string) string {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
+		return ""
+	}
+	switch {
+	case strings.HasSuffix(trimmedName, "ch"), strings.HasSuffix(trimmedName, "sh"), strings.HasSuffix(trimmedName, "s"), strings.HasSuffix(trimmedName, "x"), strings.HasSuffix(trimmedName, "z"):
+		return trimmedName + "es"
+	case strings.HasSuffix(trimmedName, "y") && len(trimmedName) > 1:
+		return trimmedName[:len(trimmedName)-1] + "ies"
+	default:
+		return trimmedName + "s"
+	}
+}
+
+func builderRuntimeOpenLiteListControllerSupportsUpdate(workspacePath string) bool {
+	return builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath).controller.capabilityFlags.supportsUpdate
+}
+
+func builderRuntimeOpenLiteListControllerSupportsInit(workspacePath string) bool {
+	return builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath).controller.capabilityFlags.supportsInit
+}
+
+func builderRuntimeOpenLiteListControllerSupportsRefresh(workspacePath string) bool {
+	return builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath).controller.capabilityFlags.supportsRefresh
+}
+
+func builderRuntimeOpenLiteCanonicalNoFilterListController(workspacePath string) string {
+	entry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath).controller
+	repositoryType := strings.TrimSpace(entry.repositoryType)
+	if repositoryType == "" {
+		repositoryType = "RecordRepository"
+	}
+	recordType := strings.TrimSpace(entry.modelType)
+	if recordType == "" {
+		recordType = "TodoItem"
+	}
+	className := strings.TrimSpace(entry.resolvedClassName)
+	if className == "" {
+		className = "RecordListController"
+	}
+	repositoryParam := strings.TrimSpace(entry.constructorContract.repositoryParam)
+	if repositoryParam == "" {
+		repositoryParam = "repository"
+	}
+	modelImportPath := strings.TrimSpace(entry.modelImportPath)
+	if modelImportPath == "" {
+		modelImportPath = "../models/record.dart"
+	}
+	repositoryImportPath := strings.TrimSpace(entry.repositoryImportPath)
+	if repositoryImportPath == "" {
+		repositoryImportPath = "../repositories/record_repository.dart"
+	}
+	loadMethodName, addMethodName, updateMethodName := builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, recordType)
+	return strings.Join([]string{
+		"import 'package:flutter/foundation.dart' show ChangeNotifier;",
+		"",
+		"import '" + modelImportPath + "';",
+		"import '" + repositoryImportPath + "';",
+		"",
+		"class " + className + " extends ChangeNotifier {",
+		"  " + className + "({required " + repositoryType + " " + repositoryParam + "})",
+		"      : _repository = " + repositoryParam + " {",
+		"    _init();",
+		"  }",
+		"",
+		"  final " + repositoryType + " _repository;",
+		"  List<" + recordType + "> _records = [];",
+		"  bool _isLoading = false;",
+		"",
+		"  List<" + recordType + "> get records => _records;",
+		"  bool get isLoading => _isLoading;",
+		"",
+		"  Future<void> _init() async {",
+		"    await refresh();",
+		"  }",
+		"",
+		"  Future<void> refresh() async {",
+		"    _isLoading = true;",
+		"    notifyListeners();",
+		"    try {",
+		"      _records = await _repository." + loadMethodName + "();",
+		"    } finally {",
+		"      _isLoading = false;",
+		"      notifyListeners();",
+		"    }",
+		"  }",
+		"",
+		"  Future<void> addRecord(" + recordType + " record) async {",
+		"    await _repository." + addMethodName + "(record);",
+		"    await refresh();",
+		"  }",
+		"",
+		"  Future<void> updateRecord(" + recordType + " record) async {",
+		"    await _repository." + updateMethodName + "(record);",
+		"    await refresh();",
+		"  }",
+		"}",
+	}, "\n") + "\n"
+}
+
+func builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, recordType string) (string, string, string) {
+	loadMethodName := "loadRecords"
+	addMethodName := "addRecord"
+	updateMethodName := "updateRecord"
+	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
+	trimmedRecordType := strings.TrimSpace(recordType)
+	if trimmedWorkspacePath == "" || trimmedRecordType == "" {
+		return loadMethodName, addMethodName, updateMethodName
+	}
+	surface := builderRuntimePrimaryCollectionSurfaceCandidate(trimmedWorkspacePath)
+	repositoryPath := strings.TrimSpace(surface.repository.path)
+	if repositoryPath == "" {
+		repositoryPath = "lib/repositories/record_repository.dart"
+	}
+	repositoryContent, err := builderRuntimeSemanticFileContent(trimmedWorkspacePath, nil, repositoryPath)
+	if err != nil || strings.TrimSpace(repositoryContent) == "" {
+		return loadMethodName, addMethodName, updateMethodName
+	}
+	loadPattern := regexp.MustCompile(`Future<List<` + regexp.QuoteMeta(trimmedRecordType) + `>>\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
+	if match := loadPattern.FindStringSubmatch(repositoryContent); len(match) >= 2 {
+		if candidate := strings.TrimSpace(match[1]); candidate != "" {
+			loadMethodName = candidate
+		}
+	}
+	addPattern := regexp.MustCompile(`Future<void>\s+(add[A-Z][A-Za-z0-9_]*)\s*\(\s*` + regexp.QuoteMeta(trimmedRecordType) + `\s+[A-Za-z_][A-Za-z0-9_]*\s*\)`)
+	if match := addPattern.FindStringSubmatch(repositoryContent); len(match) >= 2 {
+		if candidate := strings.TrimSpace(match[1]); candidate != "" {
+			addMethodName = candidate
+		}
+	}
+	updatePattern := regexp.MustCompile(`Future<void>\s+(update[A-Z][A-Za-z0-9_]*)\s*\(\s*` + regexp.QuoteMeta(trimmedRecordType) + `\s+[A-Za-z_][A-Za-z0-9_]*\s*\)`)
+	if match := updatePattern.FindStringSubmatch(repositoryContent); len(match) >= 2 {
+		if candidate := strings.TrimSpace(match[1]); candidate != "" {
+			updateMethodName = candidate
+		}
+	}
+	return loadMethodName, addMethodName, updateMethodName
+}
+
+func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) string {
+	entry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath).view
+	recordType := strings.TrimSpace(entry.modelType)
+	if recordType == "" {
+		recordType = "TodoItem"
+	}
+	fieldSemantics := entry.fieldSemantics
+	primaryTextField := strings.TrimSpace(fieldSemantics.primaryTextField)
+	if primaryTextField == "" {
+		return ""
+	}
+	secondaryTextField := strings.TrimSpace(fieldSemantics.secondaryTextField)
+	statusField := strings.TrimSpace(fieldSemantics.statusField)
+	statusCopyLabelMethodName := strings.TrimSpace(fieldSemantics.statusCopyLabelMethodName)
+	if statusField != "" && statusCopyLabelMethodName == "" {
+		statusCopyLabelMethodName = "statusLabel"
+	}
+	className := strings.TrimSpace(entry.resolvedClassName)
+	if className == "" {
+		className = "RecordListPage"
+	}
+	controllerType := strings.TrimSpace(entry.constructorContract.controllerType)
+	if controllerType == "" {
+		controllerType = "RecordListController"
+	}
+	controllerParam := strings.TrimSpace(entry.constructorContract.controllerParam)
+	if controllerParam == "" {
+		controllerParam = "controller"
+	}
+	detailCallbackName := strings.TrimSpace(entry.constructorContract.detailCallbackName)
+	if detailCallbackName == "" {
+		detailCallbackName = "onOpenRecordDetail"
+	}
+	detailCallbackType := strings.TrimSpace(entry.constructorContract.detailCallbackType)
+	if detailCallbackType == "" {
+		detailCallbackType = "Future<void> Function(" + recordType + " record)"
+	}
+	createCallbackName := strings.TrimSpace(entry.constructorContract.createCallbackName)
+	if createCallbackName == "" {
+		createCallbackName = "onCreateRecord"
+	}
+	controllerImportPath := strings.TrimSpace(entry.controllerImportPath)
+	if controllerImportPath == "" {
+		controllerImportPath = "../controllers/record_list_controller.dart"
+	}
+	modelImportPath := strings.TrimSpace(entry.modelImportPath)
+	if modelImportPath == "" {
+		modelImportPath = "../models/record.dart"
+	}
+	copyImportPath := builderRuntimeOpenLiteRelativeImport(strings.TrimSpace(entry.resolvedPath), "lib/template/open_lite_copy.dart", "../template/open_lite_copy.dart")
+	rowChildren := []string{
+		"                    Text(",
+		"                      record." + primaryTextField + ",",
+		"                      style: const TextStyle(fontWeight: FontWeight.w700),",
+		"                    ),",
+	}
+	subtitleParts := make([]string, 0, 2)
+	if secondaryTextField != "" {
+		subtitleParts = append(subtitleParts, "record."+secondaryTextField)
+	}
+	if statusField != "" {
+		subtitleParts = append(subtitleParts, "openLiteCopy."+statusCopyLabelMethodName+"(record."+statusField+")")
+	}
+	subtitle := builderRuntimeOpenLiteInterpolatedExpression(subtitleParts)
+	if subtitle != "" {
+		rowChildren = append(rowChildren,
+			"                    const SizedBox(height: 4),",
+			"                    Text(",
+			"                      "+subtitle+",",
+			"                    ),",
+		)
+	}
+	lines := []string{
+		"import 'package:flutter/material.dart';",
+		"",
+		"import '" + controllerImportPath + "';",
+		"import '" + modelImportPath + "';",
+		"import '" + copyImportPath + "';",
+		"",
+		"class " + className + " extends StatelessWidget {",
+		"  const " + className + "({",
+		"    super.key,",
+		"    required this." + controllerParam + ",",
+		"    required this." + detailCallbackName + ",",
+		"    required this." + createCallbackName + ",",
+		"  });",
+		"",
+		"  final " + controllerType + " " + controllerParam + ";",
+		"  final " + detailCallbackType + " " + detailCallbackName + ";",
+		"  final Future<void> Function() " + createCallbackName + ";",
+		"",
+		"  @override",
+		"  Widget build(BuildContext context) {",
+		"    return AnimatedBuilder(",
+		"      animation: " + controllerParam + ",",
+		"      builder: (context, _) {",
+		"        final records = " + controllerParam + ".records;",
+		"        return Scaffold(",
+		"          appBar: AppBar(title: Text(openLiteCopy.listPageTitle)),",
+		"          body: records.isEmpty",
+		"              ? Center(child: Text(openLiteCopy.listEmptyLabel))",
+		"              : ListView(",
+		"                  padding: const EdgeInsets.all(20),",
+		"                  children: [",
+		"                    ...List<Widget>.generate(records.length, (index) {",
+		"                      final record = records[index];",
+		"                      return Padding(",
+		"                        padding: EdgeInsets.only(bottom: index == records.length - 1 ? 0 : 12),",
+		"                        child: _RecordRow(",
+		"                          record: record,",
+		"                          onTap: () => " + detailCallbackName + "(record),",
+		"                        ),",
+		"                      );",
+		"                    }),",
+		"                  ],",
+		"                ),",
+		"          floatingActionButton: FloatingActionButton.extended(",
+		"            onPressed: () => " + createCallbackName + "(),",
+		"            icon: const Icon(Icons.add),",
+		"            label: Text(openLiteCopy.createPrimaryActionLabel),",
+		"          ),",
+		"        );",
+		"      },",
+		"    );",
+		"  }",
+		"}",
+		"",
+		"class _RecordRow extends StatelessWidget {",
+		"  const _RecordRow({required this.record, required this.onTap});",
+		"",
+		"  final " + recordType + " record;",
+		"  final VoidCallback onTap;",
+		"",
+		"  @override",
+		"  Widget build(BuildContext context) {",
+		"    return Material(",
+		"      color: Colors.white,",
+		"      borderRadius: BorderRadius.circular(18),",
+		"      child: InkWell(",
+		"        onTap: onTap,",
+		"        borderRadius: BorderRadius.circular(18),",
+		"        child: Padding(",
+		"          padding: const EdgeInsets.all(16),",
+		"          child: Row(",
+		"            children: [",
+		"              Expanded(",
+		"                child: Column(",
+		"                  crossAxisAlignment: CrossAxisAlignment.start,",
+		"                  children: [",
+	}
+	lines = append(lines, rowChildren...)
+	lines = append(lines,
+		"                  ],",
+		"                ),",
+		"              ),",
+		"            ],",
+		"          ),",
+		"        ),",
+		"      ),",
+		"    );",
+		"  }",
+		"}",
+	)
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func builderRuntimeOpenLiteInterpolatedExpression(parts []string) string {
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			filtered = append(filtered, trimmed)
+		}
+	}
+	if len(filtered) == 0 {
+		return ""
+	}
+	if len(filtered) == 1 {
+		return filtered[0]
+	}
+	var builder strings.Builder
+	builder.WriteString("'")
+	for index, part := range filtered {
+		if index > 0 {
+			builder.WriteString(" · ")
+		}
+		builder.WriteString("${")
+		builder.WriteString(part)
+		builder.WriteString("}")
+	}
+	builder.WriteString("'")
+	return builder.String()
+}
+
+// fallback-only: LLM 模型路径兜底规范化，emit 路径不经过此函数
+func normalizeBuilderRuntimeOpenLiteWidgetTestContent(workspacePath string, needsCollectionCreateEntry bool, content string) string {
+	if strings.TrimSpace(content) == "" {
+		return content
+	}
+	updated := content
+	mutationRegistry := builderRuntimeOpenLiteMutationSurfaceRegistry(workspacePath)
+	if !needsCollectionCreateEntry || strings.TrimSpace(mutationRegistry.controller.resolvedPath) == "" {
+		return updated
+	}
+	hasTitleField := mutationRegistry.controller.capabilityFlags.hasTitleField
+	hasNoteField := mutationRegistry.controller.capabilityFlags.hasNoteField
+	hasStatusFlow := mutationRegistry.controller.capabilityFlags.hasStatus
+	hasCreateSubmitFlow := hasTitleField
+	hasEditMutationFlow := mutationRegistry.view.capabilityFlags.supportsEdit
+	packageName := workspaceDartPackageName(workspacePath)
+	if packageName == "" {
+		packageName = "flutter_open_lite"
+	}
+	appClassName := "MyApp"
+	if mainContent, err := builderRuntimeSemanticFileContent(workspacePath, nil, "lib/main.dart"); err == nil {
+		if currentAppClassName := builderRuntimeRunAppWidgetClassName(mainContent); currentAppClassName != "" {
+			appClassName = currentAppClassName
+		}
+	}
+	if appClassName == "MyApp" {
+		if match := builderRuntimeWidgetTestPumpWidgetRepositoryPattern.FindStringSubmatch(updated); len(match) >= 2 {
+			if currentAppClassName := strings.TrimSpace(match[1]); currentAppClassName != "" {
+				appClassName = currentAppClassName
+			}
+		}
+	}
+	repositoryImportPath := builderRuntimeOpenLiteWidgetTestRepositoryImportPath(workspacePath)
+	repositoryType := builderRuntimeOpenLitePreferredWidgetTestRepositoryTypeName(workspacePath)
+	lines := []string{
+		"import 'package:flutter/material.dart';",
+		"import 'package:flutter_test/flutter_test.dart';",
+		"",
+		"import 'package:" + packageName + "/main.dart';",
+		"import 'package:" + packageName + "/" + repositoryImportPath + "';",
+		"import 'package:" + packageName + "/template/open_lite_copy.dart';",
+		"",
+		"void main() {",
+		"  testWidgets('open lite flow supports create, read, update', (WidgetTester tester) async {",
+		"    final repository = " + repositoryType + "();",
+		"    await repository.init();",
+		"",
+		"    await tester.pumpWidget(" + appClassName + "(repository: repository));",
+		"    await tester.pumpAndSettle();",
+		"",
+		"    expect(find.text(openLiteCopy.listPageTitle), findsOneWidget);",
+		"    expect(find.text(openLiteCopy.createPrimaryActionLabel), findsOneWidget);",
+		"",
+		"    await tester.tap(find.text(openLiteCopy.createPrimaryActionLabel));",
+		"    await tester.pumpAndSettle();",
+	}
+	if hasCreateSubmitFlow {
+		lines = append(lines,
+			"",
+			"    await tester.enterText(find.byKey(const Key('title-field')), '测试任务');",
+		)
+		if hasNoteField {
+			lines = append(lines, "    await tester.enterText(find.byKey(const Key('note-field')), '这是一个测试备注');")
+		}
+		lines = append(lines,
+			"    await tester.tap(find.text(openLiteCopy.createSubmitLabel));",
+			"    await tester.pumpAndSettle();",
+			"",
+			"    expect(find.text('测试任务'), findsOneWidget);",
+		)
+	} else {
+		lines = append(lines,
+			"",
+			"    expect(find.text(openLiteCopy.createPageTitle), findsOneWidget);",
+			"    expect(find.text(openLiteCopy.createSubmitLabel), findsOneWidget);",
+		)
+	}
+	if hasEditMutationFlow {
+		lines = append(lines,
+			"",
+			"    await tester.tap(find.text('测试任务').first);",
+			"    await tester.pumpAndSettle();",
+			"",
+			"    expect(find.text(openLiteCopy.editPageTitle), findsOneWidget);",
+			"    await tester.enterText(find.byKey(const Key('title-field')), '更新后的测试任务');",
+		)
+		if hasNoteField {
+			lines = append(lines, "    await tester.enterText(find.byKey(const Key('note-field')), '这是一个更新后的测试备注');")
+		}
+	}
+	if hasStatusFlow && hasEditMutationFlow {
+		lines = append(lines,
+			"    await tester.tap(find.text(openLiteCopy.doneFilterLabel));",
+			"    await tester.pumpAndSettle();",
+		)
+	}
+	if hasEditMutationFlow {
+		lines = append(lines,
+			"    await tester.tap(find.text(openLiteCopy.editSubmitLabel));",
+			"    await tester.pumpAndSettle();",
+			"",
+			"    expect(find.text('更新后的测试任务'), findsOneWidget);",
+		)
+	}
+	if hasStatusFlow && hasEditMutationFlow {
+		lines = append(lines, "    expect(find.textContaining(openLiteCopy.doneFilterLabel), findsWidgets);")
+	}
+	lines = append(lines,
+		"  });",
+		"}",
+	)
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func builderRuntimeOpenLiteMutationControllerHasField(workspacePath, marker string) bool {
+	if strings.TrimSpace(marker) == "" {
+		return false
+	}
+	controllerContent := builderRuntimeOpenLiteMutationControllerContent(workspacePath)
+	if strings.TrimSpace(controllerContent) == "" {
+		return false
+	}
+	return strings.Contains(controllerContent, marker)
+}
+
+func builderRuntimeOpenLiteEnsureDebugPrintImport(content string) string {
+	if strings.TrimSpace(content) == "" || !strings.Contains(content, "debugPrint(") {
+		return content
+	}
+	if strings.Contains(content, "import 'package:flutter/material.dart';") || strings.Contains(content, "import 'package:flutter/foundation.dart';") || strings.Contains(content, "import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;") {
+		return content
+	}
+	if strings.Contains(content, "import 'package:flutter/foundation.dart' show ChangeNotifier;") {
+		return strings.Replace(content, "import 'package:flutter/foundation.dart' show ChangeNotifier;", "import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;", 1)
+	}
+	if strings.Contains(content, "import 'package:flutter/foundation.dart' show debugPrint;") {
+		return strings.Replace(content, "import 'package:flutter/foundation.dart' show debugPrint;", "import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;", 1)
+	}
+	return "import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;\n" + content
+}
+
+func builderRuntimeOpenLiteDropImportIfUnused(content, importLine string, usedMarkers ...string) string {
+	if strings.TrimSpace(content) == "" || strings.TrimSpace(importLine) == "" || !strings.Contains(content, importLine) {
+		return content
+	}
+	withoutImport := strings.Replace(content, importLine+"\n", "", 1)
+	if withoutImport == content {
+		withoutImport = strings.Replace(content, importLine, "", 1)
+	}
+	for _, marker := range usedMarkers {
+		if marker != "" && strings.Contains(withoutImport, marker) {
+			return content
+		}
+	}
+	return withoutImport
+}
+
+func builderRuntimeOpenLiteDropControllerImportIfUnused(content, controllerClass string) string {
+	trimmedClass := strings.TrimSpace(controllerClass)
+	if trimmedClass == "" || strings.Contains(content, trimmedClass) {
+		return content
+	}
+	controllerFile := builderRuntimeOpenLiteIdentifierSnakeCase(trimmedClass)
+	if controllerFile == "" {
+		return content
+	}
+	updated := builderRuntimeOpenLiteDropImportIfUnused(content, "import 'controllers/"+controllerFile+".dart';", trimmedClass)
+	updated = builderRuntimeOpenLiteDropImportIfUnused(updated, "import '../controllers/"+controllerFile+".dart';", trimmedClass)
+	return updated
+}
+
+func builderRuntimeOpenLiteIdentifierSnakeCase(identifier string) string {
+	trimmedIdentifier := strings.TrimSpace(identifier)
+	if trimmedIdentifier == "" {
+		return ""
+	}
+	var builder strings.Builder
+	for index, current := range trimmedIdentifier {
+		if unicode.IsUpper(current) {
+			if index > 0 {
+				previous, _ := utf8DecodeLastRuneInString(builder.String())
+				if previous != '_' {
+					builder.WriteByte('_')
+				}
+			}
+			builder.WriteRune(unicode.ToLower(current))
+			continue
+		}
+		if current == '-' || current == ' ' {
+			if builder.Len() > 0 {
+				previous, _ := utf8DecodeLastRuneInString(builder.String())
+				if previous != '_' {
+					builder.WriteByte('_')
+				}
+			}
+			continue
+		}
+		builder.WriteRune(unicode.ToLower(current))
+	}
+	return strings.Trim(builder.String(), "_")
+}
+
+func utf8DecodeLastRuneInString(value string) (rune, int) {
+	if value == "" {
+		return rune(0), 0
+	}
+	runes := []rune(value)
+	if len(runes) == 0 {
+		return rune(0), 0
+	}
+	return runes[len(runes)-1], len(string(runes[len(runes)-1]))
+}
+
+func builderRuntimeOpenLiteNeedsCollectionCreateEntryFromWorkspace(workspacePath string) bool {
+	if strings.TrimSpace(workspacePath) == "" {
+		return false
+	}
+	if builderRuntimeOpenLiteWorkspaceHasOverviewSurface(workspacePath) {
+		return false
+	}
+	collectionRegistry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath)
+	collectionControllerPath := strings.TrimSpace(collectionRegistry.controller.resolvedPath)
+	collectionViewPath := strings.TrimSpace(collectionRegistry.view.resolvedPath)
+	hasCollectionSurface := builderRuntimeWorkspaceHasSemanticFile(workspacePath, collectionViewPath) || builderRuntimeWorkspaceHasSemanticFile(workspacePath, collectionControllerPath)
+	if !hasCollectionSurface {
+		collectionControllerPath = builderRuntimeOpenLiteFirstLikelyControllerPath(workspacePath, builderRuntimeOpenLiteLikelyCollectionControllerPath)
+		hasCollectionSurface = strings.TrimSpace(collectionControllerPath) != ""
+	}
+	if !hasCollectionSurface {
+		return false
+	}
+	mutationRegistry := builderRuntimeOpenLiteMutationSurfaceRegistry(workspacePath)
+	if builderRuntimeWorkspaceHasSemanticFile(workspacePath, strings.TrimSpace(mutationRegistry.controller.resolvedPath)) {
+		return true
+	}
+	if builderRuntimeWorkspaceHasSemanticFile(workspacePath, strings.TrimSpace(mutationRegistry.view.resolvedPath)) {
+		return true
+	}
+	return false
+}
+
+func builderRuntimeOpenLiteWorkspaceHasOverviewSurface(workspacePath string) bool {
+	if strings.TrimSpace(workspacePath) == "" {
+		return false
+	}
+	overviewRegistry := builderRuntimeOpenLiteOverviewSurfaceRegistry(workspacePath)
+	hasOverviewSurface := builderRuntimeWorkspaceHasSemanticFile(workspacePath, strings.TrimSpace(overviewRegistry.view.resolvedPath)) || builderRuntimeWorkspaceHasSemanticFile(workspacePath, strings.TrimSpace(overviewRegistry.controller.resolvedPath))
+	if !hasOverviewSurface {
+		hasOverviewSurface = builderRuntimeOpenLiteFirstLikelyViewPath(workspacePath, builderRuntimeLikelyOverviewSurfaceViewPath) != ""
+	}
+	if !hasOverviewSurface {
+		hasOverviewSurface = builderRuntimeOpenLiteWorkspaceHasLikelyControllerPath(workspacePath, builderRuntimeLikelyOverviewControllerPath)
+	}
+	if hasOverviewSurface {
+		return true
+	}
+	mainContent, err := builderRuntimeSemanticFileContent(workspacePath, nil, "lib/main.dart")
+	if err == nil && strings.TrimSpace(mainContent) != "" {
+		if candidates, candidateErr := builderRuntimeMainViewConstructorCandidates(workspacePath, mainContent); candidateErr == nil && len(candidates) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func builderRuntimeOpenLiteFirstLikelyViewPath(workspacePath string, predicate func(string) bool) string {
+	if strings.TrimSpace(workspacePath) == "" || predicate == nil {
+		return ""
+	}
+	viewDir := filepath.Join(workspacePath, "lib", "views")
+	entries, err := os.ReadDir(viewDir)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".dart") {
+			continue
+		}
+		relPath := filepath.ToSlash(filepath.Join("lib", "views", entry.Name()))
+		if predicate(relPath) && builderRuntimeWorkspaceHasSemanticFile(workspacePath, relPath) {
+			return relPath
+		}
+	}
+	return ""
+}
+
+func builderRuntimeOpenLiteWorkspaceHasLikelyControllerPath(workspacePath string, predicate func(string) bool) bool {
+	return builderRuntimeOpenLiteFirstLikelyControllerPath(workspacePath, predicate) != ""
+}
+
+func builderRuntimeOpenLiteMutationControllerPath(workspacePath string) string {
+	if strings.TrimSpace(workspacePath) == "" {
+		return ""
+	}
+	controllerPath := "lib/controllers/record_form_controller.dart"
+	mutationSurface := builderRuntimePrimaryMutationSurfaceCandidate(workspacePath)
+	if candidatePath := strings.TrimSpace(mutationSurface.controller.path); candidatePath != "" {
+		return candidatePath
+	}
+	if builderRuntimeWorkspaceHasSemanticFile(workspacePath, controllerPath) {
+		return controllerPath
+	}
+	if hintedPath := builderRuntimePrimaryMutationControllerPathHint(workspacePath); hintedPath != "" && builderRuntimeWorkspaceHasSemanticFile(workspacePath, hintedPath) {
+		return hintedPath
+	}
+	if likelyPath := builderRuntimeOpenLiteFirstLikelyControllerPath(workspacePath, builderRuntimeLikelyMutationControllerPath); likelyPath != "" {
+		return likelyPath
+	}
+	return controllerPath
+}
+
+func builderRuntimeOpenLiteFirstLikelyControllerPath(workspacePath string, predicate func(string) bool) string {
+	if strings.TrimSpace(workspacePath) == "" || predicate == nil {
+		return ""
+	}
+	controllerDir := filepath.Join(workspacePath, "lib", "controllers")
+	entries, err := os.ReadDir(controllerDir)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".dart") {
+			continue
+		}
+		relPath := filepath.ToSlash(filepath.Join("lib", "controllers", entry.Name()))
+		if predicate(relPath) && builderRuntimeWorkspaceHasSemanticFile(workspacePath, relPath) {
+			return relPath
+		}
+	}
+	return ""
+}
+
+func builderRuntimeOpenLiteLikelyCollectionControllerPath(path string) bool {
+	normalizedPath := filepath.ToSlash(strings.TrimSpace(path))
+	if !strings.HasPrefix(normalizedPath, "lib/controllers/") || !strings.HasSuffix(normalizedPath, ".dart") {
+		return false
+	}
+	baseName := strings.TrimSuffix(filepath.Base(normalizedPath), ".dart")
+	if baseName == "" {
+		return false
+	}
+	tokens := strings.Split(strings.ToLower(baseName), "_")
+	hasCollectionToken := false
+	hasControllerToken := false
+	for _, token := range tokens {
+		switch token {
+		case "list", "collection":
+			hasCollectionToken = true
+		case "controller":
+			hasControllerToken = true
+		case "home", "overview", "form", "edit", "mutation":
+			return false
+		}
+	}
+	return hasCollectionToken && hasControllerToken
+}
+
+func builderRuntimeOpenLiteSupportsTodoMutationFlow(workspacePath string) bool {
+	controllerContent := builderRuntimeOpenLiteMutationControllerContent(workspacePath)
+	if strings.TrimSpace(controllerContent) == "" {
+		return false
+	}
+	if !strings.Contains(controllerContent, "titleController") {
+		return false
+	}
+	recordContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	if strings.TrimSpace(recordContent) == "" {
+		return true
+	}
+	if !builderRuntimeOpenLiteRecordModelHasStatus(workspacePath) {
+		return true
+	}
+	statusType := builderRuntimeDeclaredFieldTypes(recordContent)["status"]
+	if strings.TrimSpace(statusType) == "" {
+		for _, candidate := range []string{"RecordStatus", "TodoItemStatus"} {
+			if strings.Contains(controllerContent, candidate) {
+				return true
+			}
+		}
+		return false
+	}
+	return strings.Contains(controllerContent, statusType)
+}
+
+func builderRuntimeOpenLitePrimaryRecordModelPath(workspacePath string) string {
+	if strings.TrimSpace(workspacePath) == "" {
+		return ""
+	}
+	itemType := builderRuntimeCollectionViewItemType(builderRuntimePrimaryCollectionSurfaceCandidate(workspacePath).view.detailCallbackType)
+	switch itemType {
+	case "", "Object", "dynamic", "AppRecord", "String", "int", "double", "num", "bool", "DateTime", "Duration":
+		// Fall through to the default record path when the collection surface does
+		// not expose a concrete model type.
+	default:
+		if modelPath := builderRuntimeModelImportPathForType(workspacePath, itemType); modelPath != "" {
+			return modelPath
+		}
+	}
+	if builderRuntimeWorkspaceHasSemanticFile(workspacePath, "lib/models/record.dart") {
+		return "lib/models/record.dart"
+	}
+	return ""
+}
+
+func builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath string) string {
+	modelPath := builderRuntimeOpenLitePrimaryRecordModelPath(workspacePath)
+	if modelPath == "" {
+		return ""
+	}
+	content, err := builderRuntimeSemanticFileContent(workspacePath, nil, modelPath)
+	if err != nil {
+		return ""
+	}
+	return content
+}
+
+func builderRuntimeOpenLiteMutationControllerContent(workspacePath string) string {
+	controllerPath := builderRuntimeOpenLiteMutationControllerPath(workspacePath)
+	if strings.TrimSpace(controllerPath) == "" {
+		return ""
+	}
+	controllerContent, err := builderRuntimeSemanticFileContent(workspacePath, nil, controllerPath)
+	if err != nil {
+		return ""
+	}
+	return controllerContent
+}
+
+func builderRuntimeOpenLiteRecordRepositoryTypeName(workspacePath string) string {
+	return builderRuntimePrimaryRepositoryCandidate(workspacePath).repositoryType
+}
+
+func builderRuntimeOpenLiteConcreteRecordRepositoryTypeName(workspacePath string) string {
+	return builderRuntimePrimaryRepositoryCandidate(workspacePath).concreteType
+}
+
+func builderRuntimeOpenLitePreferredWidgetTestRepositoryTypeName(workspacePath string) string {
+	repository := builderRuntimePrimaryRepositoryCandidate(workspacePath)
+	if repository.inMemoryType != "" {
+		return repository.inMemoryType
+	}
+	if repository.concreteType != "" {
+		return repository.concreteType
+	}
+	return "HiveRecordRepository"
+}
+
+func builderRuntimeOpenLiteWidgetTestRepositoryImportPath(workspacePath string) string {
+	repository := builderRuntimePrimaryRepositoryCandidate(workspacePath)
+	if repository.path != "" {
+		return strings.TrimPrefix(filepath.ToSlash(repository.path), "lib/")
+	}
+	return "repositories/record_repository.dart"
+}
+
+func builderRuntimeOpenLitePrimaryRecordTypeName(workspacePath string) string {
+	recordContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	if strings.TrimSpace(recordContent) == "" {
+		return ""
+	}
+	matches := builderRuntimeExportedDartTypePattern.FindAllStringSubmatch(recordContent, -1)
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		name := strings.TrimSpace(match[1])
+		if name == "" || strings.HasSuffix(name, "Status") {
+			continue
+		}
+		return name
+	}
+	return ""
+}
+
+type builderRuntimeOpenLiteDeclaredField struct {
+	name      string
+	fieldType string
+}
+
+func builderRuntimeOpenLiteCollectionFieldSemantics(workspacePath string) builderRuntimeOpenLiteSurfaceRegistryFieldSemantics {
+	recordContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	if strings.TrimSpace(recordContent) == "" {
+		return builderRuntimeOpenLiteSurfaceRegistryFieldSemantics{}
+	}
+	fields := builderRuntimeOpenLiteDeclaredFields(recordContent)
+	semantics := builderRuntimeOpenLiteSurfaceRegistryFieldSemantics{
+		primaryTextField:   builderRuntimeOpenLitePrimaryTextField(fields),
+		secondaryTextField: builderRuntimeOpenLiteSecondaryTextField(fields),
+		timeField:          builderRuntimeOpenLiteTimeField(fields),
+		noteField:          builderRuntimeOpenLiteNoteField(fields),
+	}
+	semantics.statusField, semantics.statusEnumType = builderRuntimeOpenLiteStatusField(fields)
+	if semantics.statusEnumType != "" {
+		semantics.statusCopyLabelMethodName = builderRuntimeOpenLiteStatusCopyLabelMethodName(workspacePath, semantics.statusEnumType)
+	}
+	return semantics
+}
+
+func builderRuntimeOpenLiteDeclaredFields(content string) []builderRuntimeOpenLiteDeclaredField {
+	matches := builderRuntimeDartTypedFieldPattern.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	fields := make([]builderRuntimeOpenLiteDeclaredField, 0, len(matches))
+	for _, match := range matches {
+		if len(match) < 3 {
+			continue
+		}
+		fieldType := strings.TrimSpace(match[1])
+		fieldName := strings.TrimSpace(match[2])
+		if fieldType == "" || fieldName == "" {
+			continue
+		}
+		fields = append(fields, builderRuntimeOpenLiteDeclaredField{name: fieldName, fieldType: fieldType})
+	}
+	return fields
+}
+
+func builderRuntimeOpenLitePrimaryTextField(fields []builderRuntimeOpenLiteDeclaredField) string {
+	for _, preferred := range []string{"title", "name", "headline", "subject", "summary", "label"} {
+		if field := builderRuntimeOpenLiteFieldByName(fields, preferred); field != nil && builderRuntimeOpenLiteIsStringField(field.fieldType) {
+			return field.name
+		}
+	}
+	for _, field := range fields {
+		if !builderRuntimeOpenLiteIsStringField(field.fieldType) {
+			continue
+		}
+		if builderRuntimeOpenLiteIsIdentifierField(field.name) || builderRuntimeOpenLiteIsNoteLikeField(field.name) || builderRuntimeOpenLiteIsStatusLikeField(field.name) || builderRuntimeOpenLiteIsTimeLikeField(field.name) {
+			continue
+		}
+		return field.name
+	}
+	return ""
+}
+
+func builderRuntimeOpenLiteSecondaryTextField(fields []builderRuntimeOpenLiteDeclaredField) string {
+	primaryTextField := builderRuntimeOpenLitePrimaryTextField(fields)
+	for _, preferred := range []string{"category", "group", "project", "projectName", "type", "kind", "section", "bucket"} {
+		if field := builderRuntimeOpenLiteFieldByName(fields, preferred); field != nil && builderRuntimeOpenLiteIsStringField(field.fieldType) && field.name != primaryTextField {
+			return field.name
+		}
+	}
+	for _, field := range fields {
+		if field.name == primaryTextField || !builderRuntimeOpenLiteIsStringField(field.fieldType) {
+			continue
+		}
+		if builderRuntimeOpenLiteIsIdentifierField(field.name) || builderRuntimeOpenLiteIsNoteLikeField(field.name) || builderRuntimeOpenLiteIsStatusLikeField(field.name) || builderRuntimeOpenLiteIsTimeLikeField(field.name) {
+			continue
+		}
+		return field.name
+	}
+	return ""
+}
+
+func builderRuntimeOpenLiteStatusField(fields []builderRuntimeOpenLiteDeclaredField) (string, string) {
+	for _, preferred := range []string{"status", "taskStatus", "state", "phase", "stage"} {
+		if field := builderRuntimeOpenLiteFieldByName(fields, preferred); field != nil {
+			return field.name, builderRuntimeOpenLiteNormalizedFieldType(field.fieldType)
+		}
+	}
+	for _, field := range fields {
+		fieldType := builderRuntimeOpenLiteNormalizedFieldType(field.fieldType)
+		if fieldType == "" || builderRuntimeOpenLiteIsStringField(fieldType) {
+			continue
+		}
+		if strings.HasSuffix(fieldType, "Status") || strings.HasSuffix(fieldType, "State") || strings.HasSuffix(fieldType, "Phase") || strings.HasSuffix(fieldType, "Stage") {
+			return field.name, fieldType
+		}
+		if builderRuntimeOpenLiteIsStatusLikeField(field.name) {
+			return field.name, fieldType
+		}
+	}
+	return "", ""
+}
+
+func builderRuntimeOpenLiteTimeField(fields []builderRuntimeOpenLiteDeclaredField) string {
+	for _, preferred := range []string{"updatedAt", "dueOn", "date", "occurredOn", "createdAt", "deadline"} {
+		if field := builderRuntimeOpenLiteFieldByName(fields, preferred); field != nil {
+			return field.name
+		}
+	}
+	for _, field := range fields {
+		if builderRuntimeOpenLiteIsTimeField(field.fieldType) {
+			return field.name
+		}
+	}
+	return ""
+}
+
+func builderRuntimeOpenLiteNoteField(fields []builderRuntimeOpenLiteDeclaredField) string {
+	for _, preferred := range []string{"note", "description", "remark", "details", "comment"} {
+		if field := builderRuntimeOpenLiteFieldByName(fields, preferred); field != nil && builderRuntimeOpenLiteIsStringField(field.fieldType) {
+			return field.name
+		}
+	}
+	return ""
+}
+
+func builderRuntimeOpenLiteStatusCopyLabelMethodName(workspacePath, statusType string) string {
+	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
+	trimmedStatusType := strings.TrimSpace(statusType)
+	if trimmedWorkspacePath == "" || trimmedStatusType == "" {
+		return ""
+	}
+	copyContent, err := builderRuntimeSemanticFileContent(trimmedWorkspacePath, nil, "lib/template/open_lite_copy.dart")
+	if err != nil || strings.TrimSpace(copyContent) == "" {
+		return "statusLabel"
+	}
+	pattern := regexp.MustCompile(`(?m)^\s*String\s+([A-Za-z_][A-Za-z0-9_]*)\(\s*` + regexp.QuoteMeta(trimmedStatusType) + `\s+[A-Za-z_][A-Za-z0-9_]*\s*\)\s*(?:=>|\{)`)
+	if match := pattern.FindStringSubmatch(copyContent); len(match) >= 2 {
+		return strings.TrimSpace(match[1])
+	}
+	return "statusLabel"
+}
+
+func builderRuntimeOpenLiteFieldByName(fields []builderRuntimeOpenLiteDeclaredField, name string) *builderRuntimeOpenLiteDeclaredField {
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
+		return nil
+	}
+	for index := range fields {
+		if fields[index].name == trimmedName {
+			return &fields[index]
+		}
+	}
+	return nil
+}
+
+func builderRuntimeOpenLiteNormalizedFieldType(fieldType string) string {
+	return strings.TrimSuffix(strings.TrimSpace(fieldType), "?")
+}
+
+func builderRuntimeOpenLiteIsStringField(fieldType string) bool {
+	return builderRuntimeOpenLiteNormalizedFieldType(fieldType) == "String"
+}
+
+func builderRuntimeOpenLiteIsTimeField(fieldType string) bool {
+	return strings.Contains(builderRuntimeOpenLiteNormalizedFieldType(fieldType), "DateTime")
+}
+
+func builderRuntimeOpenLiteIsIdentifierField(name string) bool {
+	trimmedName := strings.TrimSpace(name)
+	return trimmedName == "id" || strings.HasSuffix(trimmedName, "Id") || strings.HasSuffix(trimmedName, "ID")
+}
+
+func builderRuntimeOpenLiteIsNoteLikeField(name string) bool {
+	trimmedName := strings.TrimSpace(name)
+	return trimmedName == "note" || trimmedName == "description" || trimmedName == "remark" || trimmedName == "details" || trimmedName == "comment"
+}
+
+func builderRuntimeOpenLiteIsStatusLikeField(name string) bool {
+	trimmedName := strings.TrimSpace(name)
+	return trimmedName == "status" || trimmedName == "taskStatus" || trimmedName == "state" || trimmedName == "phase" || trimmedName == "stage"
+}
+
+func builderRuntimeOpenLiteIsTimeLikeField(name string) bool {
+	trimmedName := strings.TrimSpace(name)
+	return trimmedName == "updatedAt" || trimmedName == "dueOn" || trimmedName == "date" || trimmedName == "occurredOn" || trimmedName == "createdAt" || trimmedName == "deadline"
+}
+
+func builderRuntimeOpenLiteRecordModelHasStatus(workspacePath string) bool {
+	recordContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	if strings.TrimSpace(recordContent) == "" {
+		return false
+	}
+	return strings.Contains(recordContent, " status;") || strings.Contains(recordContent, " status ")
+}
+
+func builderRuntimeInsertFieldIntoStatelessWidget(content, className, fieldDeclaration string) string {
+	trimmedClassName := strings.TrimSpace(className)
+	trimmedFieldDeclaration := strings.TrimSpace(fieldDeclaration)
+	if strings.TrimSpace(content) == "" || trimmedClassName == "" || trimmedFieldDeclaration == "" {
+		return content
+	}
+	classIndex := strings.Index(content, "class "+trimmedClassName+" extends StatelessWidget {")
+	if classIndex < 0 {
+		return content
+	}
+	markerIndex := strings.Index(content[classIndex:], "\n\n  @override")
+	if markerIndex < 0 {
+		return content
+	}
+	markerIndex += classIndex
+	return content[:markerIndex] + "\n\n  " + trimmedFieldDeclaration + content[markerIndex:]
+}
+
+func builderRuntimeOpenLiteSelectedFilterTypeName(workspacePath string) string {
+	controllerPath := strings.TrimSpace(builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath).controller.resolvedPath)
+	if !builderRuntimeWorkspaceHasSemanticFile(workspacePath, controllerPath) {
+		if likelyPath := builderRuntimeOpenLiteFirstLikelyControllerPath(workspacePath, builderRuntimeOpenLiteLikelyCollectionControllerPath); likelyPath != "" {
+			controllerPath = likelyPath
+		} else {
+			controllerPath = "lib/controllers/record_list_controller.dart"
+		}
+	}
+	controllerContent, err := builderRuntimeSemanticFileContent(workspacePath, nil, controllerPath)
+	if err != nil || strings.TrimSpace(controllerContent) == "" {
+		return ""
+	}
+	if match := builderRuntimeOpenLiteSelectedFilterFieldPattern.FindStringSubmatch(controllerContent); len(match) >= 2 {
+		return strings.TrimSpace(match[1])
+	}
+	if match := builderRuntimeOpenLiteSelectedFilterGetterPattern.FindStringSubmatch(controllerContent); len(match) >= 2 {
+		return strings.TrimSpace(match[1])
+	}
+	return ""
+}
+
+func builderRuntimeOpenLiteShouldDropTotalCount(workspacePath string) bool {
+	if strings.TrimSpace(workspacePath) == "" {
+		return false
+	}
+	if forbiddenTokens, err := builderRuntimeForbiddenSchemaTokens(workspacePath); err == nil && len(forbiddenTokens) > 0 {
+		return slices.Contains(forbiddenTokens, "totalCount")
+	}
+	summaryModelContent, err := builderRuntimeSemanticFileContent(workspacePath, nil, "lib/models/dashboard_summary.dart")
+	if err != nil || strings.TrimSpace(summaryModelContent) == "" {
+		return false
+	}
+	return !strings.Contains(summaryModelContent, "totalCount")
+}
+
+func builderRuntimeOpenLiteShouldDropStatusWorkflow(workspacePath string) bool {
+	if strings.TrimSpace(workspacePath) == "" {
+		return false
+	}
+	if forbiddenTokens, err := builderRuntimeForbiddenSchemaTokens(workspacePath); err == nil && len(forbiddenTokens) > 0 {
+		return slices.Contains(forbiddenTokens, "RecordStatus") || slices.Contains(forbiddenTokens, ".status")
+	}
+	return !builderRuntimeOpenLiteRecordModelHasStatus(workspacePath)
+}
+
+func builderRuntimeOpenLiteShouldDropTitleField(workspacePath string) bool {
+	if strings.TrimSpace(workspacePath) == "" {
+		return false
+	}
+	if forbiddenTokens, err := builderRuntimeForbiddenSchemaTokens(workspacePath); err == nil && len(forbiddenTokens) > 0 {
+		return slices.Contains(forbiddenTokens, "titleFieldLabel") || slices.Contains(forbiddenTokens, "titleFieldRequiredError")
+	}
+	recordModelContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	if strings.TrimSpace(recordModelContent) == "" {
+		return false
+	}
+	return !strings.Contains(recordModelContent, "title")
+}
+
+func builderRuntimeOpenLiteShouldDropCategoryField(workspacePath string) bool {
+	if strings.TrimSpace(workspacePath) == "" {
+		return false
+	}
+	if forbiddenTokens, err := builderRuntimeForbiddenSchemaTokens(workspacePath); err == nil && len(forbiddenTokens) > 0 {
+		return slices.Contains(forbiddenTokens, "categoryFieldLabel") || slices.Contains(forbiddenTokens, "detailCategoryLabel")
+	}
+	recordModelContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	if strings.TrimSpace(recordModelContent) == "" {
+		return false
+	}
+	return !strings.Contains(recordModelContent, "category")
+}
+
+func builderRuntimeRemoveDartMethodBlock(content string, signaturePattern *regexp.Regexp) string {
+	if signaturePattern == nil || strings.TrimSpace(content) == "" {
+		return content
+	}
+	loc := signaturePattern.FindStringIndex(content)
+	if len(loc) != 2 {
+		return content
+	}
+	openBrace := strings.LastIndex(content[loc[0]:loc[1]], "{")
+	if openBrace < 0 {
+		return content
+	}
+	openBrace += loc[0]
+	closeBrace := builderRuntimeMatchingBraceIndex(content, openBrace)
+	if closeBrace < 0 {
+		return content
+	}
+	start := loc[0]
+	if start > 0 && content[start-1] == '\n' {
+		start--
+	}
+	end := closeBrace + 1
+	if end < len(content) && content[end] == '\n' {
+		end++
+	}
+	return content[:start] + content[end:]
+}
+
+func builderRuntimeMatchingBraceIndex(content string, openBrace int) int {
+	if openBrace < 0 || openBrace >= len(content) || content[openBrace] != '{' {
+		return -1
+	}
+	depth := 0
+	inSingleQuoted := false
+	inDoubleQuoted := false
+	escaped := false
+	for index := openBrace; index < len(content); index++ {
+		ch := content[index]
+		if inSingleQuoted || inDoubleQuoted {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if inSingleQuoted && ch == '\'' {
+				inSingleQuoted = false
+				continue
+			}
+			if inDoubleQuoted && ch == '"' {
+				inDoubleQuoted = false
+			}
+			continue
+		}
+		switch ch {
+		case '\'':
+			inSingleQuoted = true
+		case '"':
+			inDoubleQuoted = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
+}
+
+func builderRuntimeMatchingParenIndex(content string, openParen int) int {
+	if openParen < 0 || openParen >= len(content) || content[openParen] != '(' {
+		return -1
+	}
+	depth := 0
+	for index := openParen; index < len(content); index++ {
+		switch content[index] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
+}
+
+func builderRuntimeFirstTopLevelArgument(args string) string {
+	depth := 0
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				return args[:index]
+			}
+		}
+	}
+	return args
+}
+
+func normalizeBuilderRuntimeOpenLiteCopyLine(line, replacement string) string {
+	updated := line
+	if replacement == "visibleCount" {
+		updated = builderRuntimeOpenLiteTotalCountArgPattern.ReplaceAllString(updated, "")
+		updated = builderRuntimeOpenLiteTotalCountPlaceholderPattern.ReplaceAllString(updated, "")
+	}
+	updated = strings.ReplaceAll(updated, "${totalCount}", "${"+replacement+"}")
+	updated = strings.ReplaceAll(updated, "$totalCount", "$"+replacement)
+	return strings.ReplaceAll(updated, "totalCount", replacement)
+}
+
+func builderRuntimeOpenLiteCopyMethodNormalizationState(line, replacement string) (string, int) {
+	if !strings.Contains(line, "{") {
+		return "", 0
+	}
+	depth := strings.Count(line, "{") - strings.Count(line, "}")
+	if depth <= 0 {
+		return "", 0
+	}
+	return replacement, depth
+}

@@ -12,7 +12,7 @@ func NewFlutterAndroidProfile() StackProfile {
 			Label:           "阻断默认 counter 模板",
 			Stage:           StageCheap,
 			Required:        true,
-			Commands:        []string{"grep -q . lib/main.dart && grep -q . lib/models/entry.dart && grep -q . lib/models/summary.dart && grep -q . lib/views/home_page.dart && grep -q . lib/views/entry_form_page.dart && grep -q . lib/views/entry_list_page.dart && grep -q . lib/controllers/home_controller.dart && grep -q . lib/controllers/entry_form_controller.dart && grep -q . lib/controllers/entry_list_controller.dart && grep -q . lib/repositories/entry_repository.dart && ! grep -E 'Flutter Demo Home Page|You have pushed the button this many times|Counter increments smoke test|_counter|_incrementCounter|MyHomePage' lib/main.dart test/widget_test.dart >/dev/null 2>&1"},
+			Commands:        []string{flutterProfileCounterDemoRemovedCommand()},
 			SuccessCriteria: "工作区中不再保留 Flutter 默认 counter demo 文案、状态字段、页面类名或 smoke test。",
 			TimeoutSeconds:  30,
 		},
@@ -21,7 +21,7 @@ func NewFlutterAndroidProfile() StackProfile {
 			Label:           "确认记一笔表单已落地",
 			Stage:           StageCheap,
 			Required:        true,
-			Commands:        []string{"grep -E 'TextEditingController|TextFormField|DropdownButtonFormField|showDatePicker|categoryController|Category' lib/views/entry_form_page.dart lib/controllers/entry_form_controller.dart"},
+			Commands:        []string{flutterProfileEntryFormWiringCommand()},
 			SuccessCriteria: "代码中存在真实录入表单或日期选择逻辑，而不是只有静态操作按钮。",
 			TimeoutSeconds:  30,
 		},
@@ -30,7 +30,7 @@ func NewFlutterAndroidProfile() StackProfile {
 			Label:           "确认本地持久化已接线",
 			Stage:           StageCheap,
 			Required:        true,
-			Commands:        []string{"grep -E 'hive_flutter|Hive' pubspec.yaml lib/repositories/entry_repository.dart lib/main.dart >/dev/null 2>&1 && ! grep -E 'shared_preferences|SharedPreferences' pubspec.yaml lib/repositories/entry_repository.dart lib/main.dart >/dev/null 2>&1"},
+			Commands:        []string{flutterProfileLocalPersistenceWiringCommand()},
 			SuccessCriteria: "代码或依赖中出现明确的本地持久化实现，而不是只展示静态账单。",
 			TimeoutSeconds:  30,
 		},
@@ -102,6 +102,15 @@ func NewFlutterAndroidProfile() StackProfile {
 				SuccessCriteria: "应用已拉起，并生成最小 logcat 证据用于后续交付与排障。",
 				TimeoutSeconds:  300,
 			},
+			AcceptanceCheck{
+				CheckID:         "check-device-ui-semantic",
+				Label:           "确认设备首屏不再保留默认 seed 语义",
+				Stage:           StageSmoke,
+				Required:        true,
+				Commands:        []string{adbCaptureAndVerifyUISemanticsCommand()},
+				SuccessCriteria: "设备首屏 UI 层级中不再出现默认 seed branding；如果显式设置期望文本，还必须命中对应业务语义。",
+				TimeoutSeconds:  300,
+			},
 		)
 	}
 	allowedStages := []string{"baseline", "cheap", "milestone"}
@@ -139,8 +148,24 @@ func NewFlutterAndroidProfile() StackProfile {
 			WritableRoots:           []string{"."},
 			EnvAllowlist:            []string{"PATH", "HOME", "JAVA_HOME", "ANDROID_HOME", "ANDROID_SDK_ROOT", "PUB_CACHE", "FLUTTER_ROOT"},
 		},
-		AllowedPaths:   []string{"lib/**", "assets/**", "pubspec.yaml", "test/**"},
-		ProtectedPaths: []string{"android/**", "ios/**", "linux/**", "macos/**", "windows/**"},
+		AllowedPaths: []string{
+			"lib/**",
+			"assets/**",
+			"pubspec.yaml",
+			"test/**",
+			"android/app/build.gradle.kts",
+			"android/app/src/main/res/values/strings.xml",
+		},
+		ProtectedPaths: []string{
+			"android/app/src/main/AndroidManifest.xml",
+			"android/app/src/main/kotlin/**",
+			"android/gradle/**",
+			"android/local.properties",
+			"ios/**",
+			"linux/**",
+			"macos/**",
+			"windows/**",
+		},
 		KnowledgePack: []ProfileSkill{
 			{SkillID: "prd-to-task-bundle", Role: "把 PRD 压成 Flutter profile 可执行任务包", UsageStage: "planning", Scope: "flutter-android-p0", Notes: "只服务 Flutter 首个 profile，不属于执行器内核。"},
 			{SkillID: "flutter-mvc-template", Role: "固定 Flutter MVC 目录、依赖与页面落点", UsageStage: "layout", Scope: "flutter-android-p0", Notes: "负责模板和目录规则，不负责状态机与调度。"},
@@ -152,6 +177,28 @@ func NewFlutterAndroidProfile() StackProfile {
 			"android_required": "true",
 		},
 	}
+}
+
+func flutterProfileCounterDemoRemovedCommand() string {
+	return strings.Join([]string{
+		"grep -q . lib/main.dart",
+		"grep -q . lib/models/*.dart",
+		"grep -q . lib/views/*.dart",
+		"grep -q . lib/controllers/*.dart",
+		"grep -q . lib/repositories/*.dart",
+		"! grep -E 'Flutter Demo Home Page|You have pushed the button this many times|Counter increments smoke test|_counter|_incrementCounter|MyHomePage' lib/main.dart test/widget_test.dart >/dev/null 2>&1",
+	}, " && ")
+}
+
+func flutterProfileEntryFormWiringCommand() string {
+	return "grep -E 'TextEditingController|TextFormField|DropdownButtonFormField|showDatePicker|FormState|GlobalKey<FormState>' lib/views/*.dart lib/controllers/*.dart >/dev/null 2>&1"
+}
+
+func flutterProfileLocalPersistenceWiringCommand() string {
+	return strings.Join([]string{
+		"grep -E 'hive_flutter|Hive' pubspec.yaml lib/repositories/*.dart lib/main.dart >/dev/null 2>&1",
+		"! grep -E 'shared_preferences|SharedPreferences' pubspec.yaml lib/repositories/*.dart lib/main.dart >/dev/null 2>&1",
+	}, " && ")
 }
 
 func deviceVerificationEnabled() bool {
@@ -281,6 +328,50 @@ grep -Eq 'FATAL EXCEPTION|AndroidRuntime|Process[[:space:]].*[[:space:]]has died
 	echo "__picoclaw_failure_signature__:device_check_failed:app_runtime_crash" >&2
 	exit 1
 }
+`)
+}
+
+func adbCaptureAndVerifyUISemanticsCommand() string {
+	return strings.TrimSpace(`
+REPORTS_DIR="${PICOCLAW_REPORTS_DIR:-../reports}"
+mkdir -p "$REPORTS_DIR"
+UI_DUMP_DEVICE_PATH="/data/local/tmp/picoclaw-device-ui.xml"
+FORBIDDEN_PATTERN="${APPFACTORY_DEVICE_FORBIDDEN_UI_TEXT:-Open Lite Seed|open_lite_seed}"
+REQUIRED_PATTERN="${APPFACTORY_DEVICE_REQUIRED_UI_TEXT:-}"
+adb_shell() {
+	if [ -n "${APPFACTORY_DEVICE_SERIAL:-}" ]; then
+		adb -s "$APPFACTORY_DEVICE_SERIAL" shell "$@"
+	else
+		adb shell "$@"
+	fi
+}
+adb_exec_out() {
+	if [ -n "${APPFACTORY_DEVICE_SERIAL:-}" ]; then
+		adb -s "$APPFACTORY_DEVICE_SERIAL" exec-out "$@"
+	else
+		adb exec-out "$@"
+	fi
+}
+adb_shell uiautomator dump "$UI_DUMP_DEVICE_PATH" >/dev/null 2>&1 || {
+	echo "__picoclaw_failure_signature__:device_check_failed:ui_dump_failed" >&2
+	exit 1
+}
+adb_exec_out cat "$UI_DUMP_DEVICE_PATH" > "$REPORTS_DIR/device-ui.xml" || {
+	echo "__picoclaw_failure_signature__:device_check_failed:ui_dump_failed" >&2
+	exit 1
+}
+test -s "$REPORTS_DIR/device-ui.xml" || {
+	echo "__picoclaw_failure_signature__:device_check_failed:ui_dump_failed" >&2
+	exit 1
+}
+if [ -n "$FORBIDDEN_PATTERN" ] && grep -Eq "$FORBIDDEN_PATTERN" "$REPORTS_DIR/device-ui.xml"; then
+	echo "__picoclaw_failure_signature__:device_check_failed:ui_semantic_mismatch" >&2
+	exit 1
+fi
+if [ -n "$REQUIRED_PATTERN" ] && ! grep -Eq "$REQUIRED_PATTERN" "$REPORTS_DIR/device-ui.xml"; then
+	echo "__picoclaw_failure_signature__:device_check_failed:ui_expected_text_missing" >&2
+	exit 1
+fi
 `)
 }
 

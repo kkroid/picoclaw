@@ -72,6 +72,7 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 	}
 
 	protocol, modelID := ExtractProtocol(cfg.Model)
+	modelID = resolveProviderModelID(cfg, protocol, modelID)
 
 	switch protocol {
 	case "openai":
@@ -292,6 +293,31 @@ func CreateProviderFromConfig(cfg *config.ModelConfig) (LLMProvider, string, err
 	default:
 		return nil, "", fmt.Errorf("unknown protocol %q in model %q", protocol, cfg.Model)
 	}
+}
+
+func resolveProviderModelID(cfg *config.ModelConfig, protocol, modelID string) string {
+	modelID = strings.TrimSpace(modelID)
+	if cfg == nil {
+		return modelID
+	}
+	rawModel := strings.TrimSpace(cfg.Model)
+	if rawModel == "" {
+		return modelID
+	}
+	if strings.Contains(modelID, "/") || strings.Count(rawModel, "/") != 1 {
+		return modelID
+	}
+	apiBase := strings.TrimSpace(cfg.APIBase)
+	if apiBase == "" {
+		apiBase = getDefaultAPIBase(protocol)
+	}
+	apiBase = strings.ToLower(apiBase)
+	if !strings.Contains(apiBase, "integrate.api.nvidia.com") {
+		return modelID
+	}
+	// NVIDIA integrate 的部分 OpenAI-compatible 模型要求保留 qwen/... 这类命名空间；
+	// 若沿用通用的“剥掉首段协议前缀”逻辑，会把真实 model id 截断并直接命中 404。
+	return rawModel
 }
 
 // getDefaultAPIBase returns the default API base URL for a given protocol.

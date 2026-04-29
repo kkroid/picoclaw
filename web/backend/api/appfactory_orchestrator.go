@@ -622,7 +622,11 @@ func (h *Handler) processQueuedPublicJobExecution(jobID string) {
 	if err == nil {
 		timeout := executionTimeoutFromSeconds(record.TimeoutSeconds)
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
+		unregisterExecutionCancel := h.registerPublicJobExecutionCancel(jobID, cancel)
+		defer func() {
+			unregisterExecutionCancel()
+			cancel()
+		}()
 		var recordMu sync.Mutex
 		stopLeaseHeartbeat := h.startPublicJobExecutionLeaseHeartbeat(ctx, workspace, record, &recordMu)
 		completedRun, executeErr := h.executePreparedRunLocally(ctx, runsSvc, builderSvc, record.RunID)
@@ -656,6 +660,35 @@ func (h *Handler) processQueuedPublicJobExecution(jobID string) {
 	jobRecord, buildErr := h.buildPublicJobRecord(jobID)
 	if buildErr == nil {
 		_ = h.persistPublicJobRecord(jobRecord)
+	}
+}
+
+func (h *Handler) registerPublicJobExecutionCancel(jobID string, cancel context.CancelFunc) func() {
+	if h == nil || strings.TrimSpace(jobID) == "" || cancel == nil {
+		return func() {}
+	}
+	h.executionCancelMu.Lock()
+	h.executionCancels[jobID] = cancel
+	h.executionCancelMu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			h.executionCancelMu.Lock()
+			delete(h.executionCancels, jobID)
+			h.executionCancelMu.Unlock()
+		})
+	}
+}
+
+func (h *Handler) cancelActivePublicJobExecution(jobID string) {
+	if h == nil || strings.TrimSpace(jobID) == "" {
+		return
+	}
+	h.executionCancelMu.Lock()
+	cancel := h.executionCancels[jobID]
+	h.executionCancelMu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 }
 
@@ -1279,7 +1312,11 @@ func (h *Handler) cancelPublicJobExecution(jobID, reason string) error {
 	record.LastError = strings.TrimSpace(reason)
 	finalizePublicJobExecutionAttempt(record, "cancelled", time.Now().UTC())
 	clearPublicJobExecutionLease(record)
-	return h.persistPublicJobExecutionRecord(*record)
+	if err := h.persistPublicJobExecutionRecord(*record); err != nil {
+		return err
+	}
+	h.cancelActivePublicJobExecution(jobID)
+	return nil
 }
 
 func currentPublicJobExecutionAttempt(record *publicJobExecutionRecord) *publicJobExecutionAttempt {

@@ -126,6 +126,9 @@
         "minLength": 1
       }
     },
+    "slot_map": {
+      "$ref": "./template-slot-map.schema.json"
+    },
     "owner": {
       "$ref": "#/$defs/owner"
     },

@@ -21,6 +21,8 @@ ENV ANDROID_SDK_ROOT=/opt/android-sdk
 ENV ANDROID_HOME=/opt/android-sdk
 ENV FLUTTER_ROOT=/opt/flutter
 ENV PUB_CACHE=/opt/pub-cache
+ENV APPFACTORY_TEMPLATE_ROOT=/opt/appfactory/templates
+ENV APPFACTORY_GENERIC_REQUIREMENT_ROOT=/opt/appfactory/generic
 ENV PATH=/root/.local/bin:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:/opt/android-sdk/build-tools/35.0.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENV NO_PROXY=${NO_PROXY:-127.0.0.1,localhost,host.docker.internal}
 
@@ -33,6 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglu1-mesa \
     openjdk-17-jdk \
     openssh-client \
+    python3 \
     rsync \
     unzip \
     wget \
@@ -40,7 +43,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /opt /workspace /artifacts /opt/android-sdk/cmdline-tools /opt/pub-cache
+RUN mkdir -p /opt /workspace /artifacts /opt/android-sdk/cmdline-tools /opt/pub-cache /opt/appfactory
 
 RUN curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
     | tar -xJ -C /opt
@@ -64,6 +67,10 @@ RUN yes | sdkmanager --licenses >/dev/null \
 RUN flutter config --no-analytics \
     && flutter precache --android \
     && chmod -R a+rwX /opt/flutter/bin/cache /opt/pub-cache
+
+COPY examples/appfactory/templates /opt/appfactory/templates
+COPY examples/appfactory/generic /opt/appfactory/generic
+COPY LICENSE /opt/appfactory/LICENSE
 
 COPY scripts/setup-appfactory-builder.sh /usr/local/bin/setup-appfactory-builder
 

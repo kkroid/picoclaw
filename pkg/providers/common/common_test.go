@@ -37,9 +37,37 @@ func TestNewHTTPClient_WithProxy(t *testing.T) {
 }
 
 func TestNewHTTPClient_NoProxy(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://127.0.0.1:8888")
+	t.Setenv("http_proxy", "http://127.0.0.1:8888")
+	t.Setenv("HTTPS_PROXY", "http://127.0.0.1:8888")
+	t.Setenv("https_proxy", "http://127.0.0.1:8888")
+	t.Setenv("ALL_PROXY", "")
+	t.Setenv("all_proxy", "")
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
+
 	client := NewHTTPClient("")
-	if client.Transport != nil {
-		t.Errorf("expected nil transport without proxy, got %T", client.Transport)
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok || transport == nil {
+		t.Fatalf("expected http.Transport without explicit proxy, got %T", client.Transport)
+	}
+
+	publicReq := &http.Request{URL: &url.URL{Scheme: "https", Host: "api.example.com"}}
+	gotProxy, err := transport.Proxy(publicReq)
+	if err != nil {
+		t.Fatalf("proxy function error: %v", err)
+	}
+	if gotProxy == nil || gotProxy.String() != "http://127.0.0.1:8888" {
+		t.Fatalf("public proxy = %v, want http://127.0.0.1:8888", gotProxy)
+	}
+
+	privateReq := &http.Request{URL: &url.URL{Scheme: "http", Host: "10.12.11.159:11434"}}
+	gotProxy, err = transport.Proxy(privateReq)
+	if err != nil {
+		t.Fatalf("private proxy function error: %v", err)
+	}
+	if gotProxy != nil {
+		t.Fatalf("private proxy = %v, want nil", gotProxy)
 	}
 }
 

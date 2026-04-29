@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://picoclaw.local/docs/design/schemas/acceptance-plan.schema.json",
+  "title": "PicoClaw Acceptance Plan",
+  "description": "planning-engine 产出的结构、语义、行为、交付四层验收计划。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "job_id",
+    "prd_id",
+    "template_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prd_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "template_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "structure_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/acceptancePlanItem"
+      }
+    },
+    "semantic_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/acceptancePlanItem"
+      }
+    },
+    "behavior_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/acceptancePlanItem"
+      }
+    },
+    "delivery_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/acceptancePlanItem"
+      }
+    }
+  },
+  "$defs": {
+    "acceptancePlanItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "check_id",
+        "label"
+      ],
+      "properties": {
+        "check_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "thin-prepare",
+            "baseline",
+            "cheap",
+            "heavy",
+            "milestone",
+            "device",
+            "smoke",
+            "manual",
+            "other"
+          ]
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "source_type": {
+          "type": "string",
+          "enum": [
+            "acceptance_check",
+            "acceptance_criterion",
+            "semantic_acceptance_rule",
+            "manual_review_point",
+            "user_flow"
+          ]
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "slot_refs": {
+          "description": "当前仍沿用旧字段名，但内部值必须是公共 binding_id，而不是 template-slot-map 里的 slot_id；其来源应是 feature/task/flow 等公共 planning 语义，而不是模板私有 acceptance_impacts 反推。",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "field_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "evidence_pattern": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,546 @@
+{
+  "schema_version": "0.1.0",
+  "job_id": "job-bookkeeping-prepare-sample",
+  "prd_id": "prd-bookkeeping-prepare-sample",
+  "template_id": "flutter-finance-lite",
+  "planning_policy": {
+    "policy_version": "phase1-boundary-v1",
+    "stages": [
+      {
+        "stage": "requirement_structuring",
+        "route": "planning_model",
+        "rationale": "需求整理允许强模型参与，但输出必须收敛到受控 PRD 结构。"
+      },
+      {
+        "stage": "domain_modeling",
+        "route": "planning_model",
+        "rationale": "领域对象抽取属于高不确定性语义建模，默认走 planning_model。"
+      },
+      {
+        "stage": "task_allocation",
+        "route": "decision_model",
+        "rationale": "任务拆解、依赖裁决和 route hint 分配默认走 decision_model。"
+      },
+      {
+        "stage": "acceptance_planning",
+        "route": "decision_model",
+        "rationale": "验收边界与冲突消解属于裁决层，不交给自由执行层。"
+      },
+      {
+        "stage": "build_input_projection",
+        "route": "deterministic",
+        "rationale": "builder-input 只是运行时投影包，默认禁止自由生成模型参与。"
+      }
+    ]
+  },
+  "prepared_prd_subject_version": "\u003cnormalized\u003e",
+  "prepared_template_subject_version": "\u003cnormalized\u003e",
+  "workspace_path": "\u003cnormalized\u003e",
+  "artifact_dir": "\u003cnormalized\u003e",
+  "goal_summary": "生成一个围绕收支概览、记账动作和账单集合浏览三类核心承载的记账 App 最小输入包，并驱动当前 P0 Builder 默认执行器写入交接探针，证明 inspect/edit/validate 闭环可用。",
+  "task_bundle": [
+    {
+      "task_id": "task-domain-models",
+      "title": "冻结账单实体与收支汇总模型",
+      "category": "domain",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-domain-models",
+        "semantic_intent_refs": [
+          "feature-local-data",
+          "feature-home-summary"
+        ],
+        "binding_refs": [
+          "domain-model"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "owned_paths": [
+          "lib/models/entry.dart",
+          "lib/models/summary.dart"
+        ],
+        "success_evidence": [
+          "账单记录包含金额、分类、日期和备注",
+          "汇总模型可以表达收入、支出和结余"
+        ]
+      },
+      "objective": "先明确记账 App 的账单实体、派生汇总和目录落点，避免后续承载单元与存储边界反复漂移。",
+      "priority": "p0",
+      "related_requirements": [
+        "feature-local-data",
+        "feature-home-summary"
+      ],
+      "target_paths": [
+        "lib/models/entry.dart",
+        "lib/models/summary.dart"
+      ],
+      "output_expectations": [
+        "账单实体字段稳定",
+        "月度汇总可从账单实体推导"
+      ],
+      "completion_criteria": [
+        "账单记录包含金额、分类、日期和备注",
+        "汇总模型可以表达收入、支出和结余"
+      ],
+      "risk_notes": [
+        "如果实体字段频繁变化，后续承载单元和测试都会跟着返工"
+      ]
+    },
+    {
+      "task_id": "task-storage-wiring",
+      "title": "接通本地持久化与账单仓储边界",
+      "category": "storage",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-storage-wiring",
+        "semantic_intent_refs": [
+          "ac-persistence",
+          "mrp-data"
+        ],
+        "binding_refs": [
+          "storage-boundary",
+          "dependency-manifest"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "owned_paths": [
+          "lib/repositories/entry_repository.dart",
+          "pubspec.yaml"
+        ],
+        "blocked_by": [
+          "task-domain-models"
+        ],
+        "success_evidence": [
+          "代码或依赖中出现明确的本地持久化实现",
+          "应用重启后仍能读取账单集合并恢复概览"
+        ]
+      },
+      "objective": "把本地持久化方案和 repository 边界固定下来，确保新增账单后可恢复概览与账单集合。",
+      "priority": "p0",
+      "related_requirements": [
+        "feature-local-data"
+      ],
+      "dependencies": [
+        "task-domain-models"
+      ],
+      "target_paths": [
+        "lib/repositories/entry_repository.dart",
+        "pubspec.yaml"
+      ],
+      "output_expectations": [
+        "明确的本地持久化实现",
+        "账单读写入口稳定"
+      ],
+      "completion_criteria": [
+        "代码或依赖中出现明确的本地持久化实现",
+        "应用重启后仍能读取账单集合并恢复概览"
+      ],
+      "risk_notes": [
+        "不要同时引入两个同类本地存储方案"
+      ]
+    },
+    {
+      "task_id": "task-bind-core-surfaces",
+      "title": "绑定概览、记账动作与集合浏览承载单元",
+      "category": "screen",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-bind-core-surfaces",
+        "semantic_intent_refs": [
+          "mrp-copy"
+        ],
+        "binding_refs": [
+          "domain-copy",
+          "app-entry",
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "owned_paths": [
+          "lib/main.dart",
+          "lib/views/home_page.dart",
+          "lib/views/entry_form_page.dart",
+          "lib/views/entry_list_page.dart"
+        ],
+        "blocked_by": [
+          "task-domain-models"
+        ],
+        "success_evidence": [
+          "概览、记账动作、账单集合浏览之间入口明确可达",
+          "默认 counter demo 页面与文案已被移除"
+        ]
+      },
+      "objective": "先把概览承载、实体变更承载、集合浏览承载和主导航入口搭出来，不把默认 seed 骨架当作完成结果。",
+      "priority": "p0",
+      "related_requirements": [
+        "feature-home-summary",
+        "feature-add-entry",
+        "feature-ledger"
+      ],
+      "dependencies": [
+        "task-domain-models"
+      ],
+      "target_paths": [
+        "lib/main.dart",
+        "lib/views/home_page.dart",
+        "lib/views/entry_form_page.dart",
+        "lib/views/entry_list_page.dart"
+      ],
+      "output_expectations": [
+        "概览承载单元骨架",
+        "记账动作承载单元骨架",
+        "账单集合浏览承载单元骨架"
+      ],
+      "completion_criteria": [
+        "概览、记账动作、账单集合浏览之间入口明确可达",
+        "默认 counter demo 页面与文案已被移除"
+      ],
+      "risk_notes": [
+        "承载单元骨架完成不等于记账主流程闭环已接通"
+      ]
+    },
+    {
+      "task_id": "task-flow-wiring",
+      "title": "接通记账动作、概览刷新与账单集合回显主流程",
+      "category": "flow",
+      "task_type": "dual_file_wiring",
+      "allocation_transition": {
+        "allocation_id": "task-flow-wiring",
+        "semantic_intent_refs": [
+          "check-counter-demo-removed"
+        ],
+        "binding_refs": [
+          "flow-controller",
+          "storage-boundary",
+          "widget-test"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "owned_paths": [
+          "lib/controllers/home_controller.dart",
+          "lib/controllers/entry_form_controller.dart",
+          "lib/controllers/entry_list_controller.dart",
+          "lib/repositories/entry_repository.dart",
+          "test/widget_test.dart"
+        ],
+        "blocked_by": [
+          "task-storage-wiring",
+          "task-bind-core-surfaces"
+        ],
+        "success_evidence": [
+          "记账动作、概览刷新与账单集合回显主流程已接通"
+        ]
+      },
+      "objective": "把账单录入保存、概览刷新和账单集合回显串成一个完整功能闭环。",
+      "priority": "p0",
+      "related_requirements": [
+        "feature-add-entry",
+        "feature-home-summary",
+        "feature-ledger",
+        "feature-local-data"
+      ],
+      "dependencies": [
+        "task-storage-wiring",
+        "task-bind-core-surfaces"
+      ],
+      "target_paths": [
+        "lib/controllers/home_controller.dart",
+        "lib/controllers/entry_form_controller.dart",
+        "lib/controllers/entry_list_controller.dart",
+        "lib/repositories/entry_repository.dart",
+        "test/widget_test.dart"
+      ],
+      "output_expectations": [
+        "保存动作可触发持久化",
+        "概览和账单集合能看到新增账单"
+      ],
+      "completion_criteria": [
+        "记账动作字段齐全并可保存",
+        "新增账单后概览与账单集合都能反映最新数据"
+      ],
+      "risk_notes": [
+        "不要为了接线方便重做整套承载结构或状态管理"
+      ]
+    },
+    {
+      "task_id": "task-validation-closure",
+      "title": "完成 analyze、test 与 APK 构建收口",
+      "category": "validation",
+      "task_type": "closure_repair",
+      "allocation_transition": {
+        "allocation_id": "task-validation-closure",
+        "semantic_intent_refs": [
+          "ac-entry",
+          "ac-ledger",
+          "ac-persistence",
+          "ac-navigation"
+        ],
+        "binding_refs": [
+          "app-entry",
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation",
+          "flow-controller",
+          "storage-boundary",
+          "dependency-manifest"
+        ],
+        "surface_refs": [
+          "surface-overview",
+          "surface-collection",
+          "surface-mutation"
+        ],
+        "entity_refs": [
+          "entity-entry",
+          "entity-summary"
+        ],
+        "owned_paths": [
+          "lib/main.dart",
+          "lib/views/**",
+          "lib/controllers/**",
+          "lib/repositories/**",
+          "test/**",
+          "pubspec.yaml"
+        ],
+        "blocked_by": [
+          "task-flow-wiring"
+        ],
+        "success_evidence": [
+          "flutter analyze 无错误",
+          "flutter test 全通过",
+          "flutter build apk --debug 成功"
+        ]
+      },
+      "objective": "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 debug APK 全通过。",
+      "priority": "p0",
+      "related_requirements": [
+        "ac-entry",
+        "ac-ledger",
+        "ac-persistence",
+        "ac-navigation"
+      ],
+      "dependencies": [
+        "task-flow-wiring"
+      ],
+      "target_paths": [
+        "lib/main.dart",
+        "lib/views/**",
+        "lib/controllers/**",
+        "lib/repositories/**",
+        "test/**",
+        "pubspec.yaml"
+      ],
+      "output_expectations": [
+        "静态检查通过",
+        "测试通过",
+        "可构建 Debug APK"
+      ],
+      "completion_criteria": [
+        "flutter analyze 无错误",
+        "flutter test 全通过",
+        "flutter build apk --debug 成功"
+      ],
+      "risk_notes": [
+        "只做低风险收口，不把单点失败扩展为大面积自由重构"
+      ]
+    }
+  ],
+  "acceptance_checks": [
+    {
+      "check_id": "check-context-ready",
+      "label": "准备上下文文件",
+      "stage": "baseline",
+      "required": true,
+      "commands": [
+        "echo context-ready"
+      ],
+      "success_criteria": "上下文装载命令返回 0。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-bookkeeping-scope",
+      "label": "确认记账 MVP 范围",
+      "stage": "baseline",
+      "required": true,
+      "commands": [
+        "echo bookkeeping-scope-overview-mutation-collection"
+      ],
+      "success_criteria": "最小范围被明确限定在概览承载、记账动作和账单集合浏览。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-plan-ready",
+      "label": "确认 Builder 输入包可执行",
+      "stage": "cheap",
+      "required": true,
+      "commands": [
+        "echo builder-input-ready"
+      ],
+      "success_criteria": "Builder 输入包与最小计划文件已生成。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-structural-template-files-ready",
+      "label": "确认 Flutter seed 工作区存在",
+      "stage": "baseline",
+      "required": true,
+      "commands": [
+        "grep -q . pubspec.yaml lib/main.dart test/widget_test.dart"
+      ],
+      "success_criteria": "默认 seed 工作区关键文件已就位。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-legacy-thin-fallback-probe",
+      "label": "确认默认 thin fallback 写入探针",
+      "stage": "cheap",
+      "required": true,
+      "commands": [
+        "grep -E \"Generated by PicoClaw thin executor.|'goalSummary':\" lib/picoclaw_executor_probe.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "success_criteria": "默认 thin executor fallback 已在允许目录中写入探针文件，用于证明 legacy fallback 链可用。",
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "check-legacy-thin-fallback-metadata",
+      "label": "确认 fallback 探针包含执行元数据",
+      "stage": "cheap",
+      "required": true,
+      "commands": [
+        "grep -E \"'taskCount': [0-9]+,|'acceptanceCheckCount': [0-9]+,\" lib/picoclaw_executor_probe.dart \u003e/dev/null 2\u003e\u00261"
+      ],
+      "success_criteria": "fallback 探针里已带上 task 与 acceptance check 元数据，供定位 legacy fallback 输入边界，不代表真实 builder-runtime 产出。",
+      "timeout_seconds": 30
+    }
+  ],
+  "allowed_paths": [
+    "lib/**",
+    "assets/**",
+    "pubspec.yaml",
+    "test/**"
+  ],
+  "protected_paths": [
+    "android/**",
+    "ios/**",
+    "linux/**",
+    "macos/**",
+    "windows/**"
+  ],
+  "knowledge_pack": [
+    {
+      "skill_id": "prd-to-task-bundle",
+      "role": "把 PRD 压成 Flutter profile 可执行任务包",
+      "usage_stage": "planning",
+      "scope": "flutter-android-p0",
+      "notes": "只服务 Flutter 首个 profile，不属于执行器内核。"
+    },
+    {
+      "skill_id": "flutter-mvc-template",
+      "role": "固定 Flutter MVC 目录、依赖与页面落点",
+      "usage_stage": "layout",
+      "scope": "flutter-android-p0",
+      "notes": "负责模板和目录规则，不负责状态机与调度。"
+    },
+    {
+      "skill_id": "builder-direct-edit",
+      "role": "约束 Builder 在 Flutter 工作区中直接改码",
+      "usage_stage": "edit",
+      "scope": "flutter-android-p0",
+      "notes": "负责单轮直接改码行为，不负责超时、重试和预算。"
+    },
+    {
+      "skill_id": "flutter-build-closure",
+      "role": "在 Flutter 工作区接近完成时做低风险收口",
+      "usage_stage": "closure",
+      "scope": "flutter-android-p0",
+      "notes": "只处理 analyze/test/build 收口，不重做功能实现。"
+    }
+  ],
+  "command_profile": {
+    "allowed_commands": [
+      "echo",
+      "grep"
+    ],
+    "allowed_stages": [
+      "baseline",
+      "cheap"
+    ],
+    "denied_commands": [
+      "rm",
+      "sudo"
+    ],
+    "env_allowlist": [
+      "PATH",
+      "HOME"
+    ],
+    "max_parallel_commands": 1,
+    "max_single_command_seconds": 60,
+    "network_policy": "disabled",
+    "profile_name": "prepare-p0",
+    "writable_roots": [
+      "lib",
+      "assets",
+      "."
+    ]
+  },
+  "context_files": {
+    "implementation_plan_path": "implementation-plan.md",
+    "manual_constraints_path": "manual-constraints.md",
+    "prd_json_path": "PRD.json",
+    "prd_markdown_path": "PRD.md",
+    "supporting_files": [
+      "requirement.md",
+      "prd-approval.json",
+      "template-approval.json",
+      "planning-context.json",
+      "domain-model.json",
+      "template-slot-map.json",
+      "task-allocation.json",
+      "acceptance-plan.json"
+    ],
+    "template_fit_report_path": "template-fit-report.md"
+  },
+  "iteration_budget": 3,
+  "token_budget": 4000,
+  "human_notes": [
+    {
+      "note_id": "note-scope",
+      "scope": "engineering",
+      "summary": "当前实验只验证需求整理、交接探针和 Builder 链路，不追求真实 APK。"
+    },
+    {
+      "note_id": "note-template",
+      "scope": "product",
+      "summary": "优先匹配 flutter-finance-lite，避免引入复杂模板依赖。"
+    }
+  ]
+}
