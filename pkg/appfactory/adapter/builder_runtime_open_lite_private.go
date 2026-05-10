@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
 )
 
 var builderRuntimeOpenLiteTotalCountArgPattern = regexp.MustCompile(`,\s*int\s+totalCount\b`)
@@ -71,6 +73,7 @@ type builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags struct {
 }
 
 type builderRuntimeOpenLiteSurfaceRegistryFieldSemantics struct {
+	identifierField           string
 	primaryTextField          string
 	secondaryTextField        string
 	statusField               string
@@ -2391,6 +2394,7 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 	if statusField != "" && statusCopyLabelMethodName == "" {
 		statusCopyLabelMethodName = "statusLabel"
 	}
+	timeField := strings.TrimSpace(fieldSemantics.timeField)
 	className := strings.TrimSpace(entry.resolvedClassName)
 	if className == "" || className == "HomePage" {
 		className = "RecordListPage"
@@ -2433,6 +2437,9 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 	subtitleParts := make([]string, 0, 2)
 	if secondaryTextField != "" {
 		subtitleParts = append(subtitleParts, "record."+secondaryTextField)
+	}
+	if timeField != "" {
+		subtitleParts = append(subtitleParts, "_formatDate(record."+timeField+")")
 	}
 	if statusField != "" {
 		subtitleParts = append(subtitleParts, "openLiteCopy."+statusCopyLabelMethodName+"(record."+statusField+")")
@@ -2507,6 +2514,7 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 		"  final " + recordType + " record;",
 		"  final VoidCallback onTap;",
 		"",
+		builderRuntimeOpenLiteFormatDateMethod(timeField != ""),
 		"  @override",
 		"  Widget build(BuildContext context) {",
 		"    return Material(",
@@ -2568,6 +2576,13 @@ func builderRuntimeOpenLiteInterpolatedExpression(parts []string) string {
 	return builder.String()
 }
 
+func builderRuntimeOpenLiteFormatDateMethod(enabled bool) string {
+	if !enabled {
+		return ""
+	}
+	return "  String _formatDate(DateTime value) => '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';"
+}
+
 // ── Generic deterministic generators（from-scratch、registry-driven）───────────────────
 
 // builderRuntimeOpenLiteCanonicalGenericInspectionPage 从 registry 生成 generic 详情页。
@@ -2606,6 +2621,7 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 	if statusField != "" && statusMethod == "" {
 		statusMethod = "statusLabel"
 	}
+	timeField := strings.TrimSpace(fs.timeField)
 	noteField := strings.TrimSpace(fs.noteField)
 	constructorParams := []string{"super.key", "required this." + recordParam}
 	if hasEdit {
@@ -2637,6 +2653,9 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 	if secondaryTextField != "" {
 		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy.detailCategoryLabel, value: "+recordParam+"."+secondaryTextField+"),")
 	}
+	if timeField != "" {
+		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy.detailDateLabel, value: _formatDate("+recordParam+"."+timeField+")),")
+	}
 	if noteField != "" {
 		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy.detailNoteLabel, value: "+recordParam+"."+noteField+".trim().isEmpty ? openLiteCopy.emptyNoteLabel : "+recordParam+"."+noteField+".trim(), multiline: true),")
 	}
@@ -2658,6 +2677,7 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 		"class " + className + " extends StatelessWidget {",
 		"  const " + className + "({" + strings.Join(constructorParams, ", ") + "});",
 		"", strings.Join(fields, "\n"), "",
+		builderRuntimeOpenLiteFormatDateMethod(timeField != ""),
 		"  @override", "  Widget build(BuildContext context) {",
 		"    return Scaffold(",
 		"      appBar: AppBar(title: Text(openLiteCopy.detailPageTitle)," + appBarActions,
@@ -2679,17 +2699,38 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 		"        Text(subtitle, style: TextStyle(color: colors.onPrimary.withValues(alpha: 0.7))),",
 		"      ]),", "    );", "  }", "}", "",
 		"class _InfoTile extends StatelessWidget {",
-		"  const _InfoTile({required this.label, required this.value, this.multiline = false});",
-		"  final String label; final String value; final bool multiline;",
+		builderRuntimeOpenLiteInfoTileConstructor(noteField != ""),
+		builderRuntimeOpenLiteInfoTileFields(noteField != ""),
 		"  @override Widget build(BuildContext context) {",
 		"    final colors = Theme.of(context).colorScheme;",
 		"    return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(18)),",
 		"      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [",
 		"        Text(label, style: Theme.of(context).textTheme.labelMedium),",
 		"        const SizedBox(height: 6),",
-		"        Text(value, style: TextStyle(height: multiline ? 1.4 : 1.2)),",
+		builderRuntimeOpenLiteInfoTileValueLine(noteField != ""),
 		"      ]),", "    );", "  }", "}",
 	}, "\n") + "\n"
+}
+
+func builderRuntimeOpenLiteInfoTileConstructor(hasMultiline bool) string {
+	if hasMultiline {
+		return "  const _InfoTile({required this.label, required this.value, this.multiline = false});"
+	}
+	return "  const _InfoTile({required this.label, required this.value});"
+}
+
+func builderRuntimeOpenLiteInfoTileFields(hasMultiline bool) string {
+	if hasMultiline {
+		return "  final String label; final String value; final bool multiline;"
+	}
+	return "  final String label; final String value;"
+}
+
+func builderRuntimeOpenLiteInfoTileValueLine(hasMultiline bool) string {
+	if hasMultiline {
+		return "        Text(value, style: TextStyle(height: multiline ? 1.4 : 1.2)),"
+	}
+	return "        Text(value, style: const TextStyle(height: 1.2)),"
 }
 
 // builderRuntimeOpenLiteCanonicalGenericMutationPage 从 registry 生成 generic 表单页（支持 create + edit）。
@@ -2723,8 +2764,62 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 	if primaryField == "" {
 		primaryField = "title"
 	}
+	secondaryField := strings.TrimSpace(fs.secondaryTextField)
+	if secondaryField == primaryField {
+		secondaryField = ""
+	}
+	statusField := strings.TrimSpace(fs.statusField)
+	statusEnumType := strings.TrimSpace(fs.statusEnumType)
+	statusEnumMembers := builderRuntimeOpenLiteEnumMembers(workspacePath, statusEnumType)
+	if statusField == "" || statusEnumType == "" || len(statusEnumMembers) == 0 {
+		statusField = ""
+		statusEnumType = ""
+	}
+	timeField := strings.TrimSpace(fs.timeField)
 	noteField := strings.TrimSpace(fs.noteField)
 	hasNote := noteField != ""
+	secondaryDecl := ""
+	secondaryInit := ""
+	secondaryDispose := ""
+	secondaryArg := ""
+	secondaryBody := ""
+	if secondaryField != "" {
+		secondaryDecl = "\n  late final TextEditingController _secondaryController;"
+		secondaryInit = "\n    _secondaryController = TextEditingController();"
+		secondaryDispose = "\n    _secondaryController.dispose();"
+		secondaryArg = ", " + secondaryField + ": _secondaryController.text.trim()"
+		secondaryBody = "\n              const SizedBox(height: 16),\n              TextField(controller: _secondaryController, key: const Key('secondary-field'), decoration: InputDecoration(labelText: openLiteCopy.categoryFieldLabel)),"
+	}
+	statusDecl := ""
+	statusInit := ""
+	statusArg := ""
+	statusBody := ""
+	if statusField != "" {
+		defaultStatusMember := ""
+		if len(statusEnumMembers) > 0 {
+			defaultStatusMember = statusEnumMembers[0]
+		}
+		defaultStatusExpr := statusEnumType + "." + defaultStatusMember
+		if defaultStatusMember == "" {
+			defaultStatusExpr = statusEnumType + ".values.first"
+		}
+		statusDecl = "\n  late " + statusEnumType + " _selectedStatus;"
+		statusInit = "\n    _selectedStatus = " + defaultStatusExpr + ";"
+		statusArg = ", " + statusField + ": _selectedStatus"
+		statusBody = "\n              const SizedBox(height: 16),\n              DropdownButtonFormField<" + statusEnumType + ">(key: const Key('status-field'), value: _selectedStatus, decoration: InputDecoration(labelText: openLiteCopy.detailStatusLabel), items: " + statusEnumType + ".values.map((value) => DropdownMenuItem(value: value, child: Text(openLiteCopy.statusLabel(value)))).toList(), onChanged: (value) { if (value != null) { setState(() => _selectedStatus = value); } }),"
+	}
+	timeDecl := ""
+	timeInit := ""
+	timeArg := ""
+	timeBody := ""
+	pickDateMethod := ""
+	if timeField != "" {
+		timeDecl = "\n  DateTime _selectedDate = DateTime.now();"
+		timeInit = "\n    _selectedDate = DateTime.now();"
+		timeArg = ", " + timeField + ": _selectedDate"
+		timeBody = "\n              const SizedBox(height: 16),\n              ListTile(key: const Key('date-field'), contentPadding: EdgeInsets.zero, title: Text(openLiteCopy.dateFieldLabel), subtitle: Text(_formatDate(_selectedDate)), trailing: const Icon(Icons.calendar_today), onTap: _pickDate),"
+		pickDateMethod = "\n  String _formatDate(DateTime value) => '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';\n  Future<void> _pickDate() async {\n    final picked = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2000), lastDate: DateTime(2100));\n    if (picked != null) { setState(() => _selectedDate = picked); }\n  }"
+	}
 	nodeInit := ""
 	if hasNote {
 		nodeInit = "\n    _noteController = TextEditingController();"
@@ -2745,6 +2840,7 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 	if hasNote {
 		noteArg = ", " + noteField + ": _noteController.text.trim()"
 	}
+	schemaArgs := secondaryArg + statusArg + timeArg + noteArg
 	initParam := strings.TrimSpace(mutReg.view.constructorContract.initialParam)
 	hasEdit := initParam != "" && mutReg.view.capabilityFlags.supportsEdit
 	_, _, updateMethod, _ := builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, modelType)
@@ -2757,6 +2853,19 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 	titleInit := "    _titleController = TextEditingController();"
 	if hasEdit {
 		titleInit = "    _titleController = TextEditingController(text: widget." + initParam + "?." + primaryField + " ?? '');"
+		if secondaryField != "" {
+			secondaryInit = "\n    _secondaryController = TextEditingController(text: widget." + initParam + "?." + secondaryField + " ?? '');"
+		}
+		if statusField != "" {
+			defaultStatusExpr := statusEnumType + ".values.first"
+			if defaultStatusMember := builderRuntimeOpenLiteFirstEnumMember(workspacePath, statusEnumType); defaultStatusMember != "" {
+				defaultStatusExpr = statusEnumType + "." + defaultStatusMember
+			}
+			statusInit = "\n    _selectedStatus = widget." + initParam + "?." + statusField + " ?? " + defaultStatusExpr + ";"
+		}
+		if timeField != "" {
+			timeInit = "\n    _selectedDate = widget." + initParam + "?." + timeField + " ?? DateTime.now();"
+		}
 	}
 	pageTitle := "openLiteCopy.createPageTitle"
 	submitLabel := "openLiteCopy.createSubmitLabel"
@@ -2766,9 +2875,9 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 	}
 	submitBody := ""
 	if hasEdit {
-		submitBody = "    final title = _titleController.text.trim(); if (title.isEmpty) return;\n    final record = widget." + initParam + "!.copyWith(" + primaryField + ": title" + noteArg + ");\n    await widget." + repoParam + "." + updateMethod + "(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
+		submitBody = "    final title = _titleController.text.trim(); if (title.isEmpty) return;\n    final record = widget." + initParam + "!.copyWith(" + primaryField + ": title" + schemaArgs + ");\n    await widget." + repoParam + "." + updateMethod + "(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
 	} else {
-		submitBody = "    final title = _titleController.text.trim(); if (title.isEmpty) return;\n    final record = " + modelType + "(" + primaryField + ": title" + noteArg + ");\n    await widget." + repoParam + ".addRecord(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
+		submitBody = "    final title = _titleController.text.trim(); if (title.isEmpty) return;\n    final record = " + modelType + "(" + primaryField + ": title" + schemaArgs + ");\n    await widget." + repoParam + ".addRecord(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
 	}
 	return strings.Join([]string{
 		"import 'package:flutter/material.dart';",
@@ -2779,14 +2888,15 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 		"  @override State<" + className + "> createState() => _" + className + "State();",
 		"}", "",
 		"class _" + className + "State extends State<" + className + "> {",
-		"  late final TextEditingController _titleController;" + noteDecl,
-		"  @override void initState() { super.initState();", titleInit + nodeInit, "  }",
-		"  @override void dispose() { _titleController.dispose();" + nodedisp + " super.dispose(); }",
+		"  late final TextEditingController _titleController;" + secondaryDecl + noteDecl + statusDecl + timeDecl,
+		"  @override void initState() { super.initState();", titleInit + secondaryInit + statusInit + timeInit + nodeInit, "  }",
+		"  @override void dispose() { _titleController.dispose();" + secondaryDispose + nodedisp + " super.dispose(); }",
+		pickDateMethod,
 		"  Future<void> _submit() async {", submitBody, "  }",
 		"  @override Widget build(BuildContext context) {",
 		"    return Scaffold(appBar: AppBar(title: Text(" + pageTitle + ")),",
 		"      body: ListView(padding: const EdgeInsets.all(20), children: [",
-		"        TextField(controller: _titleController, key: const Key('title-field'), decoration: InputDecoration(labelText: openLiteCopy.titleFieldLabel))," + notebody,
+		"        TextField(controller: _titleController, key: const Key('title-field'), decoration: InputDecoration(labelText: openLiteCopy.titleFieldLabel))," + secondaryBody + statusBody + timeBody + notebody,
 		"        const SizedBox(height: 24),",
 		"        ElevatedButton(onPressed: _submit, child: Text(" + submitLabel + ")),",
 		"      ]),",
@@ -2825,19 +2935,25 @@ func builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath string) st
 		primaryField = "title"
 	}
 	statusField := strings.TrimSpace(fs.statusField)
-	hasStatus := statusField != ""
+	statusEnumType := strings.TrimSpace(fs.statusEnumType)
+	completedStatusMember := builderRuntimeOpenLiteCompletedStatusMember(workspacePath, statusEnumType)
+	hasCompletedStatus := statusField != "" && statusEnumType != "" && completedStatusMember != ""
 	ctrlImportPath := strings.TrimSpace(ovReg.view.controllerImportPath)
 	if ctrlImportPath == "" {
 		ctrlImportPath = "../controllers/home_controller.dart"
 	}
 	copyImportPath := builderRuntimeOpenLiteRelativeImport(strings.TrimSpace(ovReg.view.resolvedPath), "lib/template/open_lite_copy.dart", "../template/open_lite_copy.dart")
 	modelImport := ""
-	if hasStatus {
-		modelImport = "import '../models/record.dart';"
+	if hasCompletedStatus {
+		modelImportPath := strings.TrimSpace(colReg.view.modelImportPath)
+		if modelImportPath == "" {
+			modelImportPath = "../models/record.dart"
+		}
+		modelImport = "import '" + modelImportPath + "';"
 	}
 	summaryCard := "                    _SummaryCard(totalCount: " + ctrlParam + ".records.length,"
-	if hasStatus {
-		summaryCard += "\n                      doneCount: " + ctrlParam + ".records.where((r) => r." + statusField + " == RecordStatus.done).length,"
+	if hasCompletedStatus {
+		summaryCard += "\n                      doneCount: " + ctrlParam + ".records.where((r) => r." + statusField + " == " + statusEnumType + "." + completedStatusMember + ").length,"
 	}
 	summaryCard += "\n                    ),\n                    const SizedBox(height: 16),"
 	recentPreview := "                    if (" + ctrlParam + ".records.isNotEmpty)\n                      Padding(padding: const EdgeInsets.only(bottom: 16),\n                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [\n                          Text(openLiteCopy.recentRecordsTitle, style: Theme.of(context).textTheme.titleMedium),\n                          const SizedBox(height: 8),\n                          ...List<Widget>.generate(" + ctrlParam + ".records.length.clamp(0, 3), (index) { final r = " + ctrlParam + ".records[index];\n                            return ListTile(dense: true, title: Text(r." + primaryField + "), contentPadding: EdgeInsets.zero);\n                          }),\n                        ],),\n                      ),"
@@ -2873,8 +2989,8 @@ func builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath string) st
 		"    ]);",
 		"  }", "}", "",
 		"class _SummaryCard extends StatelessWidget {",
-		"  const _SummaryCard({required this.totalCount, this.doneCount});",
-		"  final int totalCount; final int? doneCount;",
+		builderRuntimeOpenLiteSummaryCardConstructor(hasCompletedStatus),
+		builderRuntimeOpenLiteSummaryCardFields(hasCompletedStatus),
 		"  @override Widget build(BuildContext context) {",
 		"    final colors = Theme.of(context).colorScheme;",
 		"    return Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), color: colors.primaryContainer),",
@@ -2882,11 +2998,32 @@ func builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath string) st
 		"        Text('$totalCount', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: colors.onPrimaryContainer)),",
 		"        const SizedBox(width: 12),",
 		"        Text(openLiteCopy.summaryCountLabel(totalCount), style: TextStyle(color: colors.onPrimaryContainer.withValues(alpha: 0.8))),",
-		"        if (doneCount != null) ...[const Spacer(), Text('$doneCount ${openLiteCopy.doneFilterLabel}', style: TextStyle(color: colors.onPrimaryContainer.withValues(alpha: 0.8)))],",
+		builderRuntimeOpenLiteSummaryCardDoneChildren(hasCompletedStatus),
 		"      ]),",
 		"    );",
 		"  }", "}",
 	}, "\n") + "\n"
+}
+
+func builderRuntimeOpenLiteSummaryCardConstructor(hasCompletedStatus bool) string {
+	if hasCompletedStatus {
+		return "  const _SummaryCard({required this.totalCount, required this.doneCount});"
+	}
+	return "  const _SummaryCard({required this.totalCount});"
+}
+
+func builderRuntimeOpenLiteSummaryCardFields(hasCompletedStatus bool) string {
+	if hasCompletedStatus {
+		return "  final int totalCount; final int doneCount;"
+	}
+	return "  final int totalCount;"
+}
+
+func builderRuntimeOpenLiteSummaryCardDoneChildren(hasCompletedStatus bool) string {
+	if !hasCompletedStatus {
+		return ""
+	}
+	return "        const Spacer(), Text('$doneCount ${openLiteCopy.doneFilterLabel}', style: TextStyle(color: colors.onPrimaryContainer.withValues(alpha: 0.8))),"
 }
 
 // builderRuntimeOpenLiteCanonicalGenericOverviewController 从 registry 生成 generic 主页控制器。
@@ -2963,13 +3100,17 @@ func builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(workspacePath stri
 	if concRepoType == "" {
 		concRepoType = "HiveRecordRepository"
 	}
+	deleteIdentifierField := strings.TrimSpace(builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath).view.fieldSemantics.identifierField)
+	if deleteIdentifierField == "" {
+		deleteIdentifierField = "recordId"
+	}
 	detailPageLine := "      MaterialPageRoute(builder: (context) => RecordDetailPage(record: record)),"
 	deleteMethodLines := []string{}
 	if allowDeleteFlow {
 		detailPageLine = "      MaterialPageRoute(builder: (context) => RecordDetailPage(record: record, onDeleteRecord: _deleteRecord)),"
 		deleteMethodLines = []string{
 			"  Future<void> _deleteRecord(dynamic record) async {",
-			"    await _overviewController.deleteRecord(record.recordId);",
+			"    await _overviewController.deleteRecord(record." + deleteIdentifierField + ");",
 			"    await _collectionController.refresh();",
 			"    _navigatorKey.currentState!.pop(true);",
 			"  }",
@@ -3550,16 +3691,89 @@ func builderRuntimeOpenLiteCollectionFieldSemantics(workspacePath string) builde
 	}
 	fields := builderRuntimeOpenLiteDeclaredFields(recordContent)
 	semantics := builderRuntimeOpenLiteSurfaceRegistryFieldSemantics{
+		identifierField:    builderRuntimeOpenLiteIdentifierField(fields),
 		primaryTextField:   builderRuntimeOpenLitePrimaryTextField(fields),
 		secondaryTextField: builderRuntimeOpenLiteSecondaryTextField(fields),
 		timeField:          builderRuntimeOpenLiteTimeField(fields),
 		noteField:          builderRuntimeOpenLiteNoteField(fields),
 	}
 	semantics.statusField, semantics.statusEnumType = builderRuntimeOpenLiteStatusField(fields)
+	semantics = builderRuntimeOpenLiteMergeDomainFieldSemantics(workspacePath, fields, semantics)
 	if semantics.statusEnumType != "" {
 		semantics.statusCopyLabelMethodName = builderRuntimeOpenLiteStatusCopyLabelMethodName(workspacePath, semantics.statusEnumType)
 	}
 	return semantics
+}
+
+func builderRuntimeOpenLiteMergeDomainFieldSemantics(workspacePath string, fields []builderRuntimeOpenLiteDeclaredField, semantics builderRuntimeOpenLiteSurfaceRegistryFieldSemantics) builderRuntimeOpenLiteSurfaceRegistryFieldSemantics {
+	if strings.TrimSpace(workspacePath) == "" || len(fields) == 0 {
+		return semantics
+	}
+	dm, err := loadPrepareDomainModel(workspacePath)
+	if err != nil {
+		return semantics
+	}
+	primaryEntity := builderRuntimeOpenLitePrimaryDomainEntity(dm)
+	if primaryEntity == nil {
+		return semantics
+	}
+	declaredByName := make(map[string]builderRuntimeOpenLiteDeclaredField, len(fields))
+	for _, field := range fields {
+		declaredByName[field.name] = field
+	}
+	domainFieldByRole := func(roles ...string) (string, builderRuntimeOpenLiteDeclaredField, bool) {
+		field := emitGenericRoleField(primaryEntity, roles...)
+		if field == nil {
+			return "", builderRuntimeOpenLiteDeclaredField{}, false
+		}
+		dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+		declared, ok := declaredByName[dartName]
+		if !ok {
+			return "", builderRuntimeOpenLiteDeclaredField{}, false
+		}
+		return dartName, declared, true
+	}
+	if name, _, ok := domainFieldByRole("identifier"); ok {
+		semantics.identifierField = name
+	}
+	if name, _, ok := domainFieldByRole("primary_text"); ok {
+		semantics.primaryTextField = name
+	}
+	if name, _, ok := domainFieldByRole("secondary_text"); ok {
+		semantics.secondaryTextField = name
+	}
+	if name, declared, ok := domainFieldByRole("status"); ok {
+		semantics.statusField = name
+		semantics.statusEnumType = builderRuntimeOpenLiteNormalizedFieldType(declared.fieldType)
+	}
+	if name, _, ok := domainFieldByRole("due_date", "date", "time"); ok {
+		semantics.timeField = name
+	}
+	if name, _, ok := domainFieldByRole("note"); ok {
+		semantics.noteField = name
+	}
+	return semantics
+}
+
+func builderRuntimeOpenLitePrimaryDomainEntity(dm appprepare.DomainModel) *appprepare.DataEntity {
+	for index := range dm.Entities {
+		if strings.TrimSpace(dm.Entities[index].Source) != "derived" {
+			return &dm.Entities[index]
+		}
+	}
+	if len(dm.Entities) == 0 {
+		return nil
+	}
+	return &dm.Entities[0]
+}
+
+func builderRuntimeOpenLiteIdentifierField(fields []builderRuntimeOpenLiteDeclaredField) string {
+	for _, field := range fields {
+		if builderRuntimeOpenLiteIsIdentifierField(field.name) {
+			return field.name
+		}
+	}
+	return ""
 }
 
 func builderRuntimeOpenLiteDeclaredFields(content string) []builderRuntimeOpenLiteDeclaredField {
@@ -3585,6 +3799,23 @@ func builderRuntimeOpenLiteDeclaredFields(content string) []builderRuntimeOpenLi
 func builderRuntimeOpenLitePrimaryTextField(fields []builderRuntimeOpenLiteDeclaredField) string {
 	for _, preferred := range []string{"title", "name", "headline", "subject", "summary", "label"} {
 		if field := builderRuntimeOpenLiteFieldByName(fields, preferred); field != nil && builderRuntimeOpenLiteIsStringField(field.fieldType) {
+			return field.name
+		}
+	}
+	for _, field := range fields {
+		if !builderRuntimeOpenLiteIsStringField(field.fieldType) || builderRuntimeOpenLiteIsIdentifierField(field.name) || builderRuntimeOpenLiteIsNoteLikeField(field.name) || builderRuntimeOpenLiteIsStatusLikeField(field.name) || builderRuntimeOpenLiteIsTimeLikeField(field.name) {
+			continue
+		}
+		fieldName := strings.ToLower(field.name)
+		if strings.Contains(fieldName, "title") || strings.Contains(fieldName, "headline") || strings.Contains(fieldName, "subject") || strings.Contains(fieldName, "label") {
+			return field.name
+		}
+	}
+	for _, field := range fields {
+		if !builderRuntimeOpenLiteIsStringField(field.fieldType) || builderRuntimeOpenLiteIsIdentifierField(field.name) || builderRuntimeOpenLiteIsNoteLikeField(field.name) || builderRuntimeOpenLiteIsStatusLikeField(field.name) || builderRuntimeOpenLiteIsTimeLikeField(field.name) {
+			continue
+		}
+		if strings.Contains(strings.ToLower(field.name), "name") {
 			return field.name
 		}
 	}
@@ -3678,6 +3909,59 @@ func builderRuntimeOpenLiteStatusCopyLabelMethodName(workspacePath, statusType s
 		return strings.TrimSpace(match[1])
 	}
 	return "statusLabel"
+}
+
+func builderRuntimeOpenLiteCompletedStatusMember(workspacePath, statusType string) string {
+	for _, member := range builderRuntimeOpenLiteEnumMembers(workspacePath, statusType) {
+		for _, preferred := range []string{"done", "completed", "watched", "watered", "finished"} {
+			if member == preferred {
+				return preferred
+			}
+		}
+	}
+	return ""
+}
+
+func builderRuntimeOpenLiteFirstEnumMember(workspacePath, statusType string) string {
+	members := builderRuntimeOpenLiteEnumMembers(workspacePath, statusType)
+	if len(members) == 0 {
+		return ""
+	}
+	return members[0]
+}
+
+func builderRuntimeOpenLiteEnumMembers(workspacePath, statusType string) []string {
+	trimmedStatusType := strings.TrimSpace(statusType)
+	if trimmedStatusType == "" {
+		return nil
+	}
+	recordContent := builderRuntimeOpenLitePrimaryRecordModelContent(workspacePath)
+	if strings.TrimSpace(recordContent) == "" {
+		return nil
+	}
+	pattern := regexp.MustCompile(`(?s)enum\s+` + regexp.QuoteMeta(trimmedStatusType) + `\s*\{([^}]*)\}`)
+	match := pattern.FindStringSubmatch(recordContent)
+	if len(match) < 2 {
+		return nil
+	}
+	rawMembers := strings.Split(match[1], ",")
+	members := make([]string, 0, len(rawMembers))
+	for _, member := range rawMembers {
+		trimmedMember := strings.TrimSpace(strings.TrimSuffix(member, ";"))
+		if trimmedMember == "" {
+			continue
+		}
+		members = append(members, trimmedMember)
+	}
+	return members
+}
+
+func builderRuntimeOpenLiteFormFieldLabel(fieldName string) string {
+	trimmedName := strings.TrimSpace(fieldName)
+	if trimmedName == "" {
+		return "字段"
+	}
+	return trimmedName
 }
 
 func builderRuntimeOpenLiteFieldByName(fields []builderRuntimeOpenLiteDeclaredField, name string) *builderRuntimeOpenLiteDeclaredField {

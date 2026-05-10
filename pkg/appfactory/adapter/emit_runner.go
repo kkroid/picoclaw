@@ -235,6 +235,7 @@ func emitGenericRecordModel(dm appprepare.DomainModel, ent *appprepare.DataEntit
 	if len(enumDefs) > 0 {
 		prefix = strings.Join(enumDefs, "\n") + "\n"
 	}
+	identifierField := emitGenericIdentifierDartField(ent)
 	cp := make([]string, 0)
 	ci := make([]string, 0)
 	fd := make([]string, 0)
@@ -250,7 +251,7 @@ func emitGenericRecordModel(dm appprepare.DomainModel, ent *appprepare.DataEntit
 			dt = enumType
 		}
 		switch {
-		case dartName == "recordId":
+		case dartName == identifierField:
 			cp = append(cp, "    String? "+dartName+",")
 			ci = append(ci, "        "+dartName+" = "+dartName+" ?? DateTime.now().microsecondsSinceEpoch.toString()")
 		case dt == "DateTime":
@@ -403,6 +404,8 @@ func emitFieldToDartType(typeStr, dartName string) string {
 	switch typeStr {
 	case "int", "integer":
 		return "int"
+	case "number":
+		return "double"
 	case "bool", "boolean":
 		return "bool"
 	case "date", "datetime":
@@ -412,6 +415,32 @@ func emitFieldToDartType(typeStr, dartName string) string {
 	default:
 		return "String"
 	}
+}
+
+func emitGenericIdentifierDartField(ent *appprepare.DataEntity) string {
+	if ent == nil {
+		return ""
+	}
+	for _, field := range ent.Fields {
+		dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+		if dartName == "" {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(field.Role), "identifier") {
+			return dartName
+		}
+	}
+	for _, field := range ent.Fields {
+		dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+		if dartName == "" {
+			continue
+		}
+		lowerName := strings.ToLower(strings.TrimSpace(field.Name))
+		if dartName == "recordId" || strings.HasSuffix(lowerName, "_id") || strings.HasSuffix(strings.ToLower(dartName), "id") {
+			return dartName
+		}
+	}
+	return ""
 }
 
 func emitEnumMembers(raw string) []string {
@@ -455,7 +484,7 @@ func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainMode
 	}
 	countClass := "DashboardSummary"
 	summaryImport := ""
-	hasIDField := false
+	identifierField := emitGenericIdentifierDartField(primaryEnt)
 	for _, e := range dm.Entities {
 		if strings.Contains(strings.TrimSpace(e.EntityID), "dashboard") || strings.Contains(strings.TrimSpace(e.EntityID), "summary") {
 			summaryImport = "import '../models/dashboard_summary.dart';"
@@ -466,14 +495,8 @@ func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainMode
 			break
 		}
 	}
-	for _, f := range primaryEnt.Fields {
-		if emitSnakeToCamel(strings.TrimSpace(f.Name)) == "recordId" {
-			hasIDField = true
-			break
-		}
-	}
-	if !hasIDField {
-		return "" // 需要 record_id 字段才能生成正确仓储
+	if identifierField == "" {
+		return "" // 需要可识别的 identifier 字段才能生成正确仓储
 	}
 	methods := []string{
 		"  @override",
@@ -485,13 +508,13 @@ func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainMode
 		"  @override",
 		"  Future<void> addRecord(" + recordClass + " record) async {",
 		"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
-		"    await _recordBox!.put(record.recordId, record);",
+		"    await _recordBox!.put(record." + identifierField + ", record);",
 		"  }",
 		"",
 		"  @override",
 		"  Future<void> updateRecord(" + recordClass + " record) async {",
 		"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
-		"    await _recordBox!.put(record.recordId, record);",
+		"    await _recordBox!.put(record." + identifierField + ", record);",
 		"  }",
 		"",
 		"  @override",
@@ -502,12 +525,22 @@ func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainMode
 	}
 	loadSummaryMethod := ""
 	if summaryImport != "" {
+		summaryArgs := emitGenericSummaryConstructorArgs(dm.Entities, countClass, primaryEnt)
+		summaryArgBlock := strings.Join(summaryArgs, "\n")
+		summarySetup := ""
+		if strings.Contains(summaryArgBlock, "records") {
+			summarySetup = strings.Join([]string{
+				"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
+				"    final records = _recordBox!.values.toList();",
+			}, "\n")
+		}
 		loadSummaryMethod = "\n" + strings.Join([]string{
 			"",
 			"  Future<" + countClass + "> loadSummary() async {",
-			"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
-			"    final records = _recordBox!.values.toList();",
-			"    return " + countClass + "(totalCount: records.length);",
+			summarySetup,
+			"    return " + countClass + "(",
+			summaryArgBlock,
+			"    );",
 			"  }",
 		}, "\n")
 	}
@@ -557,7 +590,7 @@ func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainMode
 		"",
 		"  @override",
 		"  Future<void> updateRecord(" + recordClass + " record) async {",
-		"    final index = _records.indexWhere((item) => item.recordId == record.recordId);",
+		"    final index = _records.indexWhere((item) => item." + identifierField + " == record." + identifierField + ");",
 		"    if (index >= 0) {",
 		"      _records[index] = record;",
 		"    } else {",
@@ -567,10 +600,166 @@ func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainMode
 		"",
 		"  @override",
 		"  Future<void> deleteRecord(String recordId) async {",
-		"    _records.removeWhere((record) => record.recordId == recordId);",
+		"    _records.removeWhere((record) => record." + identifierField + " == recordId);",
 		"  }",
 		"}",
 	}, "\n") + "\n"
+}
+
+func emitGenericSummaryConstructorArgs(entities []appprepare.DataEntity, className string, primaryEnt *appprepare.DataEntity) []string {
+	for i := range entities {
+		entity := &entities[i]
+		if emitEntityClassName(entity) != className {
+			continue
+		}
+		args := make([]string, 0, len(entity.Fields))
+		for _, field := range entity.Fields {
+			dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+			if dartName == "" {
+				continue
+			}
+			args = append(args, "      "+dartName+": "+emitGenericSummaryDefaultValue(field, primaryEnt)+",")
+		}
+		return args
+	}
+	return nil
+}
+
+func emitGenericSummaryDefaultValue(field appprepare.DataField, primaryEnt *appprepare.DataEntity) string {
+	dartType := emitFieldToDartType(field.Type, emitSnakeToCamel(strings.TrimSpace(field.Name)))
+	fieldName := strings.ToLower(strings.TrimSpace(field.Name))
+	if dartType == "int" && (fieldName == "total_count" || fieldName == "record_count" || strings.HasPrefix(fieldName, "total_")) {
+		return "records.length"
+	}
+	if dartType == "int" {
+		if expr := emitGenericSummaryCountExpression(fieldName, primaryEnt); expr != "" {
+			return expr
+		}
+	}
+	switch dartType {
+	case "int":
+		return "0"
+	case "double":
+		return "0"
+	case "bool":
+		return "false"
+	case "DateTime":
+		return "DateTime.now()"
+	default:
+		return "''"
+	}
+}
+
+func emitGenericSummaryCountExpression(summaryFieldName string, primaryEnt *appprepare.DataEntity) string {
+	if primaryEnt == nil {
+		return ""
+	}
+	statusField := emitGenericRoleField(primaryEnt, "status")
+	timeField := emitGenericRoleField(primaryEnt, "due_date", "date", "time")
+	if timeField == nil {
+		for index := range primaryEnt.Fields {
+			if emitFieldToDartType(primaryEnt.Fields[index].Type, emitSnakeToCamel(primaryEnt.Fields[index].Name)) == "DateTime" {
+				timeField = &primaryEnt.Fields[index]
+				break
+			}
+		}
+	}
+	if strings.Contains(summaryFieldName, "overdue") && timeField != nil {
+		dateAccess := "record." + emitSnakeToCamel(timeField.Name)
+		if doneCheck := emitGenericStatusComparison(primaryEnt, statusField, "done", "completed", "watched", "watered"); doneCheck != "" {
+			return "records.where((record) => " + dateAccess + ".isBefore(DateTime.now()) && !(" + doneCheck + ")).length"
+		}
+		return "records.where((record) => " + dateAccess + ".isBefore(DateTime.now())).length"
+	}
+	if (strings.Contains(summaryFieldName, "due_soon") || strings.Contains(summaryFieldName, "upcoming") || strings.Contains(summaryFieldName, "next_due")) && timeField != nil {
+		dateAccess := "record." + emitSnakeToCamel(timeField.Name)
+		return "records.where((record) => !" + dateAccess + ".isBefore(DateTime.now()) && " + dateAccess + ".difference(DateTime.now()).inDays <= 7).length"
+	}
+	if strings.Contains(summaryFieldName, "done") || strings.Contains(summaryFieldName, "completed") || strings.Contains(summaryFieldName, "watched") || strings.Contains(summaryFieldName, "watered") {
+		return emitGenericStatusCountExpression(primaryEnt, statusField, "done", "completed", "watched", "watered")
+	}
+	if strings.Contains(summaryFieldName, "pending") || strings.Contains(summaryFieldName, "todo") || strings.Contains(summaryFieldName, "planned") || strings.Contains(summaryFieldName, "needs") {
+		return emitGenericStatusCountExpression(primaryEnt, statusField, "todo", "pending", "planned", "needsWater")
+	}
+	if strings.Contains(summaryFieldName, "progress") || strings.Contains(summaryFieldName, "active") {
+		return emitGenericStatusCountExpression(primaryEnt, statusField, "inProgress", "doing", "watching", "active")
+	}
+	return ""
+}
+
+func emitGenericRoleField(ent *appprepare.DataEntity, roles ...string) *appprepare.DataField {
+	if ent == nil {
+		return nil
+	}
+	for _, role := range roles {
+		for index := range ent.Fields {
+			if strings.EqualFold(strings.TrimSpace(ent.Fields[index].Role), strings.TrimSpace(role)) {
+				return &ent.Fields[index]
+			}
+		}
+	}
+	for _, role := range roles {
+		role = strings.ToLower(strings.TrimSpace(role))
+		for index := range ent.Fields {
+			name := strings.ToLower(strings.TrimSpace(ent.Fields[index].Name))
+			if name == role || strings.Contains(name, role) {
+				return &ent.Fields[index]
+			}
+		}
+	}
+	return nil
+}
+
+func emitGenericStatusCountExpression(ent *appprepare.DataEntity, statusField *appprepare.DataField, members ...string) string {
+	comparison := emitGenericStatusComparison(ent, statusField, members...)
+	if comparison == "" {
+		return ""
+	}
+	return "records.where((record) => " + comparison + ").length"
+}
+
+func emitGenericStatusComparison(ent *appprepare.DataEntity, statusField *appprepare.DataField, members ...string) string {
+	if ent == nil || statusField == nil {
+		return ""
+	}
+	fieldName := emitSnakeToCamel(statusField.Name)
+	if fieldName == "" {
+		return ""
+	}
+	enumType := emitGenericEnumType(emitEntityClassName(ent), *statusField)
+	if enumType == "" {
+		return ""
+	}
+	available := map[string]struct{}{}
+	for _, member := range emitEnumMembers(statusField.Type) {
+		available[emitSnakeToCamel(member)] = struct{}{}
+	}
+	comparisons := make([]string, 0, len(members))
+	for _, member := range members {
+		member = emitSnakeToCamel(member)
+		if _, ok := available[member]; !ok {
+			continue
+		}
+		comparisons = append(comparisons, "record."+fieldName+" == "+enumType+"."+member)
+	}
+	return strings.Join(comparisons, " || ")
+}
+
+func emitGenericEnumType(recordClass string, field appprepare.DataField) string {
+	if len(emitEnumMembers(field.Type)) == 0 {
+		return ""
+	}
+	dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+	if dartName == "" {
+		return ""
+	}
+	if strings.TrimSpace(recordClass) == "" {
+		recordClass = "Record"
+	}
+	if dartName == "status" {
+		return recordClass + "Status"
+	}
+	return recordClass + emitSnakeToPascal(dartName)
 }
 
 func resolveDeterministicTemplateSlots(task appruns.TaskBundleItem, slotMap appprepare.TemplateSlotMap, targetSet map[string]struct{}) []appprepare.TemplateSlot {

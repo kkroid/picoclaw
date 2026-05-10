@@ -213,6 +213,43 @@ func TestEmitTestGeneric(t *testing.T) {
 	}
 }
 
+func TestEmitTestGenericUsesSchemaSeedRecord(t *testing.T) {
+	dm := appprepare.DomainModel{
+		DomainCopy: appprepare.DomainCopy{Title: "课程作业 App"},
+		Entities: []appprepare.DataEntity{
+			{
+				EntityID: "entity-course-assignment",
+				Name:     "课程作业",
+				Fields: []appprepare.DataField{
+					{Name: "assignment_id", Type: "string", Role: "identifier", Required: true},
+					{Name: "assignment_title", Type: "string", Role: "primary_text", Required: true},
+					{Name: "due_date", Type: "date", Role: "due_date", Required: true},
+				},
+			},
+		},
+	}
+	result, ok := EmitTest(dm, TestEmitConfig{AppClassName: "AppFactoryApp"})
+	if !ok {
+		t.Fatal("EmitTest returned false for generic schema")
+	}
+	for _, marker := range []string{
+		"import 'package:flutter_open_lite/models/record.dart';",
+		"InMemoryRecordRepository(seedRecords: [CourseAssignment(assignmentTitle: '测试记录')])",
+		"AppFactoryApp(repository: repository)",
+		"expect(find.text('测试记录'), findsOneWidget);",
+	} {
+		if !strings.Contains(result.Content, marker) {
+			t.Fatalf("content missing schema generic marker %q: %s", marker, result.Content)
+		}
+	}
+	if strings.Contains(result.Content, "recordId") {
+		t.Fatalf("generic schema test should not hard-code recordId: %s", result.Content)
+	}
+	if strings.Contains(result.Content, "package:flutter/material.dart") {
+		t.Fatalf("generic schema test should not import unused material.dart: %s", result.Content)
+	}
+}
+
 func TestEmitTestCustomConfig(t *testing.T) {
 	dm := appprepare.DomainModel{
 		DomainCopy: appprepare.DomainCopy{Title: "自定义 App"},
@@ -286,8 +323,8 @@ func TestEmitTestStructureIntegrity(t *testing.T) {
 			if !ok {
 				t.Fatal("EmitTest returned false")
 			}
-			if !strings.HasPrefix(result.Content, "import 'package:flutter/material.dart';") {
-				t.Fatal("content should start with flutter/material import")
+			if !strings.HasPrefix(result.Content, "import 'package:") {
+				t.Fatal("content should start with a Dart package import")
 			}
 			if !strings.HasSuffix(result.Content, "}\n") {
 				t.Fatal("content should end with closing brace and newline")

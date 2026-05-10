@@ -109,7 +109,11 @@ func TestEmitCopyGeneric(t *testing.T) {
 	dm := appprepare.DomainModel{
 		DomainCopy: appprepare.DomainCopy{Title: "体重记录 App"},
 		Entities: []appprepare.DataEntity{
-			{EntityID: "entity-weight-record", Name: "体重记录"},
+			{EntityID: "entity-weight-record", Name: "体重记录", Fields: []appprepare.DataField{
+				{Name: "recorded_at", Type: "date", Role: "date", Description: "记录日期"},
+				{Name: "weight", Type: "number", Role: "primary_text", Description: "体重"},
+				{Name: "note", Type: "string", Role: "note", Description: "记录备注"},
+			}},
 			{EntityID: "entity-weight-summary", Name: "体重概览摘要", Source: "derived"},
 		},
 	}
@@ -121,15 +125,51 @@ func TestEmitCopyGeneric(t *testing.T) {
 		t.Fatal("content missing appTitle from DomainCopy.Title")
 	}
 	for _, marker := range []string{
-		"import '../models/record.dart';",
-		"statusLabel(RecordStatus status)",
-		"case RecordStatus.inbox:",
-		"case RecordStatus.inProgress:",
-		"case RecordStatus.done:",
+		"String get homeSummaryTitle => '体重概览摘要';",
+		"String get createPrimaryActionLabel => '新建体重记录';",
+		"String get titleFieldLabel => '体重';",
+		"String get dateFieldLabel => '记录日期';",
+		"String get noteFieldLabel => '记录备注';",
 		"int visibleCount, int totalCount",
 	} {
 		if !strings.Contains(result.Content, marker) {
 			t.Fatalf("content missing generic marker: %s", marker)
+		}
+	}
+	for _, absent := range []string{"RecordStatus", "statusLabel(dynamic status)", "detailStatusLabel", "doneFilterLabel"} {
+		if strings.Contains(result.Content, absent) {
+			t.Fatalf("generic copy without status should not contain %s: %s", absent, result.Content)
+		}
+	}
+}
+
+func TestEmitCopyGenericWithStatus(t *testing.T) {
+	dm := appprepare.DomainModel{
+		DomainCopy: appprepare.DomainCopy{Title: "观影清单 App"},
+		Entities: []appprepare.DataEntity{
+			{EntityID: "entity-movie-record", Name: "观影记录", Fields: []appprepare.DataField{
+				{Name: "movie_title", Type: "string", Role: "primary_text", Description: "电影名称"},
+				{Name: "genre", Type: "string", Role: "secondary_text", Description: "电影类型"},
+				{Name: "watch_status", Type: "enum[planned,watching,watched]", Role: "status", Description: "观看状态"},
+				{Name: "review", Type: "string", Role: "note", Description: "观影短评"},
+			}},
+		},
+	}
+	result, ok := EmitCopy(dm)
+	if !ok {
+		t.Fatal("EmitCopy returned false for generic domain model with status")
+	}
+	for _, marker := range []string{
+		"String get titleFieldLabel => '电影名称';",
+		"String get categoryFieldLabel => '电影类型';",
+		"String get detailStatusLabel => '观看状态';",
+		"String statusLabel(dynamic status)",
+		"case 'planned':",
+		"case 'watching':",
+		"case 'watched':",
+	} {
+		if !strings.Contains(result.Content, marker) {
+			t.Fatalf("content missing status generic marker: %s", marker)
 		}
 	}
 }

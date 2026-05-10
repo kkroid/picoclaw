@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -121,7 +122,7 @@ func createBuilderRuntimeCustomCollectionModelWorkspace(t *testing.T, taskModelC
 	t.Helper()
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/task.dart": taskModelContent,
+		"lib/models/task.dart":                  taskModelContent,
 		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\n",
 		"lib/controllers/task_collection_controller.dart": strings.Join([]string{
 			"import '../models/task.dart';",
@@ -141,6 +142,21 @@ func createBuilderRuntimeCustomCollectionModelWorkspace(t *testing.T, taskModelC
 			"}",
 		}, "\n") + "\n",
 	})
+	return workspacePath
+}
+
+func createBuilderRuntimeWorkspaceWithDomainModel(t *testing.T, domainModel string, files map[string]string) string {
+	t.Helper()
+	jobRoot := t.TempDir()
+	workspacePath := filepath.Join(jobRoot, "workspace")
+	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, files)
+	preparePath := filepath.Join(jobRoot, "prepare")
+	if err := os.MkdirAll(preparePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll(prepare) error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(preparePath, "domain-model.json"), []byte(domainModel), 0o600); err != nil {
+		t.Fatalf("WriteFile(domain-model.json) error = %v", err)
+	}
 	return workspacePath
 }
 
@@ -373,7 +389,8 @@ func TestBuilderRuntimeOpenLiteCollectionSurfaceRegistryTracksFieldSemantics(t *
 	workspacePath := createBuilderRuntimeCustomCollectionModelWorkspace(t, strings.Join([]string{
 		"enum TaskStatus { todo, doing, done }",
 		"class Task {",
-		"  const Task({required this.headline, required this.group, required this.status, this.note});",
+		"  const Task({required this.taskId, required this.headline, required this.group, required this.status, this.note});",
+		"  final String taskId;",
 		"  final String headline;",
 		"  final String group;",
 		"  final TaskStatus status;",
@@ -404,6 +421,9 @@ func TestBuilderRuntimeOpenLiteCollectionSurfaceRegistryTracksFieldSemantics(t *
 	})
 
 	registry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath)
+	if got := registry.view.fieldSemantics.identifierField; got != "taskId" {
+		t.Fatalf("builderRuntimeOpenLiteCollectionSurfaceRegistry().view.fieldSemantics.identifierField = %q, want taskId", got)
+	}
 	if got := registry.view.fieldSemantics.primaryTextField; got != "headline" {
 		t.Fatalf("builderRuntimeOpenLiteCollectionSurfaceRegistry().view.fieldSemantics.primaryTextField = %q, want headline", got)
 	}
@@ -421,6 +441,183 @@ func TestBuilderRuntimeOpenLiteCollectionSurfaceRegistryTracksFieldSemantics(t *
 	}
 	if got := registry.view.fieldSemantics.noteField; got != "note" {
 		t.Fatalf("builderRuntimeOpenLiteCollectionSurfaceRegistry().view.fieldSemantics.noteField = %q, want note", got)
+	}
+}
+
+func TestBuilderRuntimeOpenLiteCollectionFieldSemanticsPreferDomainModelRoles(t *testing.T) {
+	workspacePath := createBuilderRuntimeWorkspaceWithDomainModel(t, strings.Join([]string{
+		"{",
+		"  \"entities\": [",
+		"    {",
+		"      \"source\": \"local_storage\",",
+		"      \"fields\": [",
+		"        {\"name\": \"movie_record_id\", \"role\": \"identifier\"},",
+		"        {\"name\": \"movie_title\", \"role\": \"primary_text\"},",
+		"        {\"name\": \"genre\", \"role\": \"secondary_text\"},",
+		"        {\"name\": \"watch_status\", \"role\": \"status\"},",
+		"        {\"name\": \"next_due_at\", \"role\": \"due_date\"},",
+		"        {\"name\": \"review\", \"role\": \"note\"}",
+		"      ]",
+		"    }",
+		"  ]",
+		"}",
+	}, "\n"), map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"enum MovieRecordWatchStatus { planned, watching, watched }",
+			"class MovieRecord {",
+			"  const MovieRecord({required this.movieRecordId, required this.movieTitle, required this.genre, required this.watchStatus, required this.nextDueAt, required this.review});",
+			"  final String movieRecordId;",
+			"  final String movieTitle;",
+			"  final String genre;",
+			"  final MovieRecordWatchStatus watchStatus;",
+			"  final DateTime nextDueAt;",
+			"  final String review;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	semantics := builderRuntimeOpenLiteCollectionFieldSemantics(workspacePath)
+	checks := map[string]string{
+		"identifierField":    semantics.identifierField,
+		"primaryTextField":   semantics.primaryTextField,
+		"secondaryTextField": semantics.secondaryTextField,
+		"statusField":        semantics.statusField,
+		"statusEnumType":     semantics.statusEnumType,
+		"timeField":          semantics.timeField,
+		"noteField":          semantics.noteField,
+	}
+	wants := map[string]string{
+		"identifierField":    "movieRecordId",
+		"primaryTextField":   "movieTitle",
+		"secondaryTextField": "genre",
+		"statusField":        "watchStatus",
+		"statusEnumType":     "MovieRecordWatchStatus",
+		"timeField":          "nextDueAt",
+		"noteField":          "review",
+	}
+	for name, want := range wants {
+		if got := checks[name]; got != want {
+			t.Fatalf("builderRuntimeOpenLiteCollectionFieldSemantics().%s = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestBuilderRuntimeOpenLiteGenericOverviewUsesSchemaStatusEnum(t *testing.T) {
+	workspacePath := t.TempDir()
+	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"enum CourseAssignmentStatus { todo, inProgress, done }",
+			"class CourseAssignment {",
+			"  const CourseAssignment({required this.assignmentId, required this.assignmentTitle, required this.status});",
+			"  final String assignmentId;",
+			"  final String assignmentTitle;",
+			"  final CourseAssignmentStatus status;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	content := builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath)
+	for _, want := range []string{
+		"import '../models/record.dart';",
+		"r.status == CourseAssignmentStatus.done",
+		"title: Text(r.assignmentTitle)",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("builderRuntimeOpenLiteCanonicalGenericOverviewPage() missing schema marker %q: %q", want, content)
+		}
+	}
+	if strings.Contains(content, "RecordStatus.done") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalGenericOverviewPage() should not hard-code RecordStatus.done: %q", content)
+	}
+}
+
+func TestBuilderRuntimeOpenLiteGenericOverviewOmitsDoneCountWithoutStatus(t *testing.T) {
+	workspacePath := t.TempDir()
+	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"class PetVaccineRecord {",
+			"  const PetVaccineRecord({required this.vaccineRecordId, required this.petName, required this.vaccineName});",
+			"  final String vaccineRecordId;",
+			"  final String petName;",
+			"  final String vaccineName;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	content := builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath)
+	for _, forbidden := range []string{"doneCount", "doneFilterLabel", "import '../models/record.dart';"} {
+		if strings.Contains(content, forbidden) {
+			t.Fatalf("builderRuntimeOpenLiteCanonicalGenericOverviewPage() should omit status-only marker %q: %q", forbidden, content)
+		}
+	}
+	if !strings.Contains(content, "const _SummaryCard({required this.totalCount});") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalGenericOverviewPage() should use statusless SummaryCard constructor: %q", content)
+	}
+}
+
+func TestBuilderRuntimeOpenLiteGenericInspectionUsesDomainRoleNote(t *testing.T) {
+	workspacePath := createBuilderRuntimeWorkspaceWithDomainModel(t, strings.Join([]string{
+		"{",
+		"  \"entities\": [",
+		"    {",
+		"      \"source\": \"local_storage\",",
+		"      \"fields\": [",
+		"        {\"name\": \"movie_record_id\", \"role\": \"identifier\"},",
+		"        {\"name\": \"movie_title\", \"role\": \"primary_text\"},",
+		"        {\"name\": \"genre\", \"role\": \"secondary_text\"},",
+		"        {\"name\": \"watch_status\", \"role\": \"status\"},",
+		"        {\"name\": \"review\", \"role\": \"note\"}",
+		"      ]",
+		"    }",
+		"  ]",
+		"}",
+	}, "\n"), map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"enum MovieRecordWatchStatus { planned, watching, watched }",
+			"class MovieRecord {",
+			"  const MovieRecord({required this.movieRecordId, required this.movieTitle, required this.genre, required this.watchStatus, required this.review});",
+			"  final String movieRecordId;",
+			"  final String movieTitle;",
+			"  final String genre;",
+			"  final MovieRecordWatchStatus watchStatus;",
+			"  final String review;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	content := builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePath, true)
+	for _, want := range []string{
+		"_InfoTile(label: openLiteCopy.detailCategoryLabel, value: record.genre)",
+		"_InfoTile(label: openLiteCopy.detailNoteLabel, value: record.review.trim().isEmpty ? openLiteCopy.emptyNoteLabel : record.review.trim(), multiline: true)",
+		"this.multiline = false",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete() missing role-aware detail marker %q: %q", want, content)
+		}
+	}
+	if strings.Contains(content, "record.category") || strings.Contains(content, "record.note") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete() should not fall back to literal category/note fields: %q", content)
+	}
+}
+
+func TestBuilderRuntimeOpenLiteGenericAppEntryDeleteUsesSchemaIdentifier(t *testing.T) {
+	workspacePath := t.TempDir()
+	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"class CourseAssignment {",
+			"  const CourseAssignment({required this.assignmentId, required this.assignmentTitle});",
+			"  final String assignmentId;",
+			"  final String assignmentTitle;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	content := builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(workspacePath, true)
+	if !strings.Contains(content, "await _overviewController.deleteRecord(record.assignmentId);") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete() should delete by schema identifier: %q", content)
+	}
+	if strings.Contains(content, "record.recordId") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete() should not hard-code recordId: %q", content)
 	}
 }
 
@@ -608,11 +805,11 @@ func TestBuilderRuntimePrimaryCollectionSurfaceCandidateAlignsCustomCollectionSu
 func TestBuilderRuntimePrimaryCollectionSurfaceCandidatePrefersViewAlignedCustomControllerOverStaleDefaultDeclarationHint(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/task.dart": "class Task {\n  const Task({required this.title});\n  final String title;\n}\n",
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\n",
-		"lib/controllers/record_list_controller.dart": "import '../repositories/task_repository.dart';\nclass RecordListController {\n  RecordListController({required TaskRepository repository});\n}\n",
+		"lib/models/task.dart":                            "class Task {\n  const Task({required this.title});\n  final String title;\n}\n",
+		"lib/repositories/task_repository.dart":           "abstract class TaskRepository {}\n",
+		"lib/controllers/record_list_controller.dart":     "import '../repositories/task_repository.dart';\nclass RecordListController {\n  RecordListController({required TaskRepository repository});\n}\n",
 		"lib/controllers/task_collection_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskCollectionController {\n  TaskCollectionController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n  Future<void> updateRecord(dynamic record) async {}\n}\n",
-		"lib/views/task_collection_page.dart": "import '../controllers/task_collection_controller.dart';\nimport '../models/task.dart';\nclass TaskCollectionPage {\n  const TaskCollectionPage({required this.controller, required this.onOpenTaskDetail});\n  final TaskCollectionController controller;\n  final Future<void> Function(Task task) onOpenTaskDetail;\n}\n",
+		"lib/views/task_collection_page.dart":             "import '../controllers/task_collection_controller.dart';\nimport '../models/task.dart';\nclass TaskCollectionPage {\n  const TaskCollectionPage({required this.controller, required this.onOpenTaskDetail});\n  final TaskCollectionController controller;\n  final Future<void> Function(Task task) onOpenTaskDetail;\n}\n",
 	})
 	content := strings.Join([]string{
 		"import 'controllers/record_list_controller.dart';",
@@ -711,10 +908,10 @@ func TestBuilderRuntimeOpenLiteCollectionSurfaceRegistryAlignsCustomCollectionSu
 func TestBuilderRuntimePrimaryOverviewSurfaceCandidatePrefersViewAlignedCustomControllerOverStaleDefaultDeclarationHint(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\n",
-		"lib/controllers/home_controller.dart": "import '../repositories/task_repository.dart';\nclass HomeController {\n  HomeController({required TaskRepository repository});\n}\n",
+		"lib/repositories/task_repository.dart":         "abstract class TaskRepository {}\n",
+		"lib/controllers/home_controller.dart":          "import '../repositories/task_repository.dart';\nclass HomeController {\n  HomeController({required TaskRepository repository});\n}\n",
 		"lib/controllers/task_overview_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskOverviewController {\n  TaskOverviewController({required TaskRepository taskRepository});\n}\n",
-		"lib/views/task_overview_page.dart": "import '../controllers/task_overview_controller.dart';\nclass TaskOverviewPage { const TaskOverviewPage({required this.controller, required this.onCreateTask, required this.onViewAllTasks}); final TaskOverviewController controller; final Future<void> Function() onCreateTask; final Future<void> Function() onViewAllTasks; }\n",
+		"lib/views/task_overview_page.dart":             "import '../controllers/task_overview_controller.dart';\nclass TaskOverviewPage { const TaskOverviewPage({required this.controller, required this.onCreateTask, required this.onViewAllTasks}); final TaskOverviewController controller; final Future<void> Function() onCreateTask; final Future<void> Function() onViewAllTasks; }\n",
 	})
 	content := strings.Join([]string{
 		"import 'controllers/home_controller.dart';",
@@ -777,10 +974,10 @@ func TestBuilderRuntimePrimaryMutationSurfaceCandidateAlignsCustomMutationSurfac
 func TestBuilderRuntimePrimaryMutationSurfaceCandidatePrefersViewAlignedCustomControllerOverStaleDefaultDeclarationHint(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\n",
+		"lib/repositories/task_repository.dart":       "abstract class TaskRepository {}\n",
 		"lib/controllers/record_form_controller.dart": "import '../repositories/task_repository.dart';\nclass RecordFormController {\n  RecordFormController({required TaskRepository repository});\n}\n",
-		"lib/controllers/task_form_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskFormController {\n  TaskFormController({required TaskRepository taskRepository});\n}\n",
-		"lib/views/task_form_page.dart": "import '../repositories/task_repository.dart';\nclass TaskFormPage { const TaskFormPage({required this.taskRepository, this.initialTask}); final TaskRepository taskRepository; final Object? initialTask; }\n",
+		"lib/controllers/task_form_controller.dart":   "import '../repositories/task_repository.dart';\nclass TaskFormController {\n  TaskFormController({required TaskRepository taskRepository});\n}\n",
+		"lib/views/task_form_page.dart":               "import '../repositories/task_repository.dart';\nclass TaskFormPage { const TaskFormPage({required this.taskRepository, this.initialTask}); final TaskRepository taskRepository; final Object? initialTask; }\n",
 	})
 	content := strings.Join([]string{
 		"import 'controllers/record_form_controller.dart';",
@@ -1006,7 +1203,7 @@ func TestBuilderRuntimeOpenLiteDetailSurfaceRegistryAlignsCustomDetailSurface(t 
 func TestBuilderRuntimeOpenLiteMutationSurfaceRegistryTracksMutationCapabilities(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/task.dart": "class Task { const Task({required this.title, this.note = ''}); final String title; final String note; }\n",
+		"lib/models/task.dart":                  "class Task { const Task({required this.title, this.note = ''}); final String title; final String note; }\n",
 		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\n",
 		"lib/controllers/task_form_controller.dart": strings.Join([]string{
 			"import 'package:flutter/material.dart';",
@@ -1733,7 +1930,7 @@ func TestNormalizeBuilderRuntimePatchRecoversGenericAppEntryFenceOverLongerPlace
 func TestNormalizeBuilderRuntimePatchWithWorkspacePrefersRegistryMatchedSingleTargetAppEntryFence(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/task.dart": "class Task { const Task({required this.title}); final String title; }\n",
+		"lib/models/task.dart":                  "class Task { const Task({required this.title}); final String title; }\n",
 		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\n",
 		"lib/controllers/task_collection_controller.dart": strings.Join([]string{
 			"import '../models/task.dart';",
@@ -6387,11 +6584,11 @@ func TestNormalizeBuilderRuntimePatchForWorkspaceWithTaskBundleAddsCollectionCre
 func TestNormalizeBuilderRuntimePatchForWorkspaceWithTaskBundleAddsCollectionCreateEntryFromWorkspaceForCustomPathsWithoutSurfaceRefs(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/task.dart":                      "enum TaskStatus { todo, doing, done }\nclass Task {\n  const Task({required this.title, required this.status, this.note = ''});\n  final String title;\n  final TaskStatus status;\n  final String note;\n}\n",
-		"lib/repositories/task_repository.dart":     "abstract class TaskRepository {}\n",
+		"lib/models/task.dart":                            "enum TaskStatus { todo, doing, done }\nclass Task {\n  const Task({required this.title, required this.status, this.note = ''});\n  final String title;\n  final TaskStatus status;\n  final String note;\n}\n",
+		"lib/repositories/task_repository.dart":           "abstract class TaskRepository {}\n",
 		"lib/controllers/task_collection_controller.dart": "import 'package:flutter/foundation.dart';\nimport '../models/task.dart';\nimport '../repositories/task_repository.dart';\nclass TaskCollectionController extends ChangeNotifier {\n  TaskCollectionController({required TaskRepository taskRepository});\n  List<Task> get records => const [];\n  List<Task> get visibleRecords => records;\n}\n",
-		"lib/controllers/task_form_controller.dart": "import 'package:flutter/material.dart';\nimport '../models/task.dart';\nclass TaskFormController extends ChangeNotifier {\n  final TextEditingController titleController = TextEditingController();\n  final TextEditingController noteController = TextEditingController();\n  TaskStatus get selectedStatus => TaskStatus.todo;\n}\n",
-		"lib/views/task_form_page.dart":             "class TaskFormPage {}\n",
+		"lib/controllers/task_form_controller.dart":       "import 'package:flutter/material.dart';\nimport '../models/task.dart';\nclass TaskFormController extends ChangeNotifier {\n  final TextEditingController titleController = TextEditingController();\n  final TextEditingController noteController = TextEditingController();\n  TaskStatus get selectedStatus => TaskStatus.todo;\n}\n",
+		"lib/views/task_form_page.dart":                   "class TaskFormPage {}\n",
 	})
 	patch := appruns.WorkspacePatch{Operations: []appruns.WorkspacePatchOperation{{
 		Type: "write_file",
@@ -7096,11 +7293,11 @@ func TestNormalizeBuilderRuntimeOpenLiteMainContentCanonicalizesExistingFormCall
 func TestNormalizeBuilderRuntimeOpenLiteMainContentCanonicalizesExistingFormCallbacksToRefreshForCustomCollectionController(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/record.dart":                "enum RecordStatus { inbox, inProgress, done }\nclass AppRecord {}\n",
-		"lib/views/task_form_page.dart":         "class TaskFormPage { const TaskFormPage({super.key, required this.taskRepository, this.initialTask}); final TaskRepository taskRepository; final Object? initialTask; }\n",
-		"lib/views/record_list_page.dart":       "class RecordListPage {}\n",
+		"lib/models/record.dart":                          "enum RecordStatus { inbox, inProgress, done }\nclass AppRecord {}\n",
+		"lib/views/task_form_page.dart":                   "class TaskFormPage { const TaskFormPage({super.key, required this.taskRepository, this.initialTask}); final TaskRepository taskRepository; final Object? initialTask; }\n",
+		"lib/views/record_list_page.dart":                 "class RecordListPage {}\n",
 		"lib/controllers/task_collection_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskCollectionController {\n  TaskCollectionController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n  Future<void> updateRecord(dynamic record) async {}\n}\n",
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
+		"lib/repositories/task_repository.dart":           "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
 	})
 	content := strings.Join([]string{
 		"import 'package:flutter/material.dart';",
@@ -7184,11 +7381,11 @@ func TestNormalizeBuilderRuntimeOpenLiteMainContentCanonicalizesExistingFormCall
 func TestNormalizeBuilderRuntimeOpenLiteMainContentDropsStaleDefaultCollectionControllerImportForCustomSurface(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/record.dart":                "enum RecordStatus { inbox, inProgress, done }\nclass AppRecord {}\n",
-		"lib/views/record_form_page.dart":       "class RecordFormPage {}\n",
-		"lib/views/record_list_page.dart":       "class RecordListPage {}\n",
+		"lib/models/record.dart":                          "enum RecordStatus { inbox, inProgress, done }\nclass AppRecord {}\n",
+		"lib/views/record_form_page.dart":                 "class RecordFormPage {}\n",
+		"lib/views/record_list_page.dart":                 "class RecordListPage {}\n",
 		"lib/controllers/task_collection_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskCollectionController {\n  TaskCollectionController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n  Future<void> updateRecord(dynamic record) async {}\n}\n",
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
+		"lib/repositories/task_repository.dart":           "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
 	})
 	content := strings.Join([]string{
 		"import 'package:flutter/material.dart';",
@@ -7235,11 +7432,11 @@ func TestNormalizeBuilderRuntimeOpenLiteMainContentDropsStaleDefaultCollectionCo
 func TestNormalizeBuilderRuntimeOpenLiteMainContentDropsStaleDefaultCollectionViewImportForCustomSurface(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/task.dart":                  "class Task {}\n",
-		"lib/views/record_list_page.dart":       "class RecordListPage {}\n",
-		"lib/views/task_collection_page.dart":   "import '../controllers/task_collection_controller.dart';\nimport '../models/task.dart';\nclass TaskCollectionPage { const TaskCollectionPage({required this.controller, required this.onOpenTaskDetail}); final TaskCollectionController controller; final Future<void> Function(Task task) onOpenTaskDetail; }\n",
+		"lib/models/task.dart":                            "class Task {}\n",
+		"lib/views/record_list_page.dart":                 "class RecordListPage {}\n",
+		"lib/views/task_collection_page.dart":             "import '../controllers/task_collection_controller.dart';\nimport '../models/task.dart';\nclass TaskCollectionPage { const TaskCollectionPage({required this.controller, required this.onOpenTaskDetail}); final TaskCollectionController controller; final Future<void> Function(Task task) onOpenTaskDetail; }\n",
 		"lib/controllers/task_collection_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskCollectionController {\n  TaskCollectionController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n  Future<void> updateRecord(dynamic record) async {}\n}\n",
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
+		"lib/repositories/task_repository.dart":           "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
 	})
 	content := strings.Join([]string{
 		"import 'package:flutter/material.dart';",
@@ -7285,11 +7482,11 @@ func TestNormalizeBuilderRuntimeOpenLiteMainContentDropsStaleDefaultCollectionVi
 func TestNormalizeBuilderRuntimeOpenLiteMainContentRewritesStaleDefaultListControllerDeclarationForCustomSurface(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/task.dart":                  "class Task {}\n",
-		"lib/views/task_collection_page.dart":   "import '../controllers/task_collection_controller.dart';\nimport '../models/task.dart';\nclass TaskCollectionPage { const TaskCollectionPage({required this.controller, required this.onOpenTaskDetail}); final TaskCollectionController controller; final Future<void> Function(Task task) onOpenTaskDetail; }\n",
-		"lib/controllers/record_list_controller.dart": "import '../repositories/task_repository.dart';\nclass RecordListController {\n  RecordListController({required TaskRepository repository});\n}\n",
+		"lib/models/task.dart":                            "class Task {}\n",
+		"lib/views/task_collection_page.dart":             "import '../controllers/task_collection_controller.dart';\nimport '../models/task.dart';\nclass TaskCollectionPage { const TaskCollectionPage({required this.controller, required this.onOpenTaskDetail}); final TaskCollectionController controller; final Future<void> Function(Task task) onOpenTaskDetail; }\n",
+		"lib/controllers/record_list_controller.dart":     "import '../repositories/task_repository.dart';\nclass RecordListController {\n  RecordListController({required TaskRepository repository});\n}\n",
 		"lib/controllers/task_collection_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskCollectionController {\n  TaskCollectionController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n  Future<void> updateRecord(dynamic record) async {}\n}\n",
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
+		"lib/repositories/task_repository.dart":           "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
 	})
 	content := strings.Join([]string{
 		"import 'package:flutter/material.dart';",
@@ -7339,11 +7536,11 @@ func TestNormalizeBuilderRuntimeOpenLiteMainContentRewritesStaleDefaultListContr
 func TestNormalizeBuilderRuntimeOpenLiteMainContentRewritesStaleDefaultListControllerDeclarationForBoardLikeCustomSurface(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/task.dart": "class Task {}\n",
-		"lib/views/task_board_page.dart": "import '../controllers/task_board_controller.dart';\nimport '../models/task.dart';\nclass TaskBoardPage { const TaskBoardPage({required this.controller, required this.onOpenTaskDetail}); final TaskBoardController controller; final Future<void> Function(Task task) onOpenTaskDetail; }\n",
+		"lib/models/task.dart":                        "class Task {}\n",
+		"lib/views/task_board_page.dart":              "import '../controllers/task_board_controller.dart';\nimport '../models/task.dart';\nclass TaskBoardPage { const TaskBoardPage({required this.controller, required this.onOpenTaskDetail}); final TaskBoardController controller; final Future<void> Function(Task task) onOpenTaskDetail; }\n",
 		"lib/controllers/record_list_controller.dart": "import '../repositories/task_repository.dart';\nclass RecordListController {\n  RecordListController({required TaskRepository repository});\n}\n",
-		"lib/controllers/task_board_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskBoardController {\n  TaskBoardController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n  Future<void> updateRecord(dynamic record) async {}\n}\n",
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
+		"lib/controllers/task_board_controller.dart":  "import '../repositories/task_repository.dart';\nclass TaskBoardController {\n  TaskBoardController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n  Future<void> updateRecord(dynamic record) async {}\n}\n",
+		"lib/repositories/task_repository.dart":       "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
 	})
 	content := strings.Join([]string{
 		"import 'package:flutter/material.dart';",
@@ -7393,11 +7590,11 @@ func TestNormalizeBuilderRuntimeOpenLiteMainContentRewritesStaleDefaultListContr
 func TestNormalizeBuilderRuntimeOpenLiteEnsureListControllerVariableRewritesStaleDefaultDeclarationForCustomController(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/task.dart":                  "class Task {}\n",
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\n",
-		"lib/controllers/record_list_controller.dart": "import '../repositories/task_repository.dart';\nclass RecordListController {\n  RecordListController({required TaskRepository repository});\n}\n",
+		"lib/models/task.dart":                            "class Task {}\n",
+		"lib/repositories/task_repository.dart":           "abstract class TaskRepository {}\n",
+		"lib/controllers/record_list_controller.dart":     "import '../repositories/task_repository.dart';\nclass RecordListController {\n  RecordListController({required TaskRepository repository});\n}\n",
 		"lib/controllers/task_collection_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskCollectionController {\n  TaskCollectionController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n  Future<void> updateRecord(dynamic record) async {}\n}\n",
-		"lib/views/task_collection_page.dart":   "import '../controllers/task_collection_controller.dart';\nimport '../models/task.dart';\nclass TaskCollectionPage { const TaskCollectionPage({required this.controller, required this.onOpenTaskDetail}); final TaskCollectionController controller; final Future<void> Function(Task task) onOpenTaskDetail; }\n",
+		"lib/views/task_collection_page.dart":             "import '../controllers/task_collection_controller.dart';\nimport '../models/task.dart';\nclass TaskCollectionPage { const TaskCollectionPage({required this.controller, required this.onOpenTaskDetail}); final TaskCollectionController controller; final Future<void> Function(Task task) onOpenTaskDetail; }\n",
 	})
 	content := strings.Join([]string{
 		"import 'controllers/record_list_controller.dart';",
@@ -7480,9 +7677,9 @@ func TestNormalizeBuilderRuntimeOpenLiteMainContentInjectsCustomOverviewControll
 func TestNormalizeBuilderRuntimeOpenLiteMainContentInjectsBoardLikeOverviewControllerFromSurfaceCandidate(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/repositories/task_repository.dart": "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
+		"lib/repositories/task_repository.dart":          "abstract class TaskRepository {}\nclass HiveTaskRepository extends TaskRepository { Future<void> init() async {} }\n",
 		"lib/controllers/task_dashboard_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskDashboardController { const TaskDashboardController({required this.taskRepository}); final TaskRepository taskRepository; }\n",
-		"lib/views/task_dashboard_page.dart": "import '../controllers/task_dashboard_controller.dart';\nclass TaskDashboardPage { const TaskDashboardPage({required this.controller, required this.onCreateTask, required this.onViewAllTasks}); final TaskDashboardController controller; final Future<void> Function() onCreateTask; final Future<void> Function() onViewAllTasks; }\n",
+		"lib/views/task_dashboard_page.dart":             "import '../controllers/task_dashboard_controller.dart';\nclass TaskDashboardPage { const TaskDashboardPage({required this.controller, required this.onCreateTask, required this.onViewAllTasks}); final TaskDashboardController controller; final Future<void> Function() onCreateTask; final Future<void> Function() onViewAllTasks; }\n",
 	})
 	content := strings.Join([]string{
 		"import 'package:flutter/material.dart';",
@@ -9718,7 +9915,7 @@ func TestNormalizeBuilderRuntimePatchForWorkspaceRetargetsGenericOpenLiteCopySta
 		"  final String group;",
 		"  final TaskStatus status;",
 		"}",
-		}, "\n")+"\n")
+	}, "\n")+"\n")
 	patch := appruns.WorkspacePatch{Operations: []appruns.WorkspacePatchOperation{{
 		Type: "write_file",
 		Path: "lib/template/open_lite_copy.dart",
@@ -9886,6 +10083,41 @@ func TestNormalizeBuilderRuntimePatchForWorkspaceRemovesTitleAndCategoryOpenLite
 	for _, required := range []string{"noteFieldLabel", "dateFieldLabel"} {
 		if !strings.Contains(content, required) {
 			t.Fatalf("normalizeBuilderRuntimePatchForWorkspace() should preserve unrelated copy getter %q: %q", required, content)
+		}
+	}
+}
+
+func TestBuilderRuntimeForbiddenTokensFromDomainModelAllowsRoleBasedGenericCopyHelpers(t *testing.T) {
+	workspacePath := createBuilderRuntimeWorkspaceWithDomainModel(t, strings.Join([]string{
+		"{",
+		"  \"entities\": [",
+		"    {",
+		"      \"source\": \"local_storage\",",
+		"      \"fields\": [",
+		"        {\"name\": \"movie_record_id\", \"role\": \"identifier\"},",
+		"        {\"name\": \"movie_title\", \"role\": \"primary_text\"},",
+		"        {\"name\": \"genre\", \"role\": \"secondary_text\"},",
+		"        {\"name\": \"watch_status\", \"role\": \"status\"}",
+		"      ]",
+		"    }",
+		"  ]",
+		"}",
+	}, "\n"), map[string]string{
+		"lib/template/open_lite_copy.dart": "class OpenLiteCopy {}\n",
+	})
+
+	forbidden, err := builderRuntimeForbiddenTokensFromDomainModel(workspacePath)
+	if err != nil {
+		t.Fatalf("builderRuntimeForbiddenTokensFromDomainModel() error = %v", err)
+	}
+	for _, allowed := range []string{"titleFieldLabel", "categoryFieldLabel", "detailCategoryLabel", "statusLabel(", "doneFilterLabel", "doneCount"} {
+		if slices.Contains(forbidden, allowed) {
+			t.Fatalf("builderRuntimeForbiddenTokensFromDomainModel() should allow role-based helper %q, forbidden=%v", allowed, forbidden)
+		}
+	}
+	for _, forbiddenToken := range []string{"RecordStatus", ".status"} {
+		if !slices.Contains(forbidden, forbiddenToken) {
+			t.Fatalf("builderRuntimeForbiddenTokensFromDomainModel() should still forbid stale model token %q, forbidden=%v", forbiddenToken, forbidden)
 		}
 	}
 }
@@ -11546,7 +11778,7 @@ func TestNormalizeBuilderRuntimeRecordListControllerContentCanonicalizesNoFilter
 		"}",
 	}, "\n") + "\n"
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/models/record.dart": "class TodoItem { const TodoItem({required this.title, required this.category, this.note = ''}); final String title; final String category; final String note; }\n",
+		"lib/models/record.dart":                          "class TodoItem { const TodoItem({required this.title, required this.category, this.note = ''}); final String title; final String category; final String note; }\n",
 		"lib/controllers/task_collection_controller.dart": content,
 		"lib/repositories/task_repository.dart": strings.Join([]string{
 			"abstract class TaskRepository {",
@@ -11916,8 +12148,8 @@ func TestNormalizeBuilderRuntimePatchForWorkspaceCanonicalizesRelationRichCustom
 		}, "\n") + "\n",
 	})
 	patch := appruns.WorkspacePatch{Operations: []appruns.WorkspacePatchOperation{{
-		Type:    "write_file",
-		Path:    "lib/views/task_detail_page.dart",
+		Type: "write_file",
+		Path: "lib/views/task_detail_page.dart",
 		Content: strings.Join([]string{
 			"import 'package:flutter/material.dart';",
 			"",
@@ -12427,7 +12659,7 @@ func TestNormalizeBuilderRuntimePatchForWorkspaceWithTaskBundlePrunesCustomDetai
 	if strings.Contains(patch.Operations[0].Content, "openLiteCopy") {
 		t.Fatalf("detail target operation should not be replaced by helper content: %q", patch.Operations[0].Content)
 	}
-	}
+}
 
 func TestNormalizeBuilderRuntimePatchForWorkspaceRewritesRecordFormPageWithoutHomeControllerAndDateAPI(t *testing.T) {
 	workspacePath := t.TempDir()
@@ -13837,10 +14069,10 @@ func TestBuilderRuntimeNeedsCollectionCreateEntrySkipsWhenOverviewSurfaceExistsV
 func TestBuilderRuntimeNeedsCollectionCreateEntryFallsBackToWorkspaceForCustomPathsWithoutSurfaceRefs(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/repositories/task_repository.dart":     "abstract class TaskRepository {}\n",
+		"lib/repositories/task_repository.dart":           "abstract class TaskRepository {}\n",
 		"lib/controllers/task_collection_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskCollectionController {\n  TaskCollectionController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n}\n",
-		"lib/controllers/task_form_controller.dart": "class TaskFormController {}\n",
-		"lib/views/task_form_page.dart":             "class TaskFormPage {}\n",
+		"lib/controllers/task_form_controller.dart":       "class TaskFormController {}\n",
+		"lib/views/task_form_page.dart":                   "class TaskFormPage {}\n",
 	})
 	taskBundle := []appruns.TaskBundleItem{
 		{TaskID: "task-bind-collection-surface", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, TargetPaths: []string{"lib/views/task_collection_page.dart", "lib/controllers/task_collection_controller.dart"}},
@@ -13865,10 +14097,10 @@ func TestBuilderRuntimeNeedsCollectionCreateEntryUsesLikelyCustomPathsBeforeWork
 func TestBuilderRuntimeNeedsCollectionCreateEntrySkipsWhenCustomOverviewExistsWithoutSurfaceRefs(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/views/task_home_page.dart":                    "class TaskHomePage {}\n",
-		"lib/controllers/task_home_controller.dart":        "class TaskHomeController {}\n",
-		"lib/controllers/task_collection_controller.dart":  "class TaskCollectionController { Future<void> refresh() async {} }\n",
-		"lib/controllers/task_form_controller.dart":        "class TaskFormController {}\n",
+		"lib/views/task_home_page.dart":                   "class TaskHomePage {}\n",
+		"lib/controllers/task_home_controller.dart":       "class TaskHomeController {}\n",
+		"lib/controllers/task_collection_controller.dart": "class TaskCollectionController { Future<void> refresh() async {} }\n",
+		"lib/controllers/task_form_controller.dart":       "class TaskFormController {}\n",
 	})
 	taskBundle := []appruns.TaskBundleItem{
 		{TaskID: "task-bind-collection-surface", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, TargetPaths: []string{"lib/views/task_collection_page.dart", "lib/controllers/task_collection_controller.dart"}},
@@ -14169,10 +14401,10 @@ func TestValidateBuilderRuntimeTopologyScopedTaskOutputRejectsMissingCreateEntry
 func TestValidateBuilderRuntimeTopologyScopedTaskOutputUsesWorkspaceFallbackForCustomCollectionPathWithoutSurfaceRefs(t *testing.T) {
 	workspacePath := t.TempDir()
 	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
-		"lib/repositories/task_repository.dart":     "abstract class TaskRepository {}\n",
+		"lib/repositories/task_repository.dart":           "abstract class TaskRepository {}\n",
 		"lib/controllers/task_collection_controller.dart": "import '../repositories/task_repository.dart';\nclass TaskCollectionController {\n  TaskCollectionController({required TaskRepository taskRepository});\n  Future<void> refresh() async {}\n}\n",
-		"lib/controllers/task_form_controller.dart": "class TaskFormController {}\n",
-		"lib/views/task_form_page.dart":             "class TaskFormPage {}\n",
+		"lib/controllers/task_form_controller.dart":       "class TaskFormController {}\n",
+		"lib/views/task_form_page.dart":                   "class TaskFormPage {}\n",
 	})
 	run := runRecord{
 		WorkspacePath: workspacePath,
@@ -16098,9 +16330,9 @@ func TestBuilderRuntimeOpenLiteNeedsCollectionCreateEntryFromWorkspaceSkipsWhenC
 			"  Widget build(BuildContext context) => const Placeholder();",
 			"}",
 		}, "\n") + "\n",
-		"lib/controllers/task_home_controller.dart": "class TaskHomeController {}\n",
+		"lib/controllers/task_home_controller.dart":       "class TaskHomeController {}\n",
 		"lib/controllers/task_collection_controller.dart": "class TaskCollectionController { Future<void> refresh() async {} }\n",
-		"lib/controllers/task_form_controller.dart": "class TaskFormController {}\n",
+		"lib/controllers/task_form_controller.dart":       "class TaskFormController {}\n",
 	}
 	for relPath, content := range files {
 		absPath := filepath.Join(workspace, filepath.FromSlash(relPath))

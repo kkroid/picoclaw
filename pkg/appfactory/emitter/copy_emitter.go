@@ -34,7 +34,7 @@ func EmitCopy(dm appprepare.DomainModel) (CopyEmitResult, bool) {
 	if appTitle == "" {
 		return CopyEmitResult{}, false
 	}
-	content := renderCopyForProfile(profile, appTitle)
+	content := renderCopyForProfile(profile, dm, appTitle)
 	return CopyEmitResult{
 		Content:  content,
 		FilePath: "lib/template/open_lite_copy.dart",
@@ -63,124 +63,233 @@ func identifyCopyProfile(dm appprepare.DomainModel) copyProfile {
 }
 
 // renderCopyForProfile 按 profile 渲染 open_lite_copy.dart 的完整内容。
-func renderCopyForProfile(profile copyProfile, appTitle string) string {
+func renderCopyForProfile(profile copyProfile, dm appprepare.DomainModel, appTitle string) string {
 	switch profile {
 	case copyProfileProjectTaskTag:
 		return renderProjectTaskTagCopy(appTitle)
 	case copyProfileInventorySheetLineItem:
 		return renderInventorySheetLineItemCopy(appTitle)
 	default:
-		return renderGenericCopy(appTitle)
+		return renderGenericCopy(dm, appTitle)
 	}
 }
 
-func renderGenericCopy(appTitle string) string {
-	return strings.Join([]string{
-		"import '../models/record.dart';",
-		"",
+func renderGenericCopy(dm appprepare.DomainModel, appTitle string) string {
+	entity := genericCopyPrimaryEntity(dm)
+	summaryEntity := genericCopySummaryEntity(dm)
+	entityName := genericCopyEntityName(entity, "记录")
+	summaryName := entityName + "摘要"
+	if summaryEntity != nil && strings.TrimSpace(summaryEntity.Name) != "" {
+		summaryName = strings.TrimSpace(summaryEntity.Name)
+	}
+	primaryField := genericCopyFieldByRole(entity, "primary_text", "title", "name")
+	secondaryField := genericCopyFieldByRole(entity, "secondary_text", "category", "group")
+	statusField := genericCopyFieldByRole(entity, "status")
+	timeField := genericCopyFieldByRole(entity, "due_date", "date", "time")
+	noteField := genericCopyFieldByRole(entity, "note")
+	primaryLabel := genericCopyFieldLabel(primaryField, "标题")
+	secondaryLabel := genericCopyFieldLabel(secondaryField, "分类")
+	statusLabel := genericCopyFieldLabel(statusField, "状态")
+	timeLabel := genericCopyFieldLabel(timeField, "更新时间")
+	noteLabel := genericCopyFieldLabel(noteField, "备注")
+	lines := []string{
 		"const openLiteCopy = OpenLiteCopy();",
 		"",
 		"class OpenLiteCopy {",
 		"  const OpenLiteCopy();",
 		"",
-		"  String get appTitle => '" + appTitle + "';",
+		"  String get appTitle => " + dartSingleQuotedString(appTitle) + ";",
 		"",
-		"  String get homeSummaryTitle => '今日摘要';",
+		"  String get homeSummaryTitle => " + dartSingleQuotedString(summaryName) + ";",
 		"",
-		"  String summaryCountLabel(int count) => '$count 条记录';",
+		"  String summaryCountLabel(int count) => '$count 条" + dartSingleQuotedContent(entityName) + "';",
 		"",
-		"  String get createPrimaryActionLabel => '新建记录';",
+		"  String get createPrimaryActionLabel => " + dartSingleQuotedString("新建"+entityName) + ";",
 		"",
 		"  String get viewAllActionLabel => '查看全部';",
 		"",
-		"  String get recentRecordsTitle => '最近记录';",
+		"  String get recentRecordsTitle => " + dartSingleQuotedString("最近"+entityName) + ";",
 		"",
 		"  String get recentRecordsLabel => recentRecordsTitle;",
 		"",
-		"  String recentRecordsCountLabel(int count) => '$count 条';",
+		"  String recentRecordsCountLabel(int count) => '$count 条" + dartSingleQuotedContent(entityName) + "';",
 		"",
-		"  String get homeEmptyTitle => '还没有记录';",
+		"  String get homeEmptyTitle => " + dartSingleQuotedString("还没有"+entityName) + ";",
 		"",
-		"  String get homeEmptyDescription => '先创建一条记录，首页摘要和列表会自动刷新。';",
+		"  String get homeEmptyDescription => " + dartSingleQuotedString("先创建一条"+entityName+"，首页摘要和列表会自动刷新。") + ";",
 		"",
-		"  String get listPageTitle => '全部记录';",
+		"  String get listPageTitle => " + dartSingleQuotedString("全部"+entityName) + ";",
 		"",
 		"  String get listFilterTitle => '状态筛选';",
 		"",
 		"  String listCountLabel(int visibleCount, int totalCount) =>",
-		"      '当前展示 $visibleCount / $totalCount 条记录';",
+		"      '当前展示 $visibleCount / $totalCount 条" + dartSingleQuotedContent(entityName) + "';",
 		"",
-		"  String get filteredEmptyTitle => '当前筛选下还没有记录。';",
+		"  String get filteredEmptyTitle => " + dartSingleQuotedString("当前筛选下还没有"+entityName+"。") + ";",
 		"",
-		"  String get filteredEmptyDescription => '可以切回全部，或者先新增一条符合当前状态的记录。';",
+		"  String get filteredEmptyDescription => " + dartSingleQuotedString("可以切回全部，或者先新增一条符合当前状态的"+entityName+"。") + ";",
 		"",
 		"  String get clearFilterActionLabel => '清除筛选';",
 		"",
-		"  String get listEmptyLabel => '暂无记录，请先从首页新增一条记录。';",
+		"  String get listEmptyLabel => " + dartSingleQuotedString("暂无"+entityName+"，请先从首页新增一条。") + ";",
 		"",
-		"  String get createPageTitle => '新建记录';",
+		"  String get createPageTitle => " + dartSingleQuotedString("新建"+entityName) + ";",
 		"",
-		"  String get editPageTitle => '编辑记录';",
+		"  String get editPageTitle => " + dartSingleQuotedString("编辑"+entityName) + ";",
 		"",
-		"  String get titleFieldLabel => '标题';",
+		"  String get titleFieldLabel => " + dartSingleQuotedString(primaryLabel) + ";",
 		"",
 		"  String get titleLabel => titleFieldLabel;",
 		"",
-		"  String get titleFieldRequiredError => '请输入标题';",
+		"  String get titleFieldRequiredError => " + dartSingleQuotedString("请输入"+primaryLabel) + ";",
 		"",
-		"  String get categoryFieldLabel => '分类';",
+		"  String get categoryFieldLabel => " + dartSingleQuotedString(secondaryLabel) + ";",
 		"",
-		"  String get dateFieldLabel => '更新时间';",
+		"  String get dateFieldLabel => " + dartSingleQuotedString(timeLabel) + ";",
 		"",
-		"  String get noteFieldLabel => '备注';",
+		"  String get noteFieldLabel => " + dartSingleQuotedString(noteLabel) + ";",
 		"",
 		"  String get noteLabel => noteFieldLabel;",
 		"",
-		"  String get noteFieldHint => '补充交付物、状态说明或下一步动作';",
+		"  String get noteFieldHint => " + dartSingleQuotedString("补充"+entityName+"的说明或下一步动作") + ";",
 		"",
 		"  String get createSubmitLabel => '保存';",
 		"",
 		"  String get editSubmitLabel => '更新';",
 		"",
-		"  String get detailPageTitle => '记录详情';",
+		"  String get detailPageTitle => " + dartSingleQuotedString(entityName+"详情") + ";",
 		"",
 		"  String get editActionLabel => '编辑';",
 		"",
 		"  String get deleteActionLabel => '删除';",
 		"",
-		"  String get deleteDialogTitle => '删除记录';",
+		"  String get deleteDialogTitle => " + dartSingleQuotedString("删除"+entityName) + ";",
 		"",
 		"  String get deleteDialogMessage => '删除后不可恢复，确认继续吗？';",
 		"",
-		"  String get detailCategoryLabel => '分类';",
+		"  String get detailCategoryLabel => categoryFieldLabel;",
 		"",
 		"  String get detailProjectLabel => detailCategoryLabel;",
 		"",
-		"  String get detailStatusLabel => '状态';",
+		"  String get detailDateLabel => dateFieldLabel;",
 		"",
-		"  String get detailDateLabel => '更新时间';",
-		"",
-		"  String get detailNoteLabel => '备注';",
+		"  String get detailNoteLabel => noteFieldLabel;",
 		"",
 		"  String get emptyNoteLabel => '暂无备注';",
-		"",
-		"  String get allFilterLabel => '全部';",
-		"",
-		"  String get inboxFilterLabel => '待整理';",
-		"",
-		"  String get inProgressFilterLabel => '进行中';",
-		"",
-		"  String get doneFilterLabel => '已完成';",
-		"",
-		"  String statusLabel(RecordStatus status) {",
-		"    switch (status) {",
-		"      case RecordStatus.inbox:    return inboxFilterLabel;",
-		"      case RecordStatus.inProgress: return inProgressFilterLabel;",
-		"      case RecordStatus.done:     return doneFilterLabel;",
-		"    }",
-		"  }",
-		"}",
-	}, "\n") + "\n"
+	}
+	if statusField != nil {
+		lines = append(lines,
+			"",
+			"  String get detailStatusLabel => "+dartSingleQuotedString(statusLabel)+";",
+			"",
+			"  String get allFilterLabel => '全部';",
+			"",
+			"  String get inboxFilterLabel => '待整理';",
+			"",
+			"  String get inProgressFilterLabel => '进行中';",
+			"",
+			"  String get doneFilterLabel => '已完成';",
+			"",
+			"  String statusLabel(dynamic status) {",
+			"    final statusName = status is Enum ? status.name : status.toString();",
+			"    switch (statusName) {",
+			"      case 'inbox':",
+			"      case 'todo':",
+			"      case 'pending':",
+			"      case 'planned':",
+			"      case 'needsWater':",
+			"        return inboxFilterLabel;",
+			"      case 'inProgress':",
+			"      case 'watching':",
+			"        return inProgressFilterLabel;",
+			"      case 'done':",
+			"      case 'completed':",
+			"      case 'watched':",
+			"      case 'watered':",
+			"        return doneFilterLabel;",
+			"      default:",
+			"        return statusName;",
+			"    }",
+			"  }",
+		)
+	}
+	lines = append(lines, "}")
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func genericCopyPrimaryEntity(dm appprepare.DomainModel) *appprepare.DataEntity {
+	for index := range dm.Entities {
+		if strings.TrimSpace(dm.Entities[index].Source) != "derived" {
+			return &dm.Entities[index]
+		}
+	}
+	if len(dm.Entities) == 0 {
+		return nil
+	}
+	return &dm.Entities[0]
+}
+
+func genericCopySummaryEntity(dm appprepare.DomainModel) *appprepare.DataEntity {
+	for index := range dm.Entities {
+		if strings.TrimSpace(dm.Entities[index].Source) == "derived" {
+			return &dm.Entities[index]
+		}
+	}
+	return nil
+}
+
+func genericCopyEntityName(entity *appprepare.DataEntity, fallback string) string {
+	if entity == nil {
+		return fallback
+	}
+	if name := strings.TrimSpace(entity.Name); name != "" {
+		return name
+	}
+	return fallback
+}
+
+func genericCopyFieldByRole(entity *appprepare.DataEntity, roles ...string) *appprepare.DataField {
+	if entity == nil {
+		return nil
+	}
+	for _, role := range roles {
+		for index := range entity.Fields {
+			if strings.EqualFold(strings.TrimSpace(entity.Fields[index].Role), strings.TrimSpace(role)) {
+				return &entity.Fields[index]
+			}
+		}
+	}
+	for _, role := range roles {
+		for index := range entity.Fields {
+			name := strings.ToLower(strings.TrimSpace(entity.Fields[index].Name))
+			if name == strings.ToLower(strings.TrimSpace(role)) || strings.Contains(name, strings.ToLower(strings.TrimSpace(role))) {
+				return &entity.Fields[index]
+			}
+		}
+	}
+	return nil
+}
+
+func genericCopyFieldLabel(field *appprepare.DataField, fallback string) string {
+	if field == nil {
+		return fallback
+	}
+	if description := strings.TrimSpace(field.Description); description != "" {
+		return description
+	}
+	if name := strings.TrimSpace(field.Name); name != "" {
+		return name
+	}
+	return fallback
+}
+
+func dartSingleQuotedString(value string) string {
+	return "'" + dartSingleQuotedContent(value) + "'"
+}
+
+func dartSingleQuotedContent(value string) string {
+	replacer := strings.NewReplacer("\\", "\\\\", "$", "\\$", "'", "\\'", "\r", " ", "\n", " ")
+	return replacer.Replace(strings.TrimSpace(value))
 }
 
 func renderProjectTaskTagCopy(appTitle string) string {

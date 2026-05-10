@@ -68,6 +68,30 @@ func validateGenericDomainProfileCatalog(catalog genericDomainProfileCatalog) er
 		if strings.TrimSpace(profile.Signals.DomainCheckPattern) == "" {
 			return fmt.Errorf("generic domain profile %q missing domain check pattern", profileID)
 		}
+		if err := validateGenericDomainProfileEntity(profileID, "entity", profile.Signals.Entity); err != nil {
+			return err
+		}
+		if err := validateGenericDomainProfileEntity(profileID, "summary entity", profile.Signals.SummaryEntity); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateGenericDomainProfileEntity(profileID, label string, entity DataEntity) error {
+	if strings.TrimSpace(entity.EntityID) == "" {
+		return fmt.Errorf("generic domain profile %q missing %s id", profileID, label)
+	}
+	if len(entity.Fields) == 0 {
+		return fmt.Errorf("generic domain profile %q %s must declare fields", profileID, label)
+	}
+	for _, field := range entity.Fields {
+		if strings.TrimSpace(field.Name) == "" {
+			return fmt.Errorf("generic domain profile %q %s has field without name", profileID, label)
+		}
+		if strings.TrimSpace(field.Type) == "" {
+			return fmt.Errorf("generic domain profile %q %s field %q missing type", profileID, label, field.Name)
+		}
 	}
 	return nil
 }

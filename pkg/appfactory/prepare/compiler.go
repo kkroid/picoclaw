@@ -24,7 +24,7 @@ const (
 	templateSlotMapFileName  = "template-slot-map.json"
 	taskAllocationFileName   = "task-allocation.json"
 	acceptancePlanFileName   = "acceptance-plan.json"
-	runtimeConfigFileName   = "runtime-config.json"
+	runtimeConfigFileName    = "runtime-config.json"
 	builderInputFileName     = "builder-input.json"
 	publicBindingAppEntry    = "app-entry"
 	publicBindingDomainModel = "domain-model"
@@ -236,17 +236,17 @@ type AcceptancePlanItem struct {
 }
 
 type RuntimeConfig struct {
-	SchemaVersion   string                   `json:"schema_version"`
-	ExecutorImage   string                   `json:"executor_image,omitempty"`
-	WorkspacePath   string                   `json:"workspace_path"`
-	ArtifactDir     string                   `json:"artifact_dir"`
-	GoalSummary     string                   `json:"goal_summary"`
-	KnowledgePack   []appruns.ProfileSkill   `json:"knowledge_pack,omitempty"`
-	CommandProfile  json.RawMessage          `json:"command_profile"`
-	ContextFiles    json.RawMessage          `json:"context_files"`
-	IterationBudget int                      `json:"iteration_budget"`
-	TokenBudget     int                      `json:"token_budget"`
-	HumanNotes      json.RawMessage          `json:"human_notes,omitempty"`
+	SchemaVersion   string                 `json:"schema_version"`
+	ExecutorImage   string                 `json:"executor_image,omitempty"`
+	WorkspacePath   string                 `json:"workspace_path"`
+	ArtifactDir     string                 `json:"artifact_dir"`
+	GoalSummary     string                 `json:"goal_summary"`
+	KnowledgePack   []appruns.ProfileSkill `json:"knowledge_pack,omitempty"`
+	CommandProfile  json.RawMessage        `json:"command_profile"`
+	ContextFiles    json.RawMessage        `json:"context_files"`
+	IterationBudget int                    `json:"iteration_budget"`
+	TokenBudget     int                    `json:"token_budget"`
+	HumanNotes      json.RawMessage        `json:"human_notes,omitempty"`
 }
 
 type PRD struct {
@@ -342,6 +342,7 @@ type DataEntity struct {
 type DataField struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
+	Role        string `json:"role,omitempty"`
 	Required    bool   `json:"required"`
 	Description string `json:"description,omitempty"`
 }

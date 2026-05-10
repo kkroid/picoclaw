@@ -4631,6 +4631,10 @@ func builderRuntimeForbiddenTokensFromDomainModel(workspacePath string) ([]strin
 	if err != nil {
 		return nil, err
 	}
+	roleSet, err := builderRuntimeDomainModelRoleSet(workspacePath)
+	if err != nil {
+		return nil, err
+	}
 	if len(fieldSet) == 0 {
 		return nil, nil
 	}
@@ -4638,6 +4642,13 @@ func builderRuntimeForbiddenTokensFromDomainModel(workspacePath string) ([]strin
 		_, ok := fieldSet[strings.ToLower(strings.TrimSpace(name))]
 		return ok
 	}
+	hasRole := func(role string) bool {
+		_, ok := roleSet[strings.ToLower(strings.TrimSpace(role))]
+		return ok
+	}
+	hasStatusRole := hasField("status") || hasRole("status")
+	hasPrimaryTextRole := hasField("title") || hasRole("primary_text")
+	hasSecondaryTextRole := hasField("category") || hasRole("secondary_text")
 	forbidden := make([]string, 0)
 	addTokens := func(enabled bool, tokens ...string) {
 		if !enabled {
@@ -4645,14 +4656,15 @@ func builderRuntimeForbiddenTokensFromDomainModel(workspacePath string) ([]strin
 		}
 		forbidden = append(forbidden, tokens...)
 	}
-	addTokens(!hasField("status"), "RecordStatus", ".status", "selectedStatus", "setStatus(", "statusLabel(", "inboxFilterLabel", "inProgressFilterLabel", "doneFilterLabel", "RecordListFilter")
-	addTokens(!hasField("title"), "titleController", "titleFieldLabel", "titleFieldRequiredError")
-	addTokens(!hasField("category"), "categoryController", "categoryFieldLabel", "detailCategoryLabel", "setCategory(", "categories")
+	addTokens(!hasStatusRole, "selectedStatus", "setStatus(", "statusLabel(", "inboxFilterLabel", "inProgressFilterLabel", "doneFilterLabel", "RecordListFilter")
+	addTokens(!hasField("status"), "RecordStatus", ".status")
+	addTokens(!hasPrimaryTextRole, "titleController", "titleFieldLabel", "titleFieldRequiredError")
+	addTokens(!hasSecondaryTextRole, "categoryController", "categoryFieldLabel", "detailCategoryLabel", "setCategory(", "categories")
 	addTokens(!hasField("updated_at") && !hasField("updatedAt"), ".updatedAt")
 	addTokens(!hasField("total_count") && !hasField("totalCount"), "totalCount")
-	addTokens(!hasField("inbox_count") && !hasField("inboxCount"), "inboxCount")
-	addTokens(!hasField("in_progress_count") && !hasField("inProgressCount"), "inProgressCount")
-	addTokens(!hasField("done_count") && !hasField("doneCount"), "doneCount")
+	addTokens(!hasStatusRole && !hasField("inbox_count") && !hasField("inboxCount"), "inboxCount")
+	addTokens(!hasStatusRole && !hasField("in_progress_count") && !hasField("inProgressCount"), "inProgressCount")
+	addTokens(!hasStatusRole && !hasField("done_count") && !hasField("doneCount"), "doneCount")
 	seen := map[string]struct{}{}
 	deduped := make([]string, 0, len(forbidden))
 	for _, token := range forbidden {
@@ -4697,6 +4709,39 @@ func builderRuntimeDomainModelFieldSet(workspacePath string) (map[string]struct{
 		}
 	}
 	return fieldSet, nil
+}
+
+func builderRuntimeDomainModelRoleSet(workspacePath string) (map[string]struct{}, error) {
+	jobRoot := filepath.Dir(workspacePath)
+	domainModelPath := filepath.Join(jobRoot, "prepare", "domain-model.json")
+	content, err := os.ReadFile(domainModelPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("read prepare domain model roles for semantic consistency: %w", err)
+	}
+	var payload struct {
+		Entities []struct {
+			Fields []struct {
+				Role string `json:"role"`
+			} `json:"fields"`
+		} `json:"entities"`
+	}
+	if err := json.Unmarshal(content, &payload); err != nil {
+		return nil, fmt.Errorf("parse prepare domain model roles for semantic consistency: %w", err)
+	}
+	roleSet := map[string]struct{}{}
+	for _, entity := range payload.Entities {
+		for _, field := range entity.Fields {
+			role := strings.TrimSpace(strings.ToLower(field.Role))
+			if role == "" {
+				continue
+			}
+			roleSet[role] = struct{}{}
+		}
+	}
+	return roleSet, nil
 }
 
 func builderRuntimeRemovableLegacyExports(workspacePath string) (map[string]struct{}, error) {

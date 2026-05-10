@@ -35,7 +35,7 @@ func EmitTest(dm appprepare.DomainModel, cfg TestEmitConfig) (TestEmitResult, bo
 	if packageName == "" {
 		packageName = "flutter_open_lite"
 	}
-	content := renderTestForProfile(profile, packageName, cfg)
+	content := renderTestForProfile(profile, packageName, dm, cfg)
 	return TestEmitResult{
 		Content:  content,
 		FilePath: "test/widget_test.dart",
@@ -43,14 +43,14 @@ func EmitTest(dm appprepare.DomainModel, cfg TestEmitConfig) (TestEmitResult, bo
 }
 
 // renderTestForProfile 按 profile 渲染 widget_test.dart 的完整内容。
-func renderTestForProfile(profile copyProfile, packageName string, cfg TestEmitConfig) string {
+func renderTestForProfile(profile copyProfile, packageName string, dm appprepare.DomainModel, cfg TestEmitConfig) string {
 	switch profile {
 	case copyProfileProjectTaskTag:
 		return renderProjectTaskTagTest(packageName, resolveAppClassName(cfg.AppClassName, "AppFactoryApp"))
 	case copyProfileInventorySheetLineItem:
 		return renderInventorySheetLineItemTest(packageName, resolveAppClassName(cfg.AppClassName, "AppFactoryApp"))
 	default:
-		return renderGenericTest(packageName, resolveAppClassName(cfg.AppClassName, "MyApp"), resolveRepositoryType(cfg.RepositoryType))
+		return renderGenericTest(dm, packageName, resolveAppClassName(cfg.AppClassName, "MyApp"), resolveRepositoryType(cfg.RepositoryType))
 	}
 }
 
@@ -68,28 +68,128 @@ func resolveRepositoryType(configured string) string {
 	return "InMemoryRecordRepository"
 }
 
-func renderGenericTest(packageName, appClassName, repositoryType string) string {
+func renderGenericTest(dm appprepare.DomainModel, packageName, appClassName, repositoryType string) string {
+	modelClassName, primaryField := genericTestSeedRecordContract(dm)
+	modelImport := ""
+	repositoryConstructor := repositoryType + "()"
+	seedExpectation := ""
+	if modelClassName != "" && primaryField != "" {
+		modelImport = "import 'package:" + packageName + "/models/record.dart';"
+		repositoryConstructor = repositoryType + "(seedRecords: [" + modelClassName + "(" + primaryField + ": '测试记录')])"
+		seedExpectation = "\n    expect(find.text('测试记录'), findsOneWidget);"
+	}
 	return strings.Join([]string{
-		"import 'package:flutter/material.dart';",
 		"import 'package:flutter_test/flutter_test.dart';",
 		"",
 		"import 'package:" + packageName + "/main.dart';",
+		modelImport,
 		"import 'package:" + packageName + "/repositories/record_repository.dart';",
 		"import 'package:" + packageName + "/template/open_lite_copy.dart';",
 		"",
 		"void main() {",
 		"  testWidgets('open lite app renders primary flow', (WidgetTester tester) async {",
-		"    final repository = " + repositoryType + "();",
+		"    final repository = " + repositoryConstructor + ";",
 		"    await repository.init();",
 		"",
 		"    await tester.pumpWidget(" + appClassName + "(repository: repository));",
 		"    await tester.pumpAndSettle();",
 		"",
 		"    expect(find.text(openLiteCopy.appTitle), findsOneWidget);",
-		"    expect(find.text(openLiteCopy.createPrimaryActionLabel), findsOneWidget);",
+		"    expect(find.text(openLiteCopy.createPrimaryActionLabel), findsOneWidget);" + seedExpectation,
 		"  });",
 		"}",
 	}, "\n") + "\n"
+}
+
+func genericTestSeedRecordContract(dm appprepare.DomainModel) (string, string) {
+	for i := range dm.Entities {
+		entity := dm.Entities[i]
+		if genericTestIsSummaryEntity(entity) {
+			continue
+		}
+		className := genericTestEntityClassName(entity)
+		primaryField := genericTestPrimaryField(entity.Fields)
+		if className != "" && primaryField != "" {
+			return className, primaryField
+		}
+	}
+	return "", ""
+}
+
+func genericTestIsSummaryEntity(entity appprepare.DataEntity) bool {
+	entityID := strings.ToLower(strings.TrimSpace(entity.EntityID))
+	return strings.Contains(entityID, "dashboard") || strings.Contains(entityID, "summary")
+}
+
+func genericTestEntityClassName(entity appprepare.DataEntity) string {
+	name := strings.TrimSpace(entity.Name)
+	if genericTestHasASCII(name) {
+		if candidate := genericTestSnakeToPascal(name); candidate != "" {
+			return candidate
+		}
+	}
+	entityID := strings.TrimSpace(entity.EntityID)
+	entityID = strings.TrimPrefix(entityID, "entity-")
+	entityID = strings.ReplaceAll(entityID, "-", "_")
+	return genericTestSnakeToPascal(entityID)
+}
+
+func genericTestHasASCII(value string) bool {
+	for _, r := range strings.ToLower(value) {
+		if r >= 'a' && r <= 'z' {
+			return true
+		}
+	}
+	return false
+}
+
+func genericTestPrimaryField(fields []appprepare.DataField) string {
+	for _, field := range fields {
+		if strings.EqualFold(strings.TrimSpace(field.Role), "primary_text") {
+			return genericTestSnakeToCamel(field.Name)
+		}
+	}
+	for _, field := range fields {
+		dartName := genericTestSnakeToCamel(field.Name)
+		if dartName == "" || genericTestIsIdentifierField(dartName) {
+			continue
+		}
+		if strings.TrimSpace(field.Type) == "string" {
+			return dartName
+		}
+	}
+	return ""
+}
+
+func genericTestSnakeToCamel(value string) string {
+	parts := strings.Split(strings.TrimSpace(value), "_")
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		if i == 0 {
+			parts[i] = strings.ToLower(part[:1]) + part[1:]
+		} else {
+			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+func genericTestSnakeToPascal(value string) string {
+	parts := strings.Split(strings.TrimSpace(value), "_")
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		parts[i] = strings.ToUpper(part[:1]) + part[1:]
+	}
+	return strings.Join(parts, "")
+}
+
+func genericTestIsIdentifierField(name string) bool {
+	trimmedName := strings.TrimSpace(name)
+	return trimmedName == "id" || strings.HasSuffix(trimmedName, "Id") || strings.HasSuffix(trimmedName, "ID")
 }
 
 func renderProjectTaskTagTest(packageName, appClassName string) string {

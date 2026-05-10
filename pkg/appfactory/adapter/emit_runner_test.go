@@ -336,6 +336,189 @@ func TestTryDeterministicEmitRelationRichModelsSuccess(t *testing.T) {
 	}
 }
 
+func TestEmitGenericModelAndRepositoryUseSchemaIdentifierFields(t *testing.T) {
+	dm := appprepare.DomainModel{
+		TemplateID: "flutter-open-lite",
+		Entities: []appprepare.DataEntity{
+			{
+				EntityID: "entity-course-assignment",
+				Name:     "课程作业",
+				Source:   "local_storage",
+				Fields: []appprepare.DataField{
+					{Name: "assignment_id", Type: "string", Role: "identifier", Required: true},
+					{Name: "assignment_title", Type: "string", Role: "primary_text", Required: true},
+					{Name: "due_date", Type: "date", Role: "due_date", Required: true},
+					{Name: "status", Type: "enum[todo,inProgress,done]", Role: "status", Required: true},
+					{Name: "effort_hours", Type: "number", Role: "duration", Required: false},
+				},
+			},
+			{
+				EntityID: "entity-course-assignment-summary",
+				Name:     "作业摘要",
+				Source:   "derived",
+				Fields: []appprepare.DataField{
+					{Name: "due_soon_count", Type: "int", Role: "metric_source", Required: true},
+					{Name: "overdue_count", Type: "int", Role: "metric_source", Required: true},
+					{Name: "done_count", Type: "int", Role: "metric_source", Required: true},
+				},
+			},
+		},
+	}
+
+	recordContent := emitGenericRecordModel(dm, &dm.Entities[0])
+	for _, marker := range []string{
+		"enum CourseAssignmentStatus {",
+		"String? assignmentId,",
+		"assignmentId = assignmentId ?? DateTime.now().microsecondsSinceEpoch.toString()",
+		"final DateTime dueDate;",
+		"final double effortHours;",
+	} {
+		if !strings.Contains(recordContent, marker) {
+			t.Fatalf("record model missing %q:\n%s", marker, recordContent)
+		}
+	}
+	if strings.Contains(recordContent, "recordId") {
+		t.Fatalf("record model should not invent recordId for schema identifier fields:\n%s", recordContent)
+	}
+
+	repositoryContent := emitGenericRepositoryContent("", dm)
+	for _, marker := range []string{
+		"Future<void> addRecord(CourseAssignment record)",
+		"await _recordBox!.put(record.assignmentId, record);",
+		"item.assignmentId == record.assignmentId",
+		"record.assignmentId == recordId",
+		"return CourseAssignmentSummary(",
+		"dueSoonCount: records.where",
+		"overdueCount: records.where",
+		"doneCount: records.where",
+	} {
+		if !strings.Contains(repositoryContent, marker) {
+			t.Fatalf("repository missing %q:\n%s", marker, repositoryContent)
+		}
+	}
+}
+
+func TestTryDeterministicEmitGenericSchemaSurfacesUseDomainFields(t *testing.T) {
+	jobRoot := t.TempDir()
+	workspace := filepath.Join(jobRoot, "workspace")
+	for _, dir := range []string{
+		filepath.Join(workspace, "lib", "models"),
+		filepath.Join(workspace, "lib", "template"),
+		filepath.Join(workspace, "lib", "repositories"),
+		filepath.Join(workspace, "lib", "controllers"),
+		filepath.Join(workspace, "lib", "views"),
+		filepath.Join(workspace, "test"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s) error = %v", dir, err)
+		}
+	}
+	preparePath := filepath.Join(jobRoot, "prepare")
+	if err := os.MkdirAll(preparePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll(prepare) error = %v", err)
+	}
+	dm := appprepare.DomainModel{
+		TemplateID: "flutter-open-lite",
+		DomainCopy: appprepare.DomainCopy{Title: "课程作业"},
+		Entities: []appprepare.DataEntity{
+			{
+				EntityID: "entity-course-assignment",
+				Name:     "课程作业",
+				Source:   "local_storage",
+				Fields: []appprepare.DataField{
+					{Name: "assignment_id", Type: "string", Role: "identifier", Required: true, Description: "作业唯一标识"},
+					{Name: "course_name", Type: "string", Role: "secondary_text", Required: true, Description: "课程名称"},
+					{Name: "assignment_title", Type: "string", Role: "primary_text", Required: true, Description: "作业标题"},
+					{Name: "due_date", Type: "date", Role: "due_date", Required: true, Description: "截止日期"},
+					{Name: "status", Type: "enum[todo,inProgress,done]", Role: "status", Required: true, Description: "作业状态"},
+					{Name: "note", Type: "string", Role: "note", Required: false, Description: "补充备注"},
+				},
+			},
+			{
+				EntityID: "entity-course-assignment-summary",
+				Name:     "作业摘要",
+				Source:   "derived",
+				Fields: []appprepare.DataField{
+					{Name: "due_soon_count", Type: "int", Role: "metric_source", Required: true},
+					{Name: "overdue_count", Type: "int", Role: "metric_source", Required: true},
+					{Name: "done_count", Type: "int", Role: "metric_source", Required: true},
+				},
+			},
+		},
+	}
+	dmBytes, _ := json.Marshal(dm)
+	if err := os.WriteFile(filepath.Join(preparePath, "domain-model.json"), dmBytes, 0o600); err != nil {
+		t.Fatalf("WriteFile(domain-model.json) error = %v", err)
+	}
+	writeEmitRunnerTemplateSlotMap(t, preparePath)
+	planningContextBytes, _ := json.Marshal(appprepare.PlanningContext{TemplateID: "flutter-open-lite"})
+	if err := os.WriteFile(filepath.Join(preparePath, "planning-context.json"), planningContextBytes, 0o600); err != nil {
+		t.Fatalf("WriteFile(planning-context.json) error = %v", err)
+	}
+
+	runTask := func(taskID string, bindingRefs, targetPaths []string) {
+		t.Helper()
+		task := appruns.TaskBundleItem{
+			TaskID:      taskID,
+			RouteHint:   appruns.TaskRouteHintDeterministic,
+			TargetPaths: append([]string(nil), targetPaths...),
+		}
+		if len(bindingRefs) > 0 {
+			task.AllocationTransition = &appruns.TaskAllocationTransition{BindingRefs: append([]string(nil), bindingRefs...)}
+		}
+		run := runRecord{
+			WorkspacePath: workspace,
+			AllowedPaths:  []string{"lib/**", "test/**"},
+			TaskBundle:    []appruns.TaskBundleItem{task},
+		}
+		roundInput := appruns.RoundInput{RoundID: "round-" + taskID, TaskBundle: run.TaskBundle}
+		result, err := tryDeterministicEmit(run, roundInput, "emit-patch-"+taskID)
+		if err != nil {
+			t.Fatalf("tryDeterministicEmit(%s) error = %v", taskID, err)
+		}
+		if !result.Handled {
+			t.Fatalf("tryDeterministicEmit(%s) Handled=false", taskID)
+		}
+	}
+
+	runTask("task-model", nil, []string{"lib/models/record.dart", "lib/models/dashboard_summary.dart"})
+	runTask("task-copy", []string{emitRunnerBindingCopy}, []string{"lib/template/open_lite_copy.dart"})
+	runTask("task-storage", []string{emitRunnerBindingStorage}, []string{"lib/repositories/record_repository.dart"})
+	runTask("task-overview", []string{emitRunnerBindingOverview}, []string{"lib/views/home_page.dart", "lib/controllers/home_controller.dart"})
+	runTask("task-list", []string{emitRunnerBindingCollection}, []string{"lib/views/record_list_page.dart", "lib/controllers/record_list_controller.dart"})
+	runTask("task-form", []string{emitRunnerBindingMutation}, []string{"lib/views/record_form_page.dart", "lib/controllers/record_form_controller.dart"})
+	runTask("task-detail", []string{emitRunnerBindingInspection}, []string{"lib/views/record_detail_page.dart"})
+	runTask("task-main", []string{emitRunnerBindingAppEntry}, []string{"lib/main.dart"})
+	runTask("task-test", []string{emitRunnerBindingWidgetTest}, []string{"test/widget_test.dart"})
+
+	assertFileMarkers := func(path string, wantMarkers, forbiddenMarkers []string) {
+		t.Helper()
+		content, err := os.ReadFile(filepath.Join(workspace, filepath.FromSlash(path)))
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", path, err)
+		}
+		for _, marker := range wantMarkers {
+			if !strings.Contains(string(content), marker) {
+				t.Fatalf("%s missing marker %q:\n%s", path, marker, string(content))
+			}
+		}
+		for _, marker := range forbiddenMarkers {
+			if strings.Contains(string(content), marker) {
+				t.Fatalf("%s should not contain %q:\n%s", path, marker, string(content))
+			}
+		}
+	}
+
+	assertFileMarkers("lib/models/record.dart", []string{"class CourseAssignment", "final String assignmentId;", "final String assignmentTitle;", "final DateTime dueDate;", "enum CourseAssignmentStatus"}, []string{"recordId", "RecordStatus"})
+	assertFileMarkers("lib/repositories/record_repository.dart", []string{"Future<List<CourseAssignment>> loadRecords()", "record.assignmentId", "return CourseAssignmentSummary(", "dueSoonCount: records.where", "overdueCount: records.where", "doneCount: records.where"}, []string{"record.recordId"})
+	assertFileMarkers("lib/views/home_page.dart", []string{"r.assignmentTitle", "CourseAssignmentStatus.done"}, []string{"RecordStatus.done", "r.title"})
+	assertFileMarkers("lib/template/open_lite_copy.dart", []string{"String get titleFieldLabel => '作业标题';", "String get categoryFieldLabel => '课程名称';", "String get dateFieldLabel => '截止日期';", "String get detailStatusLabel => '作业状态';"}, []string{"Open Lite Seed"})
+	assertFileMarkers("lib/views/record_list_page.dart", []string{"record.assignmentTitle", "record.courseName", "_formatDate(record.dueDate)", "openLiteCopy.statusLabel(record.status)"}, []string{"record.title", "record.category"})
+	assertFileMarkers("lib/views/record_form_page.dart", []string{"CourseAssignment(assignmentTitle: title", "courseName: _secondaryController.text.trim()", "status: _selectedStatus", "dueDate: _selectedDate", "DropdownButtonFormField<CourseAssignmentStatus>", "key: const Key('date-field')", "openLiteCopy.categoryFieldLabel", "openLiteCopy.dateFieldLabel", "note: _noteController.text.trim()"}, []string{"Record(title"})
+	assertFileMarkers("lib/views/record_detail_page.dart", []string{"record.assignmentTitle", "record.courseName", "_formatDate(record.dueDate)", "openLiteCopy.statusLabel(record.status)"}, []string{"record.title", "record.category"})
+	assertFileMarkers("test/widget_test.dart", []string{"import 'package:flutter_open_lite/models/record.dart';", "InMemoryRecordRepository(seedRecords: [CourseAssignment(assignmentTitle: '测试记录')])", "expect(find.text('测试记录'), findsOneWidget);"}, []string{"InMemoryRecordRepository();"})
+}
+
 func TestTryDeterministicEmitRelationRichRepositorySuccess(t *testing.T) {
 	testCases := []struct {
 		name            string

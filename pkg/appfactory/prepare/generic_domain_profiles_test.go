@@ -1,6 +1,9 @@
 package prepare
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestLoadGenericDomainProfileCatalogKeepsKnownProfiles(t *testing.T) {
 	catalog, err := loadGenericDomainProfileCatalog()
@@ -10,14 +13,14 @@ func TestLoadGenericDomainProfileCatalogKeepsKnownProfiles(t *testing.T) {
 	if catalog.SchemaVersion != "v0.1.0" {
 		t.Fatalf("unexpected schema version: %s", catalog.SchemaVersion)
 	}
-	if len(catalog.Profiles) != 3 {
-		t.Fatalf("expected 3 profiles, got %d", len(catalog.Profiles))
+	if len(catalog.Profiles) != 8 {
+		t.Fatalf("expected 8 profiles, got %d", len(catalog.Profiles))
 	}
 	profileIDs := map[string]bool{}
 	for _, profile := range catalog.Profiles {
 		profileIDs[profile.ProfileID] = true
 	}
-	for _, expected := range []string{"weight-tracker", "todo-lite", "habit-checkin"} {
+	for _, expected := range []string{"weight-tracker", "todo-lite", "habit-checkin", "coursework-tracker", "pet-vaccine-record", "plant-watering-record", "movie-watchlist", "workout-log"} {
 		if !profileIDs[expected] {
 			t.Fatalf("missing generic domain profile %s", expected)
 		}
@@ -48,6 +51,172 @@ func TestDetectGenericDomainSignalsUsesConfiguredProfiles(t *testing.T) {
 	if habit.Entity.EntityID != "entity-habit-record" {
 		t.Fatalf("unexpected habit entity id: %s", habit.Entity.EntityID)
 	}
+
+	movie := detectGenericDomainSignals("做一个观影清单，记录电影评分")
+	if movie.AppTitle != "观影清单 App" {
+		t.Fatalf("unexpected movie app title: %s", movie.AppTitle)
+	}
+	if movie.Entity.EntityID != "entity-movie-record" {
+		t.Fatalf("unexpected movie entity id: %s", movie.Entity.EntityID)
+	}
+}
+
+func TestCompileGenericL1FieldProfilesExposeCoreFields(t *testing.T) {
+	testCases := []struct {
+		name              string
+		requirement       string
+		wantTitle         string
+		wantEntityID      string
+		wantFields        []genericFieldExpectation
+		wantSummaryFields []string
+	}{
+		{
+			name:         "coursework-tracker",
+			requirement:  "做一个课程作业追踪 App，记录课程名、作业标题、截止日期、状态和备注。",
+			wantTitle:    "课程作业追踪 App",
+			wantEntityID: "entity-course-assignment",
+			wantFields: []genericFieldExpectation{
+				{name: "assignment_id", role: "identifier"},
+				{name: "course_name", role: "secondary_text"},
+				{name: "assignment_title", role: "primary_text"},
+				{name: "due_date", role: "due_date"},
+				{name: "status", role: "status"},
+				{name: "note", role: "note"},
+			},
+			wantSummaryFields: []string{"due_soon_count", "overdue_count", "done_count"},
+		},
+		{
+			name:         "pet-vaccine-record",
+			requirement:  "做一个宠物疫苗记录 App，记录宠物名、疫苗名称、接种日期、下次提醒日期和备注。",
+			wantTitle:    "宠物疫苗记录 App",
+			wantEntityID: "entity-pet-vaccine-record",
+			wantFields: []genericFieldExpectation{
+				{name: "vaccine_record_id", role: "identifier"},
+				{name: "pet_name", role: "primary_text"},
+				{name: "vaccine_name", role: "secondary_text"},
+				{name: "vaccinated_at", role: "date"},
+				{name: "next_due_at", role: "due_date"},
+				{name: "note", role: "note"},
+			},
+			wantSummaryFields: []string{"upcoming_count", "overdue_count", "total_count"},
+		},
+		{
+			name:         "plant-watering-record",
+			requirement:  "做一个植物浇水记录 App，记录植物名、位置、上次浇水时间、浇水状态和备注。",
+			wantTitle:    "植物浇水记录 App",
+			wantEntityID: "entity-plant-watering-record",
+			wantFields: []genericFieldExpectation{
+				{name: "watering_record_id", role: "identifier"},
+				{name: "plant_name", role: "primary_text"},
+				{name: "location", role: "secondary_text"},
+				{name: "last_watered_at", role: "date"},
+				{name: "water_status", role: "status"},
+				{name: "note", role: "note"},
+			},
+			wantSummaryFields: []string{"needs_water_count", "watered_count", "total_count"},
+		},
+		{
+			name:         "movie-watchlist",
+			requirement:  "做一个观影清单 App，记录电影名、类型、观看状态、评分和短评。",
+			wantTitle:    "观影清单 App",
+			wantEntityID: "entity-movie-record",
+			wantFields: []genericFieldExpectation{
+				{name: "movie_record_id", role: "identifier"},
+				{name: "movie_title", role: "primary_text"},
+				{name: "genre", role: "secondary_text"},
+				{name: "watch_status", role: "status"},
+				{name: "rating", role: "rating"},
+				{name: "review", role: "note"},
+			},
+			wantSummaryFields: []string{"watched_count", "planned_count", "average_rating"},
+		},
+		{
+			name:         "workout-log",
+			requirement:  "做一个运动训练日志 App，记录训练名称、训练日期、训练时长、完成状态和备注。",
+			wantTitle:    "运动训练日志 App",
+			wantEntityID: "entity-workout-session",
+			wantFields: []genericFieldExpectation{
+				{name: "workout_record_id", role: "identifier"},
+				{name: "workout_name", role: "primary_text"},
+				{name: "workout_date", role: "date"},
+				{name: "duration_minutes", role: "duration"},
+				{name: "completion_status", role: "status"},
+				{name: "note", role: "note"},
+			},
+			wantSummaryFields: []string{"total_sessions", "completed_count", "total_duration_minutes"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			spec := compileGenericSpec(Request{}, testCase.requirement)
+			if spec.Title != testCase.wantTitle {
+				t.Fatalf("Title = %q, want %q", spec.Title, testCase.wantTitle)
+			}
+
+			domainModel := buildDomainModel(spec)
+			if len(domainModel.Entities) != 2 {
+				t.Fatalf("Entities len = %d, want 2", len(domainModel.Entities))
+			}
+			if domainModel.Entities[0].EntityID != testCase.wantEntityID {
+				t.Fatalf("primary entity id = %q, want %q", domainModel.Entities[0].EntityID, testCase.wantEntityID)
+			}
+			if !reflect.DeepEqual(fieldNames(domainModel.Entities[0].Fields), expectedGenericFieldNames(testCase.wantFields)) {
+				t.Fatalf("primary fields = %v, want %v", fieldNames(domainModel.Entities[0].Fields), expectedGenericFieldNames(testCase.wantFields))
+			}
+			if !reflect.DeepEqual(fieldNames(domainModel.Entities[1].Fields), testCase.wantSummaryFields) {
+				t.Fatalf("summary fields = %v, want %v", fieldNames(domainModel.Entities[1].Fields), testCase.wantSummaryFields)
+			}
+
+			for _, want := range testCase.wantFields {
+				field := findDataField(t, domainModel.Entities[0].Fields, want.name)
+				if field.Role != want.role {
+					t.Fatalf("field %q role = %q, want %q", want.name, field.Role, want.role)
+				}
+			}
+
+			coveredRefs := semanticFieldRefSet(domainModel.SemanticAcceptanceRules)
+			for _, want := range testCase.wantFields {
+				if !coveredRefs[want.name] {
+					t.Fatalf("semantic acceptance rules missing field ref %q: %+v", want.name, domainModel.SemanticAcceptanceRules)
+				}
+			}
+		})
+	}
+}
+
+type genericFieldExpectation struct {
+	name string
+	role string
+}
+
+func expectedGenericFieldNames(fields []genericFieldExpectation) []string {
+	names := make([]string, 0, len(fields))
+	for _, field := range fields {
+		names = append(names, field.name)
+	}
+	return names
+}
+
+func findDataField(t *testing.T, fields []DataField, name string) DataField {
+	t.Helper()
+	for _, field := range fields {
+		if field.Name == name {
+			return field
+		}
+	}
+	t.Fatalf("field %q not found in %+v", name, fields)
+	return DataField{}
+}
+
+func semanticFieldRefSet(rules []SemanticAcceptanceRule) map[string]bool {
+	refs := map[string]bool{}
+	for _, rule := range rules {
+		for _, fieldRef := range rule.FieldRefs {
+			refs[fieldRef] = true
+		}
+	}
+	return refs
 }
 
 func TestDetectGenericDomainSignalsFallsBackToDefaultProfile(t *testing.T) {
