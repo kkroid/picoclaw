@@ -13,14 +13,14 @@ func TestLoadGenericDomainProfileCatalogKeepsKnownProfiles(t *testing.T) {
 	if catalog.SchemaVersion != "v0.1.0" {
 		t.Fatalf("unexpected schema version: %s", catalog.SchemaVersion)
 	}
-	if len(catalog.Profiles) != 8 {
-		t.Fatalf("expected 8 profiles, got %d", len(catalog.Profiles))
+	if len(catalog.Profiles) != 9 {
+		t.Fatalf("expected 9 profiles, got %d", len(catalog.Profiles))
 	}
 	profileIDs := map[string]bool{}
 	for _, profile := range catalog.Profiles {
 		profileIDs[profile.ProfileID] = true
 	}
-	for _, expected := range []string{"weight-tracker", "todo-lite", "habit-checkin", "coursework-tracker", "pet-vaccine-record", "plant-watering-record", "movie-watchlist", "workout-log"} {
+	for _, expected := range []string{"weight-tracker", "todo-lite", "habit-checkin", "coursework-tracker", "pet-vaccine-record", "plant-watering-record", "movie-watchlist", "workout-log", "packing-list"} {
 		if !profileIDs[expected] {
 			t.Fatalf("missing generic domain profile %s", expected)
 		}
@@ -58,6 +58,14 @@ func TestDetectGenericDomainSignalsUsesConfiguredProfiles(t *testing.T) {
 	}
 	if movie.Entity.EntityID != "entity-movie-record" {
 		t.Fatalf("unexpected movie entity id: %s", movie.Entity.EntityID)
+	}
+
+	packing := detectGenericDomainSignals("做一个行李打包清单，记录物品是否已打包")
+	if packing.AppTitle != "行李打包清单 App" {
+		t.Fatalf("unexpected packing app title: %s", packing.AppTitle)
+	}
+	if packing.Entity.EntityID != "entity-packing-item" {
+		t.Fatalf("unexpected packing entity id: %s", packing.Entity.EntityID)
 	}
 }
 
@@ -144,6 +152,20 @@ func TestCompileGenericL1FieldProfilesExposeCoreFields(t *testing.T) {
 				{name: "note", role: "note"},
 			},
 			wantSummaryFields: []string{"total_sessions", "completed_count", "total_duration_minutes"},
+		},
+		{
+			name:         "packing-list",
+			requirement:  "做一个行李打包清单 App，记录物品名称、分类、是否已打包和备注。",
+			wantTitle:    "行李打包清单 App",
+			wantEntityID: "entity-packing-item",
+			wantFields: []genericFieldExpectation{
+				{name: "packing_item_id", role: "identifier"},
+				{name: "item_name", role: "primary_text"},
+				{name: "category", role: "secondary_text"},
+				{name: "is_packed", role: "flag"},
+				{name: "note", role: "note"},
+			},
+			wantSummaryFields: []string{"total_count", "packed_count"},
 		},
 	}
 

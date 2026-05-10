@@ -206,6 +206,32 @@ func TestEmitCopyGenericWithDuration(t *testing.T) {
 	}
 }
 
+func TestEmitCopyGenericWithBoolean(t *testing.T) {
+	dm := appprepare.DomainModel{
+		DomainCopy: appprepare.DomainCopy{Title: "行李清单 App"},
+		Entities: []appprepare.DataEntity{
+			{EntityID: "entity-packing-item", Name: "行李物品", Fields: []appprepare.DataField{
+				{Name: "item_name", Type: "string", Role: "primary_text", Description: "物品名称"},
+				{Name: "is_packed", Type: "bool", Role: "flag", Description: "是否已打包"},
+			}},
+		},
+	}
+	result, ok := EmitCopy(dm)
+	if !ok {
+		t.Fatal("EmitCopy returned false for generic domain model with boolean")
+	}
+	for _, marker := range []string{
+		"String booleanValueLabel(bool value) => value ? '是' : '否';",
+		"String booleanFieldValueLabel(String label, bool value) => '$label: ${booleanValueLabel(value)}';",
+		"String get isPackedFieldLabel => '是否已打包';",
+		"String get detailIsPackedLabel => isPackedFieldLabel;",
+	} {
+		if !strings.Contains(result.Content, marker) {
+			t.Fatalf("content missing boolean generic marker: %s", marker)
+		}
+	}
+}
+
 func TestEmitCopyCustomAppTitle(t *testing.T) {
 	// 验证 appTitle 是参数化的，不是固定值
 	dm := appprepare.DomainModel{

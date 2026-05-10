@@ -82,6 +82,7 @@ type builderRuntimeOpenLiteSurfaceRegistryFieldSemantics struct {
 	statusCopyLabelMethodName string
 	timeField                 string
 	numericFields             []builderRuntimeOpenLiteNumericFieldSemantics
+	booleanFields             []builderRuntimeOpenLiteBooleanFieldSemantics
 	noteField                 string
 }
 
@@ -89,6 +90,11 @@ type builderRuntimeOpenLiteNumericFieldSemantics struct {
 	name      string
 	fieldType string
 	role      string
+}
+
+type builderRuntimeOpenLiteBooleanFieldSemantics struct {
+	name string
+	role string
 }
 
 type builderRuntimeOpenLiteSummaryModelSnapshot struct {
@@ -2458,6 +2464,9 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 	for _, field := range fieldSemantics.numericFields {
 		subtitleParts = append(subtitleParts, builderRuntimeOpenLiteNumericDisplayExpression("record."+field.name, field))
 	}
+	for _, field := range fieldSemantics.booleanFields {
+		subtitleParts = append(subtitleParts, builderRuntimeOpenLiteBooleanFieldValueExpression("record."+field.name, field))
+	}
 	if statusField != "" {
 		subtitleParts = append(subtitleParts, "openLiteCopy."+statusCopyLabelMethodName+"(record."+statusField+")")
 	}
@@ -2641,6 +2650,7 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 	}
 	timeField := strings.TrimSpace(fs.timeField)
 	numericFields := fs.numericFields
+	booleanFields := fs.booleanFields
 	noteField := strings.TrimSpace(fs.noteField)
 	constructorParams := []string{"super.key", "required this." + recordParam}
 	if hasEdit {
@@ -2677,6 +2687,9 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 	}
 	for _, field := range numericFields {
 		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy."+builderRuntimeOpenLiteNumericDetailLabelGetter(field)+", value: "+builderRuntimeOpenLiteNumericDisplayExpression(recordParam+"."+field.name, field)+"),")
+	}
+	for _, field := range booleanFields {
+		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy."+builderRuntimeOpenLiteBooleanDetailLabelGetter(field)+", value: "+builderRuntimeOpenLiteBooleanValueExpression(recordParam+"."+field.name)+"),")
 	}
 	if noteField != "" {
 		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy.detailNoteLabel, value: "+recordParam+"."+noteField+".trim().isEmpty ? openLiteCopy.emptyNoteLabel : "+recordParam+"."+noteField+".trim(), multiline: true),")
@@ -2785,6 +2798,30 @@ func builderRuntimeOpenLiteBuildNumericMutationParts(fields []builderRuntimeOpen
 		parts.submit += "\n    final " + field.name + " = " + parser + "(" + textVar + ".isEmpty ? '0' : " + textVar + ");"
 		parts.submit += "\n    if (" + field.name + " == null) return;"
 		parts.args += ", " + field.name + ": " + field.name
+	}
+	return parts
+}
+
+type builderRuntimeOpenLiteBooleanMutationParts struct {
+	decl string
+	init string
+	body string
+	args string
+}
+
+func builderRuntimeOpenLiteBuildBooleanMutationParts(fields []builderRuntimeOpenLiteBooleanFieldSemantics, hasEdit bool, initParam string) builderRuntimeOpenLiteBooleanMutationParts {
+	var parts builderRuntimeOpenLiteBooleanMutationParts
+	for _, field := range fields {
+		if strings.TrimSpace(field.name) == "" {
+			continue
+		}
+		stateName := "_" + field.name + "Value"
+		parts.decl += "\n  bool " + stateName + " = false;"
+		if hasEdit && strings.TrimSpace(initParam) != "" {
+			parts.init += "\n    " + stateName + " = widget." + initParam + "?." + field.name + " ?? false;"
+		}
+		parts.body += "\n              const SizedBox(height: 16),\n              SwitchListTile(key: const Key('" + builderRuntimeOpenLiteBooleanFieldKey(field) + "'), contentPadding: EdgeInsets.zero, title: Text(openLiteCopy." + builderRuntimeOpenLiteBooleanFieldLabelGetter(field) + "), value: " + stateName + ", onChanged: (value) => setState(() => " + stateName + " = value)),"
+		parts.args += ", " + field.name + ": " + stateName
 	}
 	return parts
 }
@@ -2920,7 +2957,8 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 	initParam := strings.TrimSpace(mutReg.view.constructorContract.initialParam)
 	hasEdit := initParam != "" && mutReg.view.capabilityFlags.supportsEdit
 	numericParts := builderRuntimeOpenLiteBuildNumericMutationParts(fs.numericFields, hasEdit, initParam)
-	schemaArgs := secondaryArg + statusArg + timeArg + numericParts.args + noteArg
+	booleanParts := builderRuntimeOpenLiteBuildBooleanMutationParts(fs.booleanFields, hasEdit, initParam)
+	schemaArgs := secondaryArg + statusArg + timeArg + numericParts.args + booleanParts.args + noteArg
 	_, _, updateMethod, _ := builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, modelType)
 	extraParam := ""
 	extraField := ""
@@ -2968,15 +3006,15 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 		"  @override State<" + className + "> createState() => _" + className + "State();",
 		"}", "",
 		"class _" + className + "State extends State<" + className + "> {",
-		"  late final TextEditingController _titleController;" + secondaryDecl + numericParts.decl + noteDecl + statusDecl + timeDecl,
-		"  @override void initState() { super.initState();", titleInit + secondaryInit + statusInit + timeInit + numericParts.init + nodeInit, "  }",
+		"  late final TextEditingController _titleController;" + secondaryDecl + numericParts.decl + booleanParts.decl + noteDecl + statusDecl + timeDecl,
+		"  @override void initState() { super.initState();", titleInit + secondaryInit + statusInit + timeInit + numericParts.init + booleanParts.init + nodeInit, "  }",
 		"  @override void dispose() { _titleController.dispose();" + secondaryDispose + numericParts.dispose + nodedisp + " super.dispose(); }",
 		pickDateMethod,
 		"  Future<void> _submit() async {", submitBody, "  }",
 		"  @override Widget build(BuildContext context) {",
 		"    return Scaffold(appBar: AppBar(title: Text(" + pageTitle + ")),",
 		"      body: ListView(padding: const EdgeInsets.all(20), children: [",
-		"        TextField(controller: _titleController, key: const Key('title-field')," + builderRuntimeOpenLitePrimaryKeyboardArgument(primaryFieldType) + " decoration: InputDecoration(labelText: openLiteCopy.titleFieldLabel))," + secondaryBody + statusBody + timeBody + numericParts.body + notebody,
+		"        TextField(controller: _titleController, key: const Key('title-field')," + builderRuntimeOpenLitePrimaryKeyboardArgument(primaryFieldType) + " decoration: InputDecoration(labelText: openLiteCopy.titleFieldLabel))," + secondaryBody + statusBody + timeBody + numericParts.body + booleanParts.body + notebody,
 		"        const SizedBox(height: 24),",
 		"        ElevatedButton(onPressed: _submit, child: Text(" + submitLabel + ")),",
 		"      ]),",
@@ -3865,6 +3903,7 @@ func builderRuntimeOpenLiteCollectionFieldSemantics(workspacePath string) builde
 		secondaryTextField:   builderRuntimeOpenLiteSecondaryTextField(fields),
 		timeField:            builderRuntimeOpenLiteTimeField(fields),
 		numericFields:        builderRuntimeOpenLiteNumericFields(fields),
+		booleanFields:        builderRuntimeOpenLiteBooleanFields(fields),
 		noteField:            builderRuntimeOpenLiteNoteField(fields),
 	}
 	semantics.statusField, semantics.statusEnumType = builderRuntimeOpenLiteStatusField(fields)
@@ -3925,6 +3964,8 @@ func builderRuntimeOpenLiteMergeDomainFieldSemantics(workspacePath string, field
 	}
 	semantics.numericFields = builderRuntimeOpenLiteMergeDomainNumericFieldSemantics(primaryEntity, declaredByName, semantics.numericFields)
 	semantics.numericFields = builderRuntimeOpenLiteFilterNumericFields(semantics.numericFields, semantics.primaryTextField)
+	semantics.booleanFields = builderRuntimeOpenLiteMergeDomainBooleanFieldSemantics(primaryEntity, declaredByName, semantics.booleanFields)
+	semantics.booleanFields = builderRuntimeOpenLiteFilterBooleanFields(semantics.booleanFields, semantics.primaryTextField)
 	return semantics
 }
 
@@ -3976,6 +4017,58 @@ func builderRuntimeOpenLiteMergeDomainNumericFieldSemantics(primaryEntity *apppr
 		}
 		seen[dartName] = struct{}{}
 		merged = append(merged, builderRuntimeOpenLiteNumericFieldSemantics{name: dartName, fieldType: builderRuntimeOpenLiteNormalizedFieldType(declared.fieldType), role: role})
+	}
+	return merged
+}
+
+func builderRuntimeOpenLiteFilterBooleanFields(fields []builderRuntimeOpenLiteBooleanFieldSemantics, excludedNames ...string) []builderRuntimeOpenLiteBooleanFieldSemantics {
+	excluded := make(map[string]struct{}, len(excludedNames))
+	for _, name := range excludedNames {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName != "" {
+			excluded[trimmedName] = struct{}{}
+		}
+	}
+	filtered := make([]builderRuntimeOpenLiteBooleanFieldSemantics, 0, len(fields))
+	seen := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		if _, ok := excluded[field.name]; ok {
+			continue
+		}
+		if _, ok := seen[field.name]; ok {
+			continue
+		}
+		seen[field.name] = struct{}{}
+		filtered = append(filtered, field)
+	}
+	return filtered
+}
+
+func builderRuntimeOpenLiteMergeDomainBooleanFieldSemantics(primaryEntity *appprepare.DataEntity, declaredByName map[string]builderRuntimeOpenLiteDeclaredField, current []builderRuntimeOpenLiteBooleanFieldSemantics) []builderRuntimeOpenLiteBooleanFieldSemantics {
+	if primaryEntity == nil || len(declaredByName) == 0 {
+		return current
+	}
+	merged := append([]builderRuntimeOpenLiteBooleanFieldSemantics(nil), current...)
+	seen := make(map[string]struct{}, len(merged))
+	for _, field := range merged {
+		seen[field.name] = struct{}{}
+	}
+	for index := range primaryEntity.Fields {
+		field := primaryEntity.Fields[index]
+		role := strings.ToLower(strings.TrimSpace(field.Role))
+		if role != "" && !builderRuntimeOpenLiteIsBooleanRole(role) {
+			continue
+		}
+		dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+		declared, ok := declaredByName[dartName]
+		if !ok || !builderRuntimeOpenLiteIsBooleanField(declared.fieldType) {
+			continue
+		}
+		if _, ok := seen[dartName]; ok {
+			continue
+		}
+		seen[dartName] = struct{}{}
+		merged = append(merged, builderRuntimeOpenLiteBooleanFieldSemantics{name: dartName, role: role})
 	}
 	return merged
 }
@@ -4153,6 +4246,17 @@ func builderRuntimeOpenLiteNumericFields(fields []builderRuntimeOpenLiteDeclared
 	return result
 }
 
+func builderRuntimeOpenLiteBooleanFields(fields []builderRuntimeOpenLiteDeclaredField) []builderRuntimeOpenLiteBooleanFieldSemantics {
+	result := make([]builderRuntimeOpenLiteBooleanFieldSemantics, 0)
+	for _, field := range fields {
+		if !builderRuntimeOpenLiteIsBooleanField(field.fieldType) || builderRuntimeOpenLiteIsIdentifierField(field.name) {
+			continue
+		}
+		result = append(result, builderRuntimeOpenLiteBooleanFieldSemantics{name: field.name, role: builderRuntimeOpenLiteBooleanFieldRole(field.name)})
+	}
+	return result
+}
+
 func builderRuntimeOpenLiteNumericFieldRole(name string) string {
 	lowerName := strings.ToLower(strings.TrimSpace(name))
 	switch {
@@ -4167,6 +4271,16 @@ func builderRuntimeOpenLiteNumericFieldRole(name string) string {
 	}
 }
 
+func builderRuntimeOpenLiteBooleanFieldRole(name string) string {
+	lowerName := strings.ToLower(strings.TrimSpace(name))
+	switch {
+	case strings.HasPrefix(lowerName, "is") || strings.HasPrefix(lowerName, "has") || strings.Contains(lowerName, "enabled") || strings.Contains(lowerName, "checked"):
+		return "flag"
+	default:
+		return "boolean"
+	}
+}
+
 func builderRuntimeOpenLiteIsNumericField(fieldType string) bool {
 	switch builderRuntimeOpenLiteNormalizedFieldType(fieldType) {
 	case "int", "double", "num":
@@ -4176,9 +4290,22 @@ func builderRuntimeOpenLiteIsNumericField(fieldType string) bool {
 	}
 }
 
+func builderRuntimeOpenLiteIsBooleanField(fieldType string) bool {
+	return builderRuntimeOpenLiteNormalizedFieldType(fieldType) == "bool"
+}
+
 func builderRuntimeOpenLiteIsNumericRole(role string) bool {
 	switch strings.ToLower(strings.TrimSpace(role)) {
 	case "rating", "duration", "amount", "number", "quantity":
+		return true
+	default:
+		return false
+	}
+}
+
+func builderRuntimeOpenLiteIsBooleanRole(role string) bool {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "boolean", "bool", "flag", "toggle":
 		return true
 	default:
 		return false
@@ -4194,6 +4321,46 @@ func builderRuntimeOpenLiteNumericFieldLabelGetter(field builderRuntimeOpenLiteN
 	default:
 		return "amountFieldLabel"
 	}
+}
+
+func builderRuntimeOpenLiteBooleanFieldLabelGetter(field builderRuntimeOpenLiteBooleanFieldSemantics) string {
+	trimmedName := strings.TrimSpace(field.name)
+	if trimmedName == "" {
+		return "booleanFieldLabel"
+	}
+	return trimmedName + "FieldLabel"
+}
+
+func builderRuntimeOpenLiteBooleanDetailLabelGetter(field builderRuntimeOpenLiteBooleanFieldSemantics) string {
+	trimmedName := strings.TrimSpace(field.name)
+	if trimmedName == "" {
+		return "detailBooleanLabel"
+	}
+	return "detail" + strings.ToUpper(trimmedName[:1]) + trimmedName[1:] + "Label"
+}
+
+func builderRuntimeOpenLiteBooleanFieldKey(field builderRuntimeOpenLiteBooleanFieldSemantics) string {
+	name := builderRuntimeOpenLiteIdentifierSnakeCase(field.name)
+	if name == "" {
+		return "boolean-field"
+	}
+	return strings.ReplaceAll(name, "_", "-") + "-field"
+}
+
+func builderRuntimeOpenLiteBooleanValueExpression(accessor string) string {
+	trimmedAccessor := strings.TrimSpace(accessor)
+	if trimmedAccessor == "" {
+		return "''"
+	}
+	return "openLiteCopy.booleanValueLabel(" + trimmedAccessor + ")"
+}
+
+func builderRuntimeOpenLiteBooleanFieldValueExpression(accessor string, field builderRuntimeOpenLiteBooleanFieldSemantics) string {
+	trimmedAccessor := strings.TrimSpace(accessor)
+	if trimmedAccessor == "" {
+		return "''"
+	}
+	return "openLiteCopy.booleanFieldValueLabel(openLiteCopy." + builderRuntimeOpenLiteBooleanFieldLabelGetter(field) + ", " + trimmedAccessor + ")"
 }
 
 func builderRuntimeOpenLiteNumericDetailLabelGetter(field builderRuntimeOpenLiteNumericFieldSemantics) string {

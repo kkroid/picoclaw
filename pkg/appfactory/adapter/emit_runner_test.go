@@ -72,6 +72,7 @@ func TestEmitGenericSummaryDefaultValueUsesNumericAggregates(t *testing.T) {
 	primaryEntity := &appprepare.DataEntity{Fields: []appprepare.DataField{
 		{Name: "rating", Type: "double", Role: "rating"},
 		{Name: "duration_minutes", Type: "int", Role: "duration"},
+		{Name: "is_packed", Type: "bool", Role: "flag"},
 	}}
 	tests := []struct {
 		name  string
@@ -87,6 +88,11 @@ func TestEmitGenericSummaryDefaultValueUsesNumericAggregates(t *testing.T) {
 			name:  "total duration",
 			field: appprepare.DataField{Name: "total_duration_minutes", Type: "int", Role: "metric_source"},
 			want:  "records.fold<int>(0, (sum, record) => sum + record.durationMinutes)",
+		},
+		{
+			name:  "boolean checked count",
+			field: appprepare.DataField{Name: "packed_count", Type: "int", Role: "metric_source"},
+			want:  "records.where((record) => record.isPacked).length",
 		},
 	}
 	for _, tt := range tests {

@@ -89,6 +89,7 @@ func renderGenericCopy(dm appprepare.DomainModel, appTitle string) string {
 	ratingField := genericCopyFieldByRole(entity, "rating")
 	durationField := genericCopyFieldByRole(entity, "duration")
 	amountField := genericCopyFieldByRole(entity, "amount", "number", "quantity")
+	booleanFields := genericCopyBooleanFields(entity)
 	noteField := genericCopyFieldByRole(entity, "note")
 	primaryLabel := genericCopyFieldLabel(primaryField, "标题")
 	secondaryLabel := genericCopyFieldLabel(secondaryField, "分类")
@@ -203,6 +204,27 @@ func renderGenericCopy(dm appprepare.DomainModel, appTitle string) string {
 			"  String get detailAmountLabel => amountFieldLabel;",
 			"",
 		)
+	}
+	if len(booleanFields) > 0 {
+		lines = append(lines,
+			"  String booleanValueLabel(bool value) => value ? '是' : '否';",
+			"",
+			"  String booleanFieldValueLabel(String label, bool value) => '$label: ${booleanValueLabel(value)}';",
+			"",
+		)
+		for _, field := range booleanFields {
+			fieldLabelGetter := genericCopyBooleanFieldLabelGetter(field.Name)
+			detailLabelGetter := genericCopyBooleanDetailLabelGetter(field.Name)
+			if fieldLabelGetter == "" || detailLabelGetter == "" {
+				continue
+			}
+			lines = append(lines,
+				"  String get "+fieldLabelGetter+" => "+dartSingleQuotedString(genericCopyFieldLabel(&field, field.Name))+";",
+				"",
+				"  String get "+detailLabelGetter+" => "+fieldLabelGetter+";",
+				"",
+			)
+		}
 	}
 	if summaryEntity != nil {
 		for _, field := range summaryEntity.Fields {
@@ -325,6 +347,36 @@ func genericCopyFieldLabel(field *appprepare.DataField, fallback string) string 
 		return name
 	}
 	return fallback
+}
+
+func genericCopyBooleanFields(entity *appprepare.DataEntity) []appprepare.DataField {
+	if entity == nil {
+		return nil
+	}
+	fields := make([]appprepare.DataField, 0)
+	for _, field := range entity.Fields {
+		switch strings.ToLower(strings.TrimSpace(field.Type)) {
+		case "bool", "boolean":
+			fields = append(fields, field)
+		}
+	}
+	return fields
+}
+
+func genericCopyBooleanFieldLabelGetter(fieldName string) string {
+	camelName := genericCopySnakeToCamel(fieldName)
+	if camelName == "" {
+		return ""
+	}
+	return camelName + "FieldLabel"
+}
+
+func genericCopyBooleanDetailLabelGetter(fieldName string) string {
+	camelName := genericCopySnakeToCamel(fieldName)
+	if camelName == "" {
+		return ""
+	}
+	return "detail" + strings.ToUpper(camelName[:1]) + camelName[1:] + "Label"
 }
 
 func genericCopySummaryMetricLabelGetter(fieldName string) string {

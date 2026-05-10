@@ -734,6 +734,59 @@ func TestBuilderRuntimeOpenLiteGenericMutationUsesNumericRoleFields(t *testing.T
 	}
 }
 
+func TestBuilderRuntimeOpenLiteGenericSurfacesUseBooleanFields(t *testing.T) {
+	workspacePath := createBuilderRuntimeWorkspaceWithDomainModel(t, strings.Join([]string{
+		"{",
+		"  \"entities\": [",
+		"    {",
+		"      \"source\": \"local_storage\",",
+		"      \"fields\": [",
+		"        {\"name\": \"packing_item_id\", \"role\": \"identifier\"},",
+		"        {\"name\": \"item_name\", \"role\": \"primary_text\"},",
+		"        {\"name\": \"is_packed\", \"role\": \"flag\"}",
+		"      ]",
+		"    }",
+		"  ]",
+		"}",
+	}, "\n"), map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"class PackingItem {",
+			"  const PackingItem({required this.packingItemId, required this.itemName, this.isPacked = false});",
+			"  final String packingItemId;",
+			"  final String itemName;",
+			"  final bool isPacked;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	semantics := builderRuntimeOpenLiteCollectionFieldSemantics(workspacePath)
+	if len(semantics.booleanFields) != 1 || semantics.booleanFields[0].name != "isPacked" {
+		t.Fatalf("builderRuntimeOpenLiteCollectionFieldSemantics().booleanFields = %#v, want isPacked", semantics.booleanFields)
+	}
+
+	formContent := builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath)
+	for _, want := range []string{
+		"bool _isPackedValue = false;",
+		"SwitchListTile(key: const Key('is-packed-field')",
+		"title: Text(openLiteCopy.isPackedFieldLabel)",
+		"isPacked: _isPackedValue",
+	} {
+		if !strings.Contains(formContent, want) {
+			t.Fatalf("builderRuntimeOpenLiteCanonicalGenericMutationPage() missing boolean marker %q: %q", want, formContent)
+		}
+	}
+
+	listContent := builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath)
+	if !strings.Contains(listContent, "openLiteCopy.booleanFieldValueLabel(openLiteCopy.isPackedFieldLabel, record.isPacked)") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalNoFilterListPage() should display boolean field: %q", listContent)
+	}
+
+	detailContent := builderRuntimeOpenLiteCanonicalGenericInspectionPage(workspacePath)
+	if !strings.Contains(detailContent, "_InfoTile(label: openLiteCopy.detailIsPackedLabel, value: openLiteCopy.booleanValueLabel(record.isPacked))") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalGenericInspectionPage() should display boolean detail field: %q", detailContent)
+	}
+}
+
 func TestBuilderRuntimeOpenLiteGenericMutationParsesNumericPrimaryField(t *testing.T) {
 	workspacePath := createBuilderRuntimeWorkspaceWithDomainModel(t, strings.Join([]string{
 		"{",

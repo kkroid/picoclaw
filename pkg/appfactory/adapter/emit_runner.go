@@ -729,6 +729,13 @@ func emitGenericIsNumericField(field *appprepare.DataField) bool {
 	}
 }
 
+func emitGenericIsBooleanField(field *appprepare.DataField) bool {
+	if field == nil {
+		return false
+	}
+	return emitFieldToDartType(field.Type, emitSnakeToCamel(strings.TrimSpace(field.Name))) == "bool"
+}
+
 func emitGenericSummaryCountExpression(summaryFieldName string, primaryEnt *appprepare.DataEntity) string {
 	if primaryEnt == nil {
 		return ""
@@ -755,15 +762,69 @@ func emitGenericSummaryCountExpression(summaryFieldName string, primaryEnt *appp
 		return "records.where((record) => !" + dateAccess + ".isBefore(DateTime.now()) && " + dateAccess + ".difference(DateTime.now()).inDays <= 7).length"
 	}
 	if strings.Contains(summaryFieldName, "done") || strings.Contains(summaryFieldName, "completed") || strings.Contains(summaryFieldName, "watched") || strings.Contains(summaryFieldName, "watered") {
-		return emitGenericStatusCountExpression(primaryEnt, statusField, "done", "completed", "watched", "watered")
+		if expr := emitGenericStatusCountExpression(primaryEnt, statusField, "done", "completed", "watched", "watered"); expr != "" {
+			return expr
+		}
+		return emitGenericBooleanCountExpression(primaryEnt, summaryFieldName, "done", "completed", "watched", "watered")
 	}
 	if strings.Contains(summaryFieldName, "pending") || strings.Contains(summaryFieldName, "todo") || strings.Contains(summaryFieldName, "planned") || strings.Contains(summaryFieldName, "needs") {
-		return emitGenericStatusCountExpression(primaryEnt, statusField, "todo", "pending", "planned", "needsWater")
+		if expr := emitGenericStatusCountExpression(primaryEnt, statusField, "todo", "pending", "planned", "needsWater"); expr != "" {
+			return expr
+		}
+		return emitGenericBooleanCountExpression(primaryEnt, summaryFieldName, "pending", "todo", "planned", "needs")
 	}
 	if strings.Contains(summaryFieldName, "progress") || strings.Contains(summaryFieldName, "active") {
-		return emitGenericStatusCountExpression(primaryEnt, statusField, "inProgress", "doing", "watching", "active")
+		if expr := emitGenericStatusCountExpression(primaryEnt, statusField, "inProgress", "doing", "watching", "active"); expr != "" {
+			return expr
+		}
+		return emitGenericBooleanCountExpression(primaryEnt, summaryFieldName, "progress", "active")
+	}
+	if strings.Contains(summaryFieldName, "checked") || strings.Contains(summaryFieldName, "enabled") || strings.Contains(summaryFieldName, "flag") || strings.Contains(summaryFieldName, "archived") || strings.Contains(summaryFieldName, "selected") || strings.Contains(summaryFieldName, "packed") {
+		return emitGenericBooleanCountExpression(primaryEnt, summaryFieldName, "checked", "enabled", "flag", "archived", "selected", "packed")
 	}
 	return ""
+}
+
+func emitGenericBooleanCountExpression(ent *appprepare.DataEntity, summaryFieldName string, keywords ...string) string {
+	field := emitGenericBooleanSourceField(ent, summaryFieldName, keywords...)
+	if field == nil {
+		return ""
+	}
+	return "records.where((record) => record." + emitSnakeToCamel(field.Name) + ").length"
+}
+
+func emitGenericBooleanSourceField(ent *appprepare.DataEntity, summaryFieldName string, keywords ...string) *appprepare.DataField {
+	if ent == nil {
+		return nil
+	}
+	compactSummary := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(summaryFieldName)), "_", "")
+	for index := range ent.Fields {
+		field := &ent.Fields[index]
+		if !emitGenericIsBooleanField(field) {
+			continue
+		}
+		compactName := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(field.Name)), "_", "")
+		logicalName := strings.TrimPrefix(strings.TrimPrefix(compactName, "is"), "has")
+		if logicalName != "" && strings.Contains(compactSummary, logicalName) {
+			return field
+		}
+		for _, keyword := range keywords {
+			compactKeyword := strings.ReplaceAll(strings.ToLower(strings.TrimSpace(keyword)), "_", "")
+			if compactKeyword == "" {
+				continue
+			}
+			if strings.Contains(compactSummary, compactKeyword) && (strings.Contains(compactName, compactKeyword) || strings.Contains(logicalName, compactKeyword)) {
+				return field
+			}
+		}
+	}
+	for index := range ent.Fields {
+		field := &ent.Fields[index]
+		if emitGenericIsBooleanField(field) && (strings.EqualFold(strings.TrimSpace(field.Role), "flag") || strings.EqualFold(strings.TrimSpace(field.Role), "boolean")) {
+			return field
+		}
+	}
+	return nil
 }
 
 func emitGenericRoleField(ent *appprepare.DataEntity, roles ...string) *appprepare.DataField {
