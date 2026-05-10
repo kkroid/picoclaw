@@ -151,6 +151,7 @@ func TestEmitCopyGenericWithStatus(t *testing.T) {
 				{Name: "movie_title", Type: "string", Role: "primary_text", Description: "电影名称"},
 				{Name: "genre", Type: "string", Role: "secondary_text", Description: "电影类型"},
 				{Name: "watch_status", Type: "enum[planned,watching,watched]", Role: "status", Description: "观看状态"},
+				{Name: "rating", Type: "double", Role: "rating", Description: "个人评分"},
 				{Name: "review", Type: "string", Role: "note", Description: "观影短评"},
 			}},
 		},
@@ -162,6 +163,8 @@ func TestEmitCopyGenericWithStatus(t *testing.T) {
 	for _, marker := range []string{
 		"String get titleFieldLabel => '电影名称';",
 		"String get categoryFieldLabel => '电影类型';",
+		"String get ratingFieldLabel => '个人评分';",
+		"String get detailRatingLabel => ratingFieldLabel;",
 		"String get detailStatusLabel => '观看状态';",
 		"String statusLabel(dynamic status)",
 		"case 'planned':",
@@ -170,6 +173,31 @@ func TestEmitCopyGenericWithStatus(t *testing.T) {
 	} {
 		if !strings.Contains(result.Content, marker) {
 			t.Fatalf("content missing status generic marker: %s", marker)
+		}
+	}
+}
+
+func TestEmitCopyGenericWithDuration(t *testing.T) {
+	dm := appprepare.DomainModel{
+		DomainCopy: appprepare.DomainCopy{Title: "训练日志 App"},
+		Entities: []appprepare.DataEntity{
+			{EntityID: "entity-workout-session", Name: "训练记录", Fields: []appprepare.DataField{
+				{Name: "workout_name", Type: "string", Role: "primary_text", Description: "训练名称"},
+				{Name: "duration_minutes", Type: "int", Role: "duration", Description: "训练时长分钟数"},
+				{Name: "note", Type: "string", Role: "note", Description: "补充备注"},
+			}},
+		},
+	}
+	result, ok := EmitCopy(dm)
+	if !ok {
+		t.Fatal("EmitCopy returned false for generic domain model with duration")
+	}
+	for _, marker := range []string{
+		"String get durationFieldLabel => '训练时长分钟数';",
+		"String get detailDurationLabel => durationFieldLabel;",
+	} {
+		if !strings.Contains(result.Content, marker) {
+			t.Fatalf("content missing duration generic marker: %s", marker)
 		}
 	}
 }

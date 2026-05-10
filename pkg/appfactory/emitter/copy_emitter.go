@@ -86,11 +86,17 @@ func renderGenericCopy(dm appprepare.DomainModel, appTitle string) string {
 	secondaryField := genericCopyFieldByRole(entity, "secondary_text", "category", "group")
 	statusField := genericCopyFieldByRole(entity, "status")
 	timeField := genericCopyFieldByRole(entity, "due_date", "date", "time")
+	ratingField := genericCopyFieldByRole(entity, "rating")
+	durationField := genericCopyFieldByRole(entity, "duration")
+	amountField := genericCopyFieldByRole(entity, "amount", "number", "quantity")
 	noteField := genericCopyFieldByRole(entity, "note")
 	primaryLabel := genericCopyFieldLabel(primaryField, "标题")
 	secondaryLabel := genericCopyFieldLabel(secondaryField, "分类")
 	statusLabel := genericCopyFieldLabel(statusField, "状态")
 	timeLabel := genericCopyFieldLabel(timeField, "更新时间")
+	ratingLabel := genericCopyFieldLabel(ratingField, "评分")
+	durationLabel := genericCopyFieldLabel(durationField, "时长")
+	amountLabel := genericCopyFieldLabel(amountField, "数值")
 	noteLabel := genericCopyFieldLabel(noteField, "备注")
 	lines := []string{
 		"const openLiteCopy = OpenLiteCopy();",
@@ -173,10 +179,36 @@ func renderGenericCopy(dm appprepare.DomainModel, appTitle string) string {
 		"",
 		"  String get detailDateLabel => dateFieldLabel;",
 		"",
+	}
+	if ratingField != nil {
+		lines = append(lines,
+			"  String get ratingFieldLabel => "+dartSingleQuotedString(ratingLabel)+";",
+			"",
+			"  String get detailRatingLabel => ratingFieldLabel;",
+			"",
+		)
+	}
+	if durationField != nil {
+		lines = append(lines,
+			"  String get durationFieldLabel => "+dartSingleQuotedString(durationLabel)+";",
+			"",
+			"  String get detailDurationLabel => durationFieldLabel;",
+			"",
+		)
+	}
+	if amountField != nil {
+		lines = append(lines,
+			"  String get amountFieldLabel => "+dartSingleQuotedString(amountLabel)+";",
+			"",
+			"  String get detailAmountLabel => amountFieldLabel;",
+			"",
+		)
+	}
+	lines = append(lines,
 		"  String get detailNoteLabel => noteFieldLabel;",
 		"",
 		"  String get emptyNoteLabel => '暂无备注';",
-	}
+	)
 	if statusField != nil {
 		lines = append(lines,
 			"",

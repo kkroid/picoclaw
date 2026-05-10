@@ -75,12 +75,20 @@ type builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags struct {
 type builderRuntimeOpenLiteSurfaceRegistryFieldSemantics struct {
 	identifierField           string
 	primaryTextField          string
+	primaryTextFieldType      string
 	secondaryTextField        string
 	statusField               string
 	statusEnumType            string
 	statusCopyLabelMethodName string
 	timeField                 string
+	numericFields             []builderRuntimeOpenLiteNumericFieldSemantics
 	noteField                 string
+}
+
+type builderRuntimeOpenLiteNumericFieldSemantics struct {
+	name      string
+	fieldType string
+	role      string
 }
 
 type builderRuntimeOpenLiteSurfaceRegistryFallbackMode string
@@ -2388,6 +2396,7 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 	if primaryTextField == "" {
 		return ""
 	}
+	primaryTextFieldType := strings.TrimSpace(fieldSemantics.primaryTextFieldType)
 	secondaryTextField := strings.TrimSpace(fieldSemantics.secondaryTextField)
 	statusField := strings.TrimSpace(fieldSemantics.statusField)
 	statusCopyLabelMethodName := strings.TrimSpace(fieldSemantics.statusCopyLabelMethodName)
@@ -2430,7 +2439,7 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 	copyImportPath := builderRuntimeOpenLiteRelativeImport(strings.TrimSpace(entry.resolvedPath), "lib/template/open_lite_copy.dart", "../template/open_lite_copy.dart")
 	rowChildren := []string{
 		"                    Text(",
-		"                      record." + primaryTextField + ",",
+		"                      " + builderRuntimeOpenLiteValueDisplayExpression("record."+primaryTextField, primaryTextFieldType) + ",",
 		"                      style: const TextStyle(fontWeight: FontWeight.w700),",
 		"                    ),",
 	}
@@ -2440,6 +2449,9 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 	}
 	if timeField != "" {
 		subtitleParts = append(subtitleParts, "_formatDate(record."+timeField+")")
+	}
+	for _, field := range fieldSemantics.numericFields {
+		subtitleParts = append(subtitleParts, builderRuntimeOpenLiteNumericDisplayExpression("record."+field.name, field))
 	}
 	if statusField != "" {
 		subtitleParts = append(subtitleParts, "openLiteCopy."+statusCopyLabelMethodName+"(record."+statusField+")")
@@ -2615,6 +2627,7 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 	copyImportPath := builderRuntimeOpenLiteRelativeImport(strings.TrimSpace(detailRegistry.view.resolvedPath), "lib/template/open_lite_copy.dart", "../template/open_lite_copy.dart")
 	fs := collectionRegistry.view.fieldSemantics
 	primaryTextField := strings.TrimSpace(fs.primaryTextField)
+	primaryTextFieldType := strings.TrimSpace(fs.primaryTextFieldType)
 	secondaryTextField := strings.TrimSpace(fs.secondaryTextField)
 	statusField := strings.TrimSpace(fs.statusField)
 	statusMethod := strings.TrimSpace(fs.statusCopyLabelMethodName)
@@ -2622,6 +2635,7 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 		statusMethod = "statusLabel"
 	}
 	timeField := strings.TrimSpace(fs.timeField)
+	numericFields := fs.numericFields
 	noteField := strings.TrimSpace(fs.noteField)
 	constructorParams := []string{"super.key", "required this." + recordParam}
 	if hasEdit {
@@ -2639,7 +2653,7 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 	}
 	bodyChildren := []string{
 		"          _DetailCard(",
-		"            title: " + recordParam + "." + primaryTextField + ",",
+		"            title: " + builderRuntimeOpenLiteValueDisplayExpression(recordParam+"."+primaryTextField, primaryTextFieldType) + ",",
 	}
 	if statusField != "" {
 		bodyChildren = append(bodyChildren, "            subtitle: openLiteCopy."+statusMethod+"("+recordParam+"."+statusField+"),")
@@ -2655,6 +2669,9 @@ func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePat
 	}
 	if timeField != "" {
 		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy.detailDateLabel, value: _formatDate("+recordParam+"."+timeField+")),")
+	}
+	for _, field := range numericFields {
+		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy."+builderRuntimeOpenLiteNumericDetailLabelGetter(field)+", value: "+builderRuntimeOpenLiteNumericDisplayExpression(recordParam+"."+field.name, field)+"),")
 	}
 	if noteField != "" {
 		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy.detailNoteLabel, value: "+recordParam+"."+noteField+".trim().isEmpty ? openLiteCopy.emptyNoteLabel : "+recordParam+"."+noteField+".trim(), multiline: true),")
@@ -2733,6 +2750,60 @@ func builderRuntimeOpenLiteInfoTileValueLine(hasMultiline bool) string {
 	return "        Text(value, style: const TextStyle(height: 1.2)),"
 }
 
+type builderRuntimeOpenLiteNumericMutationParts struct {
+	decl    string
+	init    string
+	dispose string
+	body    string
+	submit  string
+	args    string
+}
+
+func builderRuntimeOpenLiteBuildNumericMutationParts(fields []builderRuntimeOpenLiteNumericFieldSemantics, hasEdit bool, initParam string) builderRuntimeOpenLiteNumericMutationParts {
+	var parts builderRuntimeOpenLiteNumericMutationParts
+	for _, field := range fields {
+		if strings.TrimSpace(field.name) == "" || !builderRuntimeOpenLiteIsNumericField(field.fieldType) {
+			continue
+		}
+		controllerName := "_" + field.name + "Controller"
+		parts.decl += "\n  late final TextEditingController " + controllerName + ";"
+		if hasEdit && strings.TrimSpace(initParam) != "" {
+			parts.init += "\n    " + controllerName + " = TextEditingController(text: widget." + initParam + "?." + field.name + ".toString() ?? '');"
+		} else {
+			parts.init += "\n    " + controllerName + " = TextEditingController();"
+		}
+		parts.dispose += "\n    " + controllerName + ".dispose();"
+		parts.body += "\n              const SizedBox(height: 16),\n              TextField(controller: " + controllerName + ", key: const Key('" + builderRuntimeOpenLiteNumericFieldKey(field) + "'), keyboardType: " + builderRuntimeOpenLiteNumericKeyboardType(field) + ", decoration: InputDecoration(labelText: openLiteCopy." + builderRuntimeOpenLiteNumericFieldLabelGetter(field) + ")),"
+		textVar := field.name + "Text"
+		parser := builderRuntimeOpenLiteNumericParser(field)
+		parts.submit += "\n    final " + textVar + " = " + controllerName + ".text.trim();"
+		parts.submit += "\n    final " + field.name + " = " + parser + "(" + textVar + ".isEmpty ? '0' : " + textVar + ");"
+		parts.submit += "\n    if (" + field.name + " == null) return;"
+		parts.args += ", " + field.name + ": " + field.name
+	}
+	return parts
+}
+
+func builderRuntimeOpenLitePrimarySubmitPrefix(primaryField, primaryFieldType string) (string, string) {
+	if builderRuntimeOpenLiteIsNumericField(primaryFieldType) {
+		field := builderRuntimeOpenLiteNumericFieldSemantics{name: primaryField, fieldType: primaryFieldType, role: builderRuntimeOpenLiteNumericFieldRole(primaryField)}
+		textVar := primaryField + "Text"
+		prefix := "    final " + textVar + " = _titleController.text.trim();"
+		prefix += "\n    final " + primaryField + " = " + builderRuntimeOpenLiteNumericParser(field) + "(" + textVar + ");"
+		prefix += "\n    if (" + primaryField + " == null) return;"
+		return prefix, primaryField
+	}
+	return "    final title = _titleController.text.trim(); if (title.isEmpty) return;", "title"
+}
+
+func builderRuntimeOpenLitePrimaryKeyboardArgument(primaryFieldType string) string {
+	if !builderRuntimeOpenLiteIsNumericField(primaryFieldType) {
+		return ""
+	}
+	field := builderRuntimeOpenLiteNumericFieldSemantics{fieldType: primaryFieldType}
+	return " keyboardType: " + builderRuntimeOpenLiteNumericKeyboardType(field) + ","
+}
+
 // builderRuntimeOpenLiteCanonicalGenericMutationPage 从 registry 生成 generic 表单页（支持 create + edit）。
 func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) string {
 	mutReg := builderRuntimeOpenLiteMutationSurfaceRegistry(workspacePath)
@@ -2764,6 +2835,7 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 	if primaryField == "" {
 		primaryField = "title"
 	}
+	primaryFieldType := strings.TrimSpace(fs.primaryTextFieldType)
 	secondaryField := strings.TrimSpace(fs.secondaryTextField)
 	if secondaryField == primaryField {
 		secondaryField = ""
@@ -2840,9 +2912,10 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 	if hasNote {
 		noteArg = ", " + noteField + ": _noteController.text.trim()"
 	}
-	schemaArgs := secondaryArg + statusArg + timeArg + noteArg
 	initParam := strings.TrimSpace(mutReg.view.constructorContract.initialParam)
 	hasEdit := initParam != "" && mutReg.view.capabilityFlags.supportsEdit
+	numericParts := builderRuntimeOpenLiteBuildNumericMutationParts(fs.numericFields, hasEdit, initParam)
+	schemaArgs := secondaryArg + statusArg + timeArg + numericParts.args + noteArg
 	_, _, updateMethod, _ := builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, modelType)
 	extraParam := ""
 	extraField := ""
@@ -2874,10 +2947,12 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 		submitLabel = "openLiteCopy.editSubmitLabel"
 	}
 	submitBody := ""
+	primarySubmitPrefix, primaryArgValue := builderRuntimeOpenLitePrimarySubmitPrefix(primaryField, primaryFieldType)
+	submitPrefix := primarySubmitPrefix + numericParts.submit
 	if hasEdit {
-		submitBody = "    final title = _titleController.text.trim(); if (title.isEmpty) return;\n    final record = widget." + initParam + "!.copyWith(" + primaryField + ": title" + schemaArgs + ");\n    await widget." + repoParam + "." + updateMethod + "(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
+		submitBody = submitPrefix + "\n    final record = widget." + initParam + "!.copyWith(" + primaryField + ": " + primaryArgValue + schemaArgs + ");\n    await widget." + repoParam + "." + updateMethod + "(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
 	} else {
-		submitBody = "    final title = _titleController.text.trim(); if (title.isEmpty) return;\n    final record = " + modelType + "(" + primaryField + ": title" + schemaArgs + ");\n    await widget." + repoParam + ".addRecord(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
+		submitBody = submitPrefix + "\n    final record = " + modelType + "(" + primaryField + ": " + primaryArgValue + schemaArgs + ");\n    await widget." + repoParam + ".addRecord(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
 	}
 	return strings.Join([]string{
 		"import 'package:flutter/material.dart';",
@@ -2888,15 +2963,15 @@ func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) st
 		"  @override State<" + className + "> createState() => _" + className + "State();",
 		"}", "",
 		"class _" + className + "State extends State<" + className + "> {",
-		"  late final TextEditingController _titleController;" + secondaryDecl + noteDecl + statusDecl + timeDecl,
-		"  @override void initState() { super.initState();", titleInit + secondaryInit + statusInit + timeInit + nodeInit, "  }",
-		"  @override void dispose() { _titleController.dispose();" + secondaryDispose + nodedisp + " super.dispose(); }",
+		"  late final TextEditingController _titleController;" + secondaryDecl + numericParts.decl + noteDecl + statusDecl + timeDecl,
+		"  @override void initState() { super.initState();", titleInit + secondaryInit + statusInit + timeInit + numericParts.init + nodeInit, "  }",
+		"  @override void dispose() { _titleController.dispose();" + secondaryDispose + numericParts.dispose + nodedisp + " super.dispose(); }",
 		pickDateMethod,
 		"  Future<void> _submit() async {", submitBody, "  }",
 		"  @override Widget build(BuildContext context) {",
 		"    return Scaffold(appBar: AppBar(title: Text(" + pageTitle + ")),",
 		"      body: ListView(padding: const EdgeInsets.all(20), children: [",
-		"        TextField(controller: _titleController, key: const Key('title-field'), decoration: InputDecoration(labelText: openLiteCopy.titleFieldLabel))," + secondaryBody + statusBody + timeBody + notebody,
+		"        TextField(controller: _titleController, key: const Key('title-field')," + builderRuntimeOpenLitePrimaryKeyboardArgument(primaryFieldType) + " decoration: InputDecoration(labelText: openLiteCopy.titleFieldLabel))," + secondaryBody + statusBody + timeBody + numericParts.body + notebody,
 		"        const SizedBox(height: 24),",
 		"        ElevatedButton(onPressed: _submit, child: Text(" + submitLabel + ")),",
 		"      ]),",
@@ -2934,6 +3009,7 @@ func builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath string) st
 	if primaryField == "" {
 		primaryField = "title"
 	}
+	primaryFieldType := strings.TrimSpace(fs.primaryTextFieldType)
 	statusField := strings.TrimSpace(fs.statusField)
 	statusEnumType := strings.TrimSpace(fs.statusEnumType)
 	completedStatusMember := builderRuntimeOpenLiteCompletedStatusMember(workspacePath, statusEnumType)
@@ -2956,7 +3032,7 @@ func builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath string) st
 		summaryCard += "\n                      doneCount: " + ctrlParam + ".records.where((r) => r." + statusField + " == " + statusEnumType + "." + completedStatusMember + ").length,"
 	}
 	summaryCard += "\n                    ),\n                    const SizedBox(height: 16),"
-	recentPreview := "                    if (" + ctrlParam + ".records.isNotEmpty)\n                      Padding(padding: const EdgeInsets.only(bottom: 16),\n                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [\n                          Text(openLiteCopy.recentRecordsTitle, style: Theme.of(context).textTheme.titleMedium),\n                          const SizedBox(height: 8),\n                          ...List<Widget>.generate(" + ctrlParam + ".records.length.clamp(0, 3), (index) { final r = " + ctrlParam + ".records[index];\n                            return ListTile(dense: true, title: Text(r." + primaryField + "), contentPadding: EdgeInsets.zero);\n                          }),\n                        ],),\n                      ),"
+	recentPreview := "                    if (" + ctrlParam + ".records.isNotEmpty)\n                      Padding(padding: const EdgeInsets.only(bottom: 16),\n                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [\n                          Text(openLiteCopy.recentRecordsTitle, style: Theme.of(context).textTheme.titleMedium),\n                          const SizedBox(height: 8),\n                          ...List<Widget>.generate(" + ctrlParam + ".records.length.clamp(0, 3), (index) { final r = " + ctrlParam + ".records[index];\n                            return ListTile(dense: true, title: Text(" + builderRuntimeOpenLiteValueDisplayExpression("r."+primaryField, primaryFieldType) + "), contentPadding: EdgeInsets.zero);\n                          }),\n                        ],),\n                      ),"
 	return strings.Join([]string{
 		"import 'package:flutter/material.dart';",
 		"", "import '" + ctrlImportPath + "';", modelImport, "import '" + copyImportPath + "';", "",
@@ -3690,12 +3766,15 @@ func builderRuntimeOpenLiteCollectionFieldSemantics(workspacePath string) builde
 		return builderRuntimeOpenLiteSurfaceRegistryFieldSemantics{}
 	}
 	fields := builderRuntimeOpenLiteDeclaredFields(recordContent)
+	primaryTextField := builderRuntimeOpenLitePrimaryTextField(fields)
 	semantics := builderRuntimeOpenLiteSurfaceRegistryFieldSemantics{
-		identifierField:    builderRuntimeOpenLiteIdentifierField(fields),
-		primaryTextField:   builderRuntimeOpenLitePrimaryTextField(fields),
-		secondaryTextField: builderRuntimeOpenLiteSecondaryTextField(fields),
-		timeField:          builderRuntimeOpenLiteTimeField(fields),
-		noteField:          builderRuntimeOpenLiteNoteField(fields),
+		identifierField:      builderRuntimeOpenLiteIdentifierField(fields),
+		primaryTextField:     primaryTextField,
+		primaryTextFieldType: builderRuntimeOpenLiteFieldTypeByName(fields, primaryTextField),
+		secondaryTextField:   builderRuntimeOpenLiteSecondaryTextField(fields),
+		timeField:            builderRuntimeOpenLiteTimeField(fields),
+		numericFields:        builderRuntimeOpenLiteNumericFields(fields),
+		noteField:            builderRuntimeOpenLiteNoteField(fields),
 	}
 	semantics.statusField, semantics.statusEnumType = builderRuntimeOpenLiteStatusField(fields)
 	semantics = builderRuntimeOpenLiteMergeDomainFieldSemantics(workspacePath, fields, semantics)
@@ -3738,6 +3817,7 @@ func builderRuntimeOpenLiteMergeDomainFieldSemantics(workspacePath string, field
 	}
 	if name, _, ok := domainFieldByRole("primary_text"); ok {
 		semantics.primaryTextField = name
+		semantics.primaryTextFieldType = builderRuntimeOpenLiteNormalizedFieldType(declaredByName[name].fieldType)
 	}
 	if name, _, ok := domainFieldByRole("secondary_text"); ok {
 		semantics.secondaryTextField = name
@@ -3752,7 +3832,61 @@ func builderRuntimeOpenLiteMergeDomainFieldSemantics(workspacePath string, field
 	if name, _, ok := domainFieldByRole("note"); ok {
 		semantics.noteField = name
 	}
+	semantics.numericFields = builderRuntimeOpenLiteMergeDomainNumericFieldSemantics(primaryEntity, declaredByName, semantics.numericFields)
+	semantics.numericFields = builderRuntimeOpenLiteFilterNumericFields(semantics.numericFields, semantics.primaryTextField)
 	return semantics
+}
+
+func builderRuntimeOpenLiteFilterNumericFields(fields []builderRuntimeOpenLiteNumericFieldSemantics, excludedNames ...string) []builderRuntimeOpenLiteNumericFieldSemantics {
+	excluded := make(map[string]struct{}, len(excludedNames))
+	for _, name := range excludedNames {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName != "" {
+			excluded[trimmedName] = struct{}{}
+		}
+	}
+	filtered := make([]builderRuntimeOpenLiteNumericFieldSemantics, 0, len(fields))
+	seen := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		if _, ok := excluded[field.name]; ok {
+			continue
+		}
+		if _, ok := seen[field.name]; ok {
+			continue
+		}
+		seen[field.name] = struct{}{}
+		filtered = append(filtered, field)
+	}
+	return filtered
+}
+
+func builderRuntimeOpenLiteMergeDomainNumericFieldSemantics(primaryEntity *appprepare.DataEntity, declaredByName map[string]builderRuntimeOpenLiteDeclaredField, current []builderRuntimeOpenLiteNumericFieldSemantics) []builderRuntimeOpenLiteNumericFieldSemantics {
+	if primaryEntity == nil || len(declaredByName) == 0 {
+		return current
+	}
+	merged := append([]builderRuntimeOpenLiteNumericFieldSemantics(nil), current...)
+	seen := make(map[string]struct{}, len(merged))
+	for _, field := range merged {
+		seen[field.name] = struct{}{}
+	}
+	for index := range primaryEntity.Fields {
+		field := primaryEntity.Fields[index]
+		role := strings.ToLower(strings.TrimSpace(field.Role))
+		if !builderRuntimeOpenLiteIsNumericRole(role) {
+			continue
+		}
+		dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+		declared, ok := declaredByName[dartName]
+		if !ok || !builderRuntimeOpenLiteIsNumericField(declared.fieldType) {
+			continue
+		}
+		if _, ok := seen[dartName]; ok {
+			continue
+		}
+		seen[dartName] = struct{}{}
+		merged = append(merged, builderRuntimeOpenLiteNumericFieldSemantics{name: dartName, fieldType: builderRuntimeOpenLiteNormalizedFieldType(declared.fieldType), role: role})
+	}
+	return merged
 }
 
 func builderRuntimeOpenLitePrimaryDomainEntity(dm appprepare.DomainModel) *appprepare.DataEntity {
@@ -3894,6 +4028,133 @@ func builderRuntimeOpenLiteNoteField(fields []builderRuntimeOpenLiteDeclaredFiel
 	return ""
 }
 
+func builderRuntimeOpenLiteNumericFields(fields []builderRuntimeOpenLiteDeclaredField) []builderRuntimeOpenLiteNumericFieldSemantics {
+	result := make([]builderRuntimeOpenLiteNumericFieldSemantics, 0)
+	for _, field := range fields {
+		if !builderRuntimeOpenLiteIsNumericField(field.fieldType) || builderRuntimeOpenLiteIsIdentifierField(field.name) {
+			continue
+		}
+		role := builderRuntimeOpenLiteNumericFieldRole(field.name)
+		if role == "" {
+			continue
+		}
+		result = append(result, builderRuntimeOpenLiteNumericFieldSemantics{name: field.name, fieldType: builderRuntimeOpenLiteNormalizedFieldType(field.fieldType), role: role})
+	}
+	return result
+}
+
+func builderRuntimeOpenLiteNumericFieldRole(name string) string {
+	lowerName := strings.ToLower(strings.TrimSpace(name))
+	switch {
+	case strings.Contains(lowerName, "rating") || strings.Contains(lowerName, "score"):
+		return "rating"
+	case strings.Contains(lowerName, "duration") || strings.Contains(lowerName, "minutes") || strings.Contains(lowerName, "hours"):
+		return "duration"
+	case strings.Contains(lowerName, "amount") || strings.Contains(lowerName, "price") || strings.Contains(lowerName, "cost") || strings.Contains(lowerName, "weight"):
+		return "amount"
+	default:
+		return ""
+	}
+}
+
+func builderRuntimeOpenLiteIsNumericField(fieldType string) bool {
+	switch builderRuntimeOpenLiteNormalizedFieldType(fieldType) {
+	case "int", "double", "num":
+		return true
+	default:
+		return false
+	}
+}
+
+func builderRuntimeOpenLiteIsNumericRole(role string) bool {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "rating", "duration", "amount", "number", "quantity":
+		return true
+	default:
+		return false
+	}
+}
+
+func builderRuntimeOpenLiteNumericFieldLabelGetter(field builderRuntimeOpenLiteNumericFieldSemantics) string {
+	switch strings.ToLower(strings.TrimSpace(field.role)) {
+	case "rating":
+		return "ratingFieldLabel"
+	case "duration":
+		return "durationFieldLabel"
+	default:
+		return "amountFieldLabel"
+	}
+}
+
+func builderRuntimeOpenLiteNumericDetailLabelGetter(field builderRuntimeOpenLiteNumericFieldSemantics) string {
+	switch strings.ToLower(strings.TrimSpace(field.role)) {
+	case "rating":
+		return "detailRatingLabel"
+	case "duration":
+		return "detailDurationLabel"
+	default:
+		return "detailAmountLabel"
+	}
+}
+
+func builderRuntimeOpenLiteNumericFieldKey(field builderRuntimeOpenLiteNumericFieldSemantics) string {
+	role := strings.ToLower(strings.TrimSpace(field.role))
+	if role != "" {
+		return role + "-field"
+	}
+	name := builderRuntimeOpenLiteIdentifierSnakeCase(field.name)
+	if name == "" {
+		return "number-field"
+	}
+	return strings.ReplaceAll(name, "_", "-") + "-field"
+}
+
+func builderRuntimeOpenLiteNumericKeyboardType(field builderRuntimeOpenLiteNumericFieldSemantics) string {
+	switch builderRuntimeOpenLiteNormalizedFieldType(field.fieldType) {
+	case "double", "num":
+		return "const TextInputType.numberWithOptions(decimal: true)"
+	default:
+		return "TextInputType.number"
+	}
+}
+
+func builderRuntimeOpenLiteNumericParser(field builderRuntimeOpenLiteNumericFieldSemantics) string {
+	switch builderRuntimeOpenLiteNormalizedFieldType(field.fieldType) {
+	case "int":
+		return "int.tryParse"
+	case "num":
+		return "num.tryParse"
+	default:
+		return "double.tryParse"
+	}
+}
+
+func builderRuntimeOpenLiteNumericDisplayExpression(accessor string, field builderRuntimeOpenLiteNumericFieldSemantics) string {
+	trimmedAccessor := strings.TrimSpace(accessor)
+	if trimmedAccessor == "" {
+		return "''"
+	}
+	if builderRuntimeOpenLiteNormalizedFieldType(field.fieldType) == "double" {
+		return trimmedAccessor + ".toStringAsFixed(1)"
+	}
+	return trimmedAccessor + ".toString()"
+}
+
+func builderRuntimeOpenLiteValueDisplayExpression(accessor, fieldType string) string {
+	trimmedAccessor := strings.TrimSpace(accessor)
+	if trimmedAccessor == "" {
+		return "''"
+	}
+	switch builderRuntimeOpenLiteNormalizedFieldType(fieldType) {
+	case "", "String":
+		return trimmedAccessor
+	case "double":
+		return trimmedAccessor + ".toStringAsFixed(1)"
+	default:
+		return trimmedAccessor + ".toString()"
+	}
+}
+
 func builderRuntimeOpenLiteStatusCopyLabelMethodName(workspacePath, statusType string) string {
 	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
 	trimmedStatusType := strings.TrimSpace(statusType)
@@ -3975,6 +4236,14 @@ func builderRuntimeOpenLiteFieldByName(fields []builderRuntimeOpenLiteDeclaredFi
 		}
 	}
 	return nil
+}
+
+func builderRuntimeOpenLiteFieldTypeByName(fields []builderRuntimeOpenLiteDeclaredField, name string) string {
+	field := builderRuntimeOpenLiteFieldByName(fields, name)
+	if field == nil {
+		return ""
+	}
+	return builderRuntimeOpenLiteNormalizedFieldType(field.fieldType)
 }
 
 func builderRuntimeOpenLiteNormalizedFieldType(fieldType string) string {

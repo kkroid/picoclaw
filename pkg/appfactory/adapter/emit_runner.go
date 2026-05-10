@@ -628,6 +628,9 @@ func emitGenericSummaryConstructorArgs(entities []appprepare.DataEntity, classNa
 func emitGenericSummaryDefaultValue(field appprepare.DataField, primaryEnt *appprepare.DataEntity) string {
 	dartType := emitFieldToDartType(field.Type, emitSnakeToCamel(strings.TrimSpace(field.Name)))
 	fieldName := strings.ToLower(strings.TrimSpace(field.Name))
+	if expr := emitGenericSummaryNumericExpression(fieldName, primaryEnt, dartType); expr != "" {
+		return expr
+	}
 	if dartType == "int" && (fieldName == "total_count" || fieldName == "record_count" || strings.HasPrefix(fieldName, "total_")) {
 		return "records.length"
 	}
@@ -647,6 +650,64 @@ func emitGenericSummaryDefaultValue(field appprepare.DataField, primaryEnt *appp
 		return "DateTime.now()"
 	default:
 		return "''"
+	}
+}
+
+func emitGenericSummaryNumericExpression(summaryFieldName string, primaryEnt *appprepare.DataEntity, dartType string) string {
+	if primaryEnt == nil {
+		return ""
+	}
+	if strings.Contains(summaryFieldName, "average") || strings.Contains(summaryFieldName, "avg") {
+		field := emitGenericNumericSourceField(primaryEnt, summaryFieldName, "rating", "amount", "number", "duration")
+		if field == nil {
+			return ""
+		}
+		accessor := "record." + emitSnakeToCamel(field.Name)
+		zero := "0"
+		if dartType == "double" {
+			zero = "0.0"
+		}
+		return "records.isEmpty ? " + zero + " : records.fold<double>(0.0, (sum, record) => sum + " + accessor + ") / records.length"
+	}
+	if strings.Contains(summaryFieldName, "duration") || strings.Contains(summaryFieldName, "minutes") || strings.Contains(summaryFieldName, "hours") {
+		field := emitGenericNumericSourceField(primaryEnt, summaryFieldName, "duration")
+		if field == nil {
+			return ""
+		}
+		accessor := "record." + emitSnakeToCamel(field.Name)
+		if dartType == "double" {
+			return "records.fold<double>(0.0, (sum, record) => sum + " + accessor + ")"
+		}
+		return "records.fold<int>(0, (sum, record) => sum + " + accessor + ")"
+	}
+	return ""
+}
+
+func emitGenericNumericSourceField(ent *appprepare.DataEntity, summaryFieldName string, roles ...string) *appprepare.DataField {
+	for _, role := range roles {
+		if strings.Contains(summaryFieldName, strings.ReplaceAll(role, "_", "")) || strings.Contains(summaryFieldName, role) {
+			if field := emitGenericRoleField(ent, role); field != nil && emitGenericIsNumericField(field) {
+				return field
+			}
+		}
+	}
+	for _, role := range roles {
+		if field := emitGenericRoleField(ent, role); field != nil && emitGenericIsNumericField(field) {
+			return field
+		}
+	}
+	return nil
+}
+
+func emitGenericIsNumericField(field *appprepare.DataField) bool {
+	if field == nil {
+		return false
+	}
+	switch emitFieldToDartType(field.Type, emitSnakeToCamel(strings.TrimSpace(field.Name))) {
+	case "int", "double":
+		return true
+	default:
+		return false
 	}
 }
 

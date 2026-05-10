@@ -68,6 +68,36 @@ func emitRunnerTemplateSlot(bindingID, slotID, slotKind, overridePolicy string, 
 	}
 }
 
+func TestEmitGenericSummaryDefaultValueUsesNumericAggregates(t *testing.T) {
+	primaryEntity := &appprepare.DataEntity{Fields: []appprepare.DataField{
+		{Name: "rating", Type: "double", Role: "rating"},
+		{Name: "duration_minutes", Type: "int", Role: "duration"},
+	}}
+	tests := []struct {
+		name  string
+		field appprepare.DataField
+		want  string
+	}{
+		{
+			name:  "average rating",
+			field: appprepare.DataField{Name: "average_rating", Type: "double", Role: "metric_source"},
+			want:  "records.isEmpty ? 0.0 : records.fold<double>(0.0, (sum, record) => sum + record.rating) / records.length",
+		},
+		{
+			name:  "total duration",
+			field: appprepare.DataField{Name: "total_duration_minutes", Type: "int", Role: "metric_source"},
+			want:  "records.fold<int>(0, (sum, record) => sum + record.durationMinutes)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := emitGenericSummaryDefaultValue(tt.field, primaryEntity); got != tt.want {
+				t.Fatalf("emitGenericSummaryDefaultValue() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTryDeterministicEmitCopySuccess(t *testing.T) {
 	jobRoot := t.TempDir()
 	workspace := filepath.Join(jobRoot, "workspace")

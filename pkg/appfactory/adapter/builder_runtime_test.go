@@ -456,6 +456,7 @@ func TestBuilderRuntimeOpenLiteCollectionFieldSemanticsPreferDomainModelRoles(t 
 		"        {\"name\": \"genre\", \"role\": \"secondary_text\"},",
 		"        {\"name\": \"watch_status\", \"role\": \"status\"},",
 		"        {\"name\": \"next_due_at\", \"role\": \"due_date\"},",
+		"        {\"name\": \"rating\", \"role\": \"rating\"},",
 		"        {\"name\": \"review\", \"role\": \"note\"}",
 		"      ]",
 		"    }",
@@ -465,12 +466,13 @@ func TestBuilderRuntimeOpenLiteCollectionFieldSemanticsPreferDomainModelRoles(t 
 		"lib/models/record.dart": strings.Join([]string{
 			"enum MovieRecordWatchStatus { planned, watching, watched }",
 			"class MovieRecord {",
-			"  const MovieRecord({required this.movieRecordId, required this.movieTitle, required this.genre, required this.watchStatus, required this.nextDueAt, required this.review});",
+			"  const MovieRecord({required this.movieRecordId, required this.movieTitle, required this.genre, required this.watchStatus, required this.nextDueAt, required this.rating, required this.review});",
 			"  final String movieRecordId;",
 			"  final String movieTitle;",
 			"  final String genre;",
 			"  final MovieRecordWatchStatus watchStatus;",
 			"  final DateTime nextDueAt;",
+			"  final double rating;",
 			"  final String review;",
 			"}",
 		}, "\n") + "\n",
@@ -478,27 +480,32 @@ func TestBuilderRuntimeOpenLiteCollectionFieldSemanticsPreferDomainModelRoles(t 
 
 	semantics := builderRuntimeOpenLiteCollectionFieldSemantics(workspacePath)
 	checks := map[string]string{
-		"identifierField":    semantics.identifierField,
-		"primaryTextField":   semantics.primaryTextField,
-		"secondaryTextField": semantics.secondaryTextField,
-		"statusField":        semantics.statusField,
-		"statusEnumType":     semantics.statusEnumType,
-		"timeField":          semantics.timeField,
-		"noteField":          semantics.noteField,
+		"identifierField":      semantics.identifierField,
+		"primaryTextField":     semantics.primaryTextField,
+		"primaryTextFieldType": semantics.primaryTextFieldType,
+		"secondaryTextField":   semantics.secondaryTextField,
+		"statusField":          semantics.statusField,
+		"statusEnumType":       semantics.statusEnumType,
+		"timeField":            semantics.timeField,
+		"noteField":            semantics.noteField,
 	}
 	wants := map[string]string{
-		"identifierField":    "movieRecordId",
-		"primaryTextField":   "movieTitle",
-		"secondaryTextField": "genre",
-		"statusField":        "watchStatus",
-		"statusEnumType":     "MovieRecordWatchStatus",
-		"timeField":          "nextDueAt",
-		"noteField":          "review",
+		"identifierField":      "movieRecordId",
+		"primaryTextField":     "movieTitle",
+		"primaryTextFieldType": "String",
+		"secondaryTextField":   "genre",
+		"statusField":          "watchStatus",
+		"statusEnumType":       "MovieRecordWatchStatus",
+		"timeField":            "nextDueAt",
+		"noteField":            "review",
 	}
 	for name, want := range wants {
 		if got := checks[name]; got != want {
 			t.Fatalf("builderRuntimeOpenLiteCollectionFieldSemantics().%s = %q, want %q", name, got, want)
 		}
+	}
+	if len(semantics.numericFields) != 1 || semantics.numericFields[0].name != "rating" || semantics.numericFields[0].role != "rating" {
+		t.Fatalf("builderRuntimeOpenLiteCollectionFieldSemantics().numericFields = %#v, want rating role", semantics.numericFields)
 	}
 }
 
@@ -566,6 +573,7 @@ func TestBuilderRuntimeOpenLiteGenericInspectionUsesDomainRoleNote(t *testing.T)
 		"        {\"name\": \"movie_title\", \"role\": \"primary_text\"},",
 		"        {\"name\": \"genre\", \"role\": \"secondary_text\"},",
 		"        {\"name\": \"watch_status\", \"role\": \"status\"},",
+		"        {\"name\": \"rating\", \"role\": \"rating\"},",
 		"        {\"name\": \"review\", \"role\": \"note\"}",
 		"      ]",
 		"    }",
@@ -575,11 +583,12 @@ func TestBuilderRuntimeOpenLiteGenericInspectionUsesDomainRoleNote(t *testing.T)
 		"lib/models/record.dart": strings.Join([]string{
 			"enum MovieRecordWatchStatus { planned, watching, watched }",
 			"class MovieRecord {",
-			"  const MovieRecord({required this.movieRecordId, required this.movieTitle, required this.genre, required this.watchStatus, required this.review});",
+			"  const MovieRecord({required this.movieRecordId, required this.movieTitle, required this.genre, required this.watchStatus, required this.rating, required this.review});",
 			"  final String movieRecordId;",
 			"  final String movieTitle;",
 			"  final String genre;",
 			"  final MovieRecordWatchStatus watchStatus;",
+			"  final double rating;",
 			"  final String review;",
 			"}",
 		}, "\n") + "\n",
@@ -588,6 +597,7 @@ func TestBuilderRuntimeOpenLiteGenericInspectionUsesDomainRoleNote(t *testing.T)
 	content := builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePath, true)
 	for _, want := range []string{
 		"_InfoTile(label: openLiteCopy.detailCategoryLabel, value: record.genre)",
+		"_InfoTile(label: openLiteCopy.detailRatingLabel, value: record.rating.toStringAsFixed(1))",
 		"_InfoTile(label: openLiteCopy.detailNoteLabel, value: record.review.trim().isEmpty ? openLiteCopy.emptyNoteLabel : record.review.trim(), multiline: true)",
 		"this.multiline = false",
 	} {
@@ -597,6 +607,105 @@ func TestBuilderRuntimeOpenLiteGenericInspectionUsesDomainRoleNote(t *testing.T)
 	}
 	if strings.Contains(content, "record.category") || strings.Contains(content, "record.note") {
 		t.Fatalf("builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete() should not fall back to literal category/note fields: %q", content)
+	}
+	listContent := builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath)
+	if !strings.Contains(listContent, "record.rating.toStringAsFixed(1)") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalNoFilterListPage() should include rating in list subtitle: %q", listContent)
+	}
+}
+
+func TestBuilderRuntimeOpenLiteGenericMutationUsesNumericRoleFields(t *testing.T) {
+	workspacePath := createBuilderRuntimeWorkspaceWithDomainModel(t, strings.Join([]string{
+		"{",
+		"  \"entities\": [",
+		"    {",
+		"      \"source\": \"local_storage\",",
+		"      \"fields\": [",
+		"        {\"name\": \"workout_record_id\", \"role\": \"identifier\"},",
+		"        {\"name\": \"workout_name\", \"role\": \"primary_text\"},",
+		"        {\"name\": \"duration_minutes\", \"role\": \"duration\"},",
+		"        {\"name\": \"rating\", \"role\": \"rating\"}",
+		"      ]",
+		"    }",
+		"  ]",
+		"}",
+	}, "\n"), map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"class WorkoutSession {",
+			"  const WorkoutSession({required this.workoutRecordId, required this.workoutName, required this.durationMinutes, required this.rating});",
+			"  final String workoutRecordId;",
+			"  final String workoutName;",
+			"  final int durationMinutes;",
+			"  final double rating;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	content := builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath)
+	for _, want := range []string{
+		"late final TextEditingController _durationMinutesController;",
+		"late final TextEditingController _ratingController;",
+		"key: const Key('duration-field')",
+		"key: const Key('rating-field')",
+		"keyboardType: TextInputType.number",
+		"keyboardType: const TextInputType.numberWithOptions(decimal: true)",
+		"final durationMinutes = int.tryParse",
+		"final rating = double.tryParse",
+		"durationMinutes: durationMinutes",
+		"rating: rating",
+		"openLiteCopy.durationFieldLabel",
+		"openLiteCopy.ratingFieldLabel",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("builderRuntimeOpenLiteCanonicalGenericMutationPage() missing numeric field marker %q: %q", want, content)
+		}
+	}
+}
+
+func TestBuilderRuntimeOpenLiteGenericMutationParsesNumericPrimaryField(t *testing.T) {
+	workspacePath := createBuilderRuntimeWorkspaceWithDomainModel(t, strings.Join([]string{
+		"{",
+		"  \"entities\": [",
+		"    {",
+		"      \"source\": \"local_storage\",",
+		"      \"fields\": [",
+		"        {\"name\": \"record_id\", \"role\": \"identifier\"},",
+		"        {\"name\": \"weight\", \"role\": \"primary_text\"},",
+		"        {\"name\": \"recorded_at\", \"role\": \"date\"}",
+		"      ]",
+		"    }",
+		"  ]",
+		"}",
+	}, "\n"), map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"class WeightRecord {",
+			"  const WeightRecord({required this.recordId, required this.weight, required this.recordedAt});",
+			"  final String recordId;",
+			"  final double weight;",
+			"  final DateTime recordedAt;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	formContent := builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath)
+	for _, want := range []string{
+		"keyboardType: const TextInputType.numberWithOptions(decimal: true)",
+		"final weightText = _titleController.text.trim();",
+		"final weight = double.tryParse(weightText);",
+		"if (weight == null) return;",
+		"WeightRecord(weight: weight",
+	} {
+		if !strings.Contains(formContent, want) {
+			t.Fatalf("builderRuntimeOpenLiteCanonicalGenericMutationPage() missing numeric primary marker %q: %q", want, formContent)
+		}
+	}
+	listContent := builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath)
+	if !strings.Contains(listContent, "record.weight.toStringAsFixed(1)") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalNoFilterListPage() should stringify numeric primary field: %q", listContent)
+	}
+	detailContent := builderRuntimeOpenLiteCanonicalGenericInspectionPage(workspacePath)
+	if !strings.Contains(detailContent, "title: record.weight.toStringAsFixed(1)") {
+		t.Fatalf("builderRuntimeOpenLiteCanonicalGenericInspectionPage() should stringify numeric primary field: %q", detailContent)
 	}
 }
 
