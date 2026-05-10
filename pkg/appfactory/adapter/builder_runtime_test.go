@@ -562,6 +562,78 @@ func TestBuilderRuntimeOpenLiteGenericOverviewOmitsDoneCountWithoutStatus(t *tes
 	}
 }
 
+func TestBuilderRuntimeOpenLiteGenericOverviewUsesSummaryModelFields(t *testing.T) {
+	workspacePath := t.TempDir()
+	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"enum WorkoutSessionCompletionStatus { planned, completed }",
+			"class WorkoutSession {",
+			"  const WorkoutSession({required this.workoutRecordId, required this.workoutName, required this.completionStatus});",
+			"  final String workoutRecordId;",
+			"  final String workoutName;",
+			"  final WorkoutSessionCompletionStatus completionStatus;",
+			"}",
+		}, "\n") + "\n",
+		"lib/models/dashboard_summary.dart": strings.Join([]string{
+			"class WorkoutSummary {",
+			"  const WorkoutSummary({this.totalSessions = 0, this.completedCount = 0, this.totalDurationMinutes = 0});",
+			"  final int totalSessions;",
+			"  final int completedCount;",
+			"  final int totalDurationMinutes;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	content := builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath)
+	for _, want := range []string{
+		"metrics: [",
+		"openLiteCopy.summaryTotalDurationMinutesLabel",
+		"controller.summary.totalDurationMinutes.toString()",
+		"final List<_SummaryMetric> metrics;",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("builderRuntimeOpenLiteCanonicalGenericOverviewPage() missing summary marker %q: %q", want, content)
+		}
+	}
+	for _, forbidden := range []string{"doneFilterLabel", "WorkoutSessionCompletionStatus.completed"} {
+		if strings.Contains(content, forbidden) {
+			t.Fatalf("builderRuntimeOpenLiteCanonicalGenericOverviewPage() should prefer summary metrics over status-only marker %q: %q", forbidden, content)
+		}
+	}
+}
+
+func TestBuilderRuntimeOpenLiteGenericOverviewControllerLoadsSummary(t *testing.T) {
+	workspacePath := t.TempDir()
+	writeBuilderRuntimeWorkspaceFiles(t, workspacePath, map[string]string{
+		"lib/models/record.dart": strings.Join([]string{
+			"class WorkoutSession {",
+			"  const WorkoutSession({required this.workoutRecordId, required this.workoutName});",
+			"  final String workoutRecordId;",
+			"  final String workoutName;",
+			"}",
+		}, "\n") + "\n",
+		"lib/models/dashboard_summary.dart": strings.Join([]string{
+			"class WorkoutSummary {",
+			"  const WorkoutSummary({this.totalSessions = 0, this.totalDurationMinutes = 0});",
+			"  final int totalSessions;",
+			"  final int totalDurationMinutes;",
+			"}",
+		}, "\n") + "\n",
+	})
+
+	content := builderRuntimeOpenLiteCanonicalGenericOverviewController(workspacePath)
+	for _, want := range []string{
+		"import '../models/dashboard_summary.dart';",
+		"WorkoutSummary _summary = const WorkoutSummary();",
+		"WorkoutSummary get summary => _summary;",
+		"_summary = await _repository.loadSummary();",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("builderRuntimeOpenLiteCanonicalGenericOverviewController() missing summary marker %q: %q", want, content)
+		}
+	}
+}
+
 func TestBuilderRuntimeOpenLiteGenericInspectionUsesDomainRoleNote(t *testing.T) {
 	workspacePath := createBuilderRuntimeWorkspaceWithDomainModel(t, strings.Join([]string{
 		"{",

@@ -186,6 +186,9 @@ func TestEmitCopyGenericWithDuration(t *testing.T) {
 				{Name: "duration_minutes", Type: "int", Role: "duration", Description: "训练时长分钟数"},
 				{Name: "note", Type: "string", Role: "note", Description: "补充备注"},
 			}},
+			{EntityID: "entity-workout-summary", Name: "训练摘要", Source: "derived", Fields: []appprepare.DataField{
+				{Name: "total_duration_minutes", Type: "int", Description: "累计训练分钟"},
+			}},
 		},
 	}
 	result, ok := EmitCopy(dm)
@@ -195,6 +198,7 @@ func TestEmitCopyGenericWithDuration(t *testing.T) {
 	for _, marker := range []string{
 		"String get durationFieldLabel => '训练时长分钟数';",
 		"String get detailDurationLabel => durationFieldLabel;",
+		"String get summaryTotalDurationMinutesLabel => '累计训练分钟';",
 	} {
 		if !strings.Contains(result.Content, marker) {
 			t.Fatalf("content missing duration generic marker: %s", marker)

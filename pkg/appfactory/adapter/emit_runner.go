@@ -524,20 +524,36 @@ func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainMode
 		"  }",
 	}
 	loadSummaryMethod := ""
+	loadSummaryInterfaceMethod := ""
+	inMemoryLoadSummaryMethod := ""
 	if summaryImport != "" {
 		summaryArgs := emitGenericSummaryConstructorArgs(dm.Entities, countClass, primaryEnt)
 		summaryArgBlock := strings.Join(summaryArgs, "\n")
 		summarySetup := ""
+		inMemorySummarySetup := ""
 		if strings.Contains(summaryArgBlock, "records") {
 			summarySetup = strings.Join([]string{
 				"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
 				"    final records = _recordBox!.values.toList();",
 			}, "\n")
+			inMemorySummarySetup = "    final records = List<" + recordClass + ">.unmodifiable(_records);"
 		}
-		loadSummaryMethod = "\n" + strings.Join([]string{
+		loadSummaryInterfaceMethod = "  Future<" + countClass + "> loadSummary();"
+		loadSummaryMethod = strings.Join([]string{
 			"",
+			"  @override",
 			"  Future<" + countClass + "> loadSummary() async {",
 			summarySetup,
+			"    return " + countClass + "(",
+			summaryArgBlock,
+			"    );",
+			"  }",
+		}, "\n")
+		inMemoryLoadSummaryMethod = strings.Join([]string{
+			"",
+			"  @override",
+			"  Future<" + countClass + "> loadSummary() async {",
+			inMemorySummarySetup,
 			"    return " + countClass + "(",
 			summaryArgBlock,
 			"    );",
@@ -556,6 +572,7 @@ func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainMode
 		"  Future<void> addRecord(" + recordClass + " record);",
 		"  Future<void> updateRecord(" + recordClass + " record);",
 		"  Future<void> deleteRecord(String recordId);",
+		loadSummaryInterfaceMethod,
 		"}",
 		"",
 		"class " + repoClass + " implements " + repoInterface + " {",
@@ -602,6 +619,7 @@ func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainMode
 		"  Future<void> deleteRecord(String recordId) async {",
 		"    _records.removeWhere((record) => record." + identifierField + " == recordId);",
 		"  }",
+		inMemoryLoadSummaryMethod,
 		"}",
 	}, "\n") + "\n"
 }

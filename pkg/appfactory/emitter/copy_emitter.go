@@ -204,6 +204,18 @@ func renderGenericCopy(dm appprepare.DomainModel, appTitle string) string {
 			"",
 		)
 	}
+	if summaryEntity != nil {
+		for _, field := range summaryEntity.Fields {
+			getterName := genericCopySummaryMetricLabelGetter(field.Name)
+			if getterName == "" {
+				continue
+			}
+			lines = append(lines,
+				"  String get "+getterName+" => "+dartSingleQuotedString(genericCopyFieldLabel(&field, field.Name))+";",
+				"",
+			)
+		}
+	}
 	lines = append(lines,
 		"  String get detailNoteLabel => noteFieldLabel;",
 		"",
@@ -313,6 +325,29 @@ func genericCopyFieldLabel(field *appprepare.DataField, fallback string) string 
 		return name
 	}
 	return fallback
+}
+
+func genericCopySummaryMetricLabelGetter(fieldName string) string {
+	camelName := genericCopySnakeToCamel(fieldName)
+	if camelName == "" {
+		return ""
+	}
+	return "summary" + strings.ToUpper(camelName[:1]) + camelName[1:] + "Label"
+}
+
+func genericCopySnakeToCamel(value string) string {
+	parts := strings.Split(strings.TrimSpace(value), "_")
+	for index, part := range parts {
+		if part == "" {
+			continue
+		}
+		if index == 0 {
+			parts[index] = strings.ToLower(part[:1]) + part[1:]
+			continue
+		}
+		parts[index] = strings.ToUpper(part[:1]) + part[1:]
+	}
+	return strings.Join(parts, "")
 }
 
 func dartSingleQuotedString(value string) string {

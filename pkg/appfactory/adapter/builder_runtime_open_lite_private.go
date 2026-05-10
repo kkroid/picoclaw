@@ -91,6 +91,11 @@ type builderRuntimeOpenLiteNumericFieldSemantics struct {
 	role      string
 }
 
+type builderRuntimeOpenLiteSummaryModelSnapshot struct {
+	className string
+	fields    []builderRuntimeOpenLiteDeclaredField
+}
+
 type builderRuntimeOpenLiteSurfaceRegistryFallbackMode string
 
 const (
@@ -3014,22 +3019,35 @@ func builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath string) st
 	statusEnumType := strings.TrimSpace(fs.statusEnumType)
 	completedStatusMember := builderRuntimeOpenLiteCompletedStatusMember(workspacePath, statusEnumType)
 	hasCompletedStatus := statusField != "" && statusEnumType != "" && completedStatusMember != ""
+	summaryModel := builderRuntimeOpenLiteSummaryModelSemantics(workspacePath)
+	hasSummaryMetrics := len(summaryModel.fields) > 0
+	hasDoneCount := hasCompletedStatus && !hasSummaryMetrics
 	ctrlImportPath := strings.TrimSpace(ovReg.view.controllerImportPath)
 	if ctrlImportPath == "" {
 		ctrlImportPath = "../controllers/home_controller.dart"
 	}
 	copyImportPath := builderRuntimeOpenLiteRelativeImport(strings.TrimSpace(ovReg.view.resolvedPath), "lib/template/open_lite_copy.dart", "../template/open_lite_copy.dart")
 	modelImport := ""
-	if hasCompletedStatus {
+	if hasDoneCount {
 		modelImportPath := strings.TrimSpace(colReg.view.modelImportPath)
 		if modelImportPath == "" {
 			modelImportPath = "../models/record.dart"
 		}
 		modelImport = "import '" + modelImportPath + "';"
 	}
-	summaryCard := "                    _SummaryCard(totalCount: " + ctrlParam + ".records.length,"
-	if hasCompletedStatus {
+	totalCountExpression := ctrlParam + ".records.length"
+	for _, field := range summaryModel.fields {
+		if field.name == "totalCount" {
+			totalCountExpression = ctrlParam + ".summary.totalCount"
+			break
+		}
+	}
+	summaryCard := "                    _SummaryCard(totalCount: " + totalCountExpression + ","
+	if hasDoneCount {
 		summaryCard += "\n                      doneCount: " + ctrlParam + ".records.where((r) => r." + statusField + " == " + statusEnumType + "." + completedStatusMember + ").length,"
+	}
+	if hasSummaryMetrics {
+		summaryCard += "\n                      metrics: [\n" + builderRuntimeOpenLiteSummaryMetricItems(ctrlParam+".summary", summaryModel.fields) + "\n                      ],"
 	}
 	summaryCard += "\n                    ),\n                    const SizedBox(height: 16),"
 	recentPreview := "                    if (" + ctrlParam + ".records.isNotEmpty)\n                      Padding(padding: const EdgeInsets.only(bottom: 16),\n                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [\n                          Text(openLiteCopy.recentRecordsTitle, style: Theme.of(context).textTheme.titleMedium),\n                          const SizedBox(height: 8),\n                          ...List<Widget>.generate(" + ctrlParam + ".records.length.clamp(0, 3), (index) { final r = " + ctrlParam + ".records[index];\n                            return ListTile(dense: true, title: Text(" + builderRuntimeOpenLiteValueDisplayExpression("r."+primaryField, primaryFieldType) + "), contentPadding: EdgeInsets.zero);\n                          }),\n                        ],),\n                      ),"
@@ -3065,41 +3083,86 @@ func builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath string) st
 		"    ]);",
 		"  }", "}", "",
 		"class _SummaryCard extends StatelessWidget {",
-		builderRuntimeOpenLiteSummaryCardConstructor(hasCompletedStatus),
-		builderRuntimeOpenLiteSummaryCardFields(hasCompletedStatus),
+		builderRuntimeOpenLiteSummaryCardConstructor(hasDoneCount, hasSummaryMetrics),
+		builderRuntimeOpenLiteSummaryCardFields(hasDoneCount, hasSummaryMetrics),
 		"  @override Widget build(BuildContext context) {",
 		"    final colors = Theme.of(context).colorScheme;",
 		"    return Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), color: colors.primaryContainer),",
-		"      child: Row(children: [",
-		"        Text('$totalCount', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: colors.onPrimaryContainer)),",
-		"        const SizedBox(width: 12),",
-		"        Text(openLiteCopy.summaryCountLabel(totalCount), style: TextStyle(color: colors.onPrimaryContainer.withValues(alpha: 0.8))),",
-		builderRuntimeOpenLiteSummaryCardDoneChildren(hasCompletedStatus),
+		"      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [",
+		"        Row(children: [",
+		"          Text('$totalCount', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: colors.onPrimaryContainer)),",
+		"          const SizedBox(width: 12),",
+		"          Text(openLiteCopy.summaryCountLabel(totalCount), style: TextStyle(color: colors.onPrimaryContainer.withValues(alpha: 0.8))),",
+		builderRuntimeOpenLiteSummaryCardDoneChildren(hasDoneCount),
+		"        ]),",
+		builderRuntimeOpenLiteSummaryMetricChildren(hasSummaryMetrics),
 		"      ]),",
 		"    );",
 		"  }", "}",
+		builderRuntimeOpenLiteSummaryMetricClass(hasSummaryMetrics),
 	}, "\n") + "\n"
 }
 
-func builderRuntimeOpenLiteSummaryCardConstructor(hasCompletedStatus bool) string {
-	if hasCompletedStatus {
-		return "  const _SummaryCard({required this.totalCount, required this.doneCount});"
+func builderRuntimeOpenLiteSummaryCardConstructor(hasDoneCount, hasSummaryMetrics bool) string {
+	params := []string{"required this.totalCount"}
+	if hasDoneCount {
+		params = append(params, "required this.doneCount")
 	}
-	return "  const _SummaryCard({required this.totalCount});"
+	if hasSummaryMetrics {
+		params = append(params, "required this.metrics")
+	}
+	return "  const _SummaryCard({" + strings.Join(params, ", ") + "});"
 }
 
-func builderRuntimeOpenLiteSummaryCardFields(hasCompletedStatus bool) string {
-	if hasCompletedStatus {
-		return "  final int totalCount; final int doneCount;"
+func builderRuntimeOpenLiteSummaryCardFields(hasDoneCount, hasSummaryMetrics bool) string {
+	fields := []string{"  final int totalCount;"}
+	if hasDoneCount {
+		fields = append(fields, "  final int doneCount;")
 	}
-	return "  final int totalCount;"
+	if hasSummaryMetrics {
+		fields = append(fields, "  final List<_SummaryMetric> metrics;")
+	}
+	return strings.Join(fields, "\n")
 }
 
 func builderRuntimeOpenLiteSummaryCardDoneChildren(hasCompletedStatus bool) string {
 	if !hasCompletedStatus {
 		return ""
 	}
-	return "        const Spacer(), Text('$doneCount ${openLiteCopy.doneFilterLabel}', style: TextStyle(color: colors.onPrimaryContainer.withValues(alpha: 0.8))),"
+	return "          const Spacer(), Text('$doneCount ${openLiteCopy.doneFilterLabel}', style: TextStyle(color: colors.onPrimaryContainer.withValues(alpha: 0.8))),"
+}
+
+func builderRuntimeOpenLiteSummaryMetricItems(summaryAccessor string, fields []builderRuntimeOpenLiteDeclaredField) string {
+	items := make([]string, 0, len(fields))
+	for _, field := range fields {
+		getter := builderRuntimeOpenLiteSummaryMetricLabelGetter(field.name)
+		if getter == "" {
+			continue
+		}
+		items = append(items, "                        _SummaryMetric(label: openLiteCopy."+getter+", value: "+builderRuntimeOpenLiteSummaryMetricValueExpression(summaryAccessor, field)+"),")
+	}
+	return strings.Join(items, "\n")
+}
+
+func builderRuntimeOpenLiteSummaryMetricChildren(hasSummaryMetrics bool) string {
+	if !hasSummaryMetrics {
+		return ""
+	}
+	return "        const SizedBox(height: 12),\n        Wrap(spacing: 8, runSpacing: 8, children: metrics.map((metric) => Chip(label: Text('${metric.label}: ${metric.value}'))).toList()),"
+}
+
+func builderRuntimeOpenLiteSummaryMetricClass(hasSummaryMetrics bool) string {
+	if !hasSummaryMetrics {
+		return ""
+	}
+	return strings.Join([]string{
+		"",
+		"class _SummaryMetric {",
+		"  const _SummaryMetric({required this.label, required this.value});",
+		"  final String label;",
+		"  final String value;",
+		"}",
+	}, "\n")
 }
 
 // builderRuntimeOpenLiteCanonicalGenericOverviewController 从 registry 生成 generic 主页控制器。
@@ -3134,23 +3197,51 @@ func builderRuntimeOpenLiteCanonicalGenericOverviewControllerWithDelete(workspac
 	if modelImportPath == "" {
 		modelImportPath = "../models/record.dart"
 	}
+	summaryModel := builderRuntimeOpenLiteSummaryModelSemantics(workspacePath)
+	hasSummaryModel := summaryModel.className != ""
+	summaryImport := ""
+	summaryField := ""
+	summaryGetter := ""
+	summaryRefresh := ""
+	if hasSummaryModel {
+		summaryImport = "import '../models/dashboard_summary.dart';"
+		summaryField = "  " + summaryModel.className + " _summary = const " + summaryModel.className + "();"
+		summaryGetter = "  " + summaryModel.className + " get summary => _summary;"
+		summaryRefresh = " _summary = await _repository.loadSummary();"
+	}
 	loadMethod, _, _, deleteMethod := builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, recordType)
 	lines := []string{
 		"import 'package:flutter/foundation.dart' show ChangeNotifier;",
-		"", "import '" + modelImportPath + "';", "import '" + repoImportPath + "';", "",
-		"class " + className + " extends ChangeNotifier {",
-		"  " + className + "({required " + repoType + " " + repoParam + "}) : _repository = " + repoParam + " { _init(); }",
-		"  final " + repoType + " _repository;",
-		"  List<" + recordType + "> _records = [];",
+		"", "import '" + modelImportPath + "';",
+	}
+	if summaryImport != "" {
+		lines = append(lines, summaryImport)
+	}
+	lines = append(lines,
+		"import '"+repoImportPath+"';", "",
+		"class "+className+" extends ChangeNotifier {",
+		"  "+className+"({required "+repoType+" "+repoParam+"}) : _repository = "+repoParam+" { _init(); }",
+		"  final "+repoType+" _repository;",
+		"  List<"+recordType+"> _records = [];",
+	)
+	if summaryField != "" {
+		lines = append(lines, summaryField)
+	}
+	lines = append(lines,
 		"  bool _isLoading = true;",
-		"  List<" + recordType + "> get records => List.unmodifiable(_records);",
+		"  List<"+recordType+"> get records => List.unmodifiable(_records);",
+	)
+	if summaryGetter != "" {
+		lines = append(lines, summaryGetter)
+	}
+	lines = append(lines,
 		"  bool get isLoading => _isLoading;",
 		"  Future<void> _init() async { await refresh(); }",
 		"  Future<void> refresh() async {",
 		"    _isLoading = true; notifyListeners();",
-		"    try { _records = await _repository." + loadMethod + "(); } finally { _isLoading = false; notifyListeners(); }",
+		"    try { _records = await _repository."+loadMethod+"();"+summaryRefresh+" } finally { _isLoading = false; notifyListeners(); }",
 		"  }",
-	}
+	)
 	if allowDeleteFlow {
 		lines = append(lines,
 			"  Future<void> deleteRecord(String recordId) async {",
@@ -3901,6 +3992,25 @@ func builderRuntimeOpenLitePrimaryDomainEntity(dm appprepare.DomainModel) *apppr
 	return &dm.Entities[0]
 }
 
+func builderRuntimeOpenLiteSummaryModelSemantics(workspacePath string) builderRuntimeOpenLiteSummaryModelSnapshot {
+	if strings.TrimSpace(workspacePath) == "" {
+		return builderRuntimeOpenLiteSummaryModelSnapshot{}
+	}
+	content, err := builderRuntimeSemanticFileContent(workspacePath, nil, "lib/models/dashboard_summary.dart")
+	if err != nil || strings.TrimSpace(content) == "" {
+		return builderRuntimeOpenLiteSummaryModelSnapshot{}
+	}
+	className := builderRuntimeOpenLiteFirstNamedDartClass(content)
+	if className == "" {
+		className = "DashboardSummary"
+	}
+	fields := builderRuntimeOpenLiteDeclaredFields(content)
+	if len(fields) == 0 {
+		return builderRuntimeOpenLiteSummaryModelSnapshot{className: className}
+	}
+	return builderRuntimeOpenLiteSummaryModelSnapshot{className: className, fields: fields}
+}
+
 func builderRuntimeOpenLiteIdentifierField(fields []builderRuntimeOpenLiteDeclaredField) string {
 	for _, field := range fields {
 		if builderRuntimeOpenLiteIsIdentifierField(field.name) {
@@ -4153,6 +4263,18 @@ func builderRuntimeOpenLiteValueDisplayExpression(accessor, fieldType string) st
 	default:
 		return trimmedAccessor + ".toString()"
 	}
+}
+
+func builderRuntimeOpenLiteSummaryMetricLabelGetter(fieldName string) string {
+	trimmedName := strings.TrimSpace(fieldName)
+	if trimmedName == "" {
+		return ""
+	}
+	return "summary" + strings.ToUpper(trimmedName[:1]) + trimmedName[1:] + "Label"
+}
+
+func builderRuntimeOpenLiteSummaryMetricValueExpression(summaryAccessor string, field builderRuntimeOpenLiteDeclaredField) string {
+	return builderRuntimeOpenLiteValueDisplayExpression(strings.TrimSpace(summaryAccessor)+"."+field.name, field.fieldType)
 }
 
 func builderRuntimeOpenLiteStatusCopyLabelMethodName(workspacePath, statusType string) string {
