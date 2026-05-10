@@ -233,10 +233,15 @@ func TestEmitTestGenericUsesSchemaSeedRecord(t *testing.T) {
 		t.Fatal("EmitTest returned false for generic schema")
 	}
 	for _, marker := range []string{
+		"import 'package:flutter/foundation.dart';",
 		"import 'package:flutter_open_lite/models/record.dart';",
 		"InMemoryRecordRepository(seedRecords: [CourseAssignment(assignmentTitle: '测试记录')])",
 		"AppFactoryApp(repository: repository)",
+		"open lite app supports schema-driven create and inspect flow",
 		"expect(find.text('测试记录'), findsOneWidget);",
+		"await tester.enterText(find.byKey(const Key('title-field')), '新增记录');",
+		"expect(find.text(openLiteCopy.dateFieldLabel), findsOneWidget);",
+		"await tester.tap(find.text(openLiteCopy.viewAllActionLabel));",
 	} {
 		if !strings.Contains(result.Content, marker) {
 			t.Fatalf("content missing schema generic marker %q: %s", marker, result.Content)
@@ -247,6 +252,91 @@ func TestEmitTestGenericUsesSchemaSeedRecord(t *testing.T) {
 	}
 	if strings.Contains(result.Content, "package:flutter/material.dart") {
 		t.Fatalf("generic schema test should not import unused material.dart: %s", result.Content)
+	}
+}
+
+func TestEmitTestGenericCoversFieldDrivenWidgets(t *testing.T) {
+	dm := appprepare.DomainModel{
+		DomainCopy: appprepare.DomainCopy{Title: "行李打包清单 App"},
+		Entities: []appprepare.DataEntity{
+			{
+				EntityID: "entity-packing-item",
+				Name:     "PackingItem",
+				Fields: []appprepare.DataField{
+					{Name: "packing_item_id", Type: "string", Role: "identifier", Required: true},
+					{Name: "item_name", Type: "string", Role: "primary_text", Required: true},
+					{Name: "category", Type: "string", Role: "secondary_text"},
+					{Name: "is_packed", Type: "bool", Role: "flag"},
+					{Name: "note", Type: "string", Role: "note"},
+				},
+			},
+			{
+				EntityID: "entity-dashboard-summary",
+				Source:   "derived",
+				Fields: []appprepare.DataField{
+					{Name: "total_count", Type: "int"},
+					{Name: "packed_count", Type: "int"},
+				},
+			},
+		},
+	}
+	result, ok := EmitTest(dm, TestEmitConfig{AppClassName: "AppFactoryApp"})
+	if !ok {
+		t.Fatal("EmitTest returned false for generic field-driven schema")
+	}
+	for _, marker := range []string{
+		"InMemoryRecordRepository(seedRecords: [PackingItem(itemName: '测试记录', category: '测试分类', isPacked: true, note: '测试备注')])",
+		"expect(find.textContaining(openLiteCopy.summaryTotalCountLabel), findsWidgets);",
+		"expect(find.textContaining(openLiteCopy.summaryPackedCountLabel), findsWidgets);",
+		"await tester.enterText(find.byKey(const Key('secondary-field')), '测试分类');",
+		"expect(find.text(openLiteCopy.isPackedFieldLabel), findsOneWidget);",
+		"await tester.tap(find.byKey(const Key('is-packed-field')));",
+		"await tester.enterText(find.byKey(const Key('note-field')), '测试备注');",
+		"expect(find.textContaining(openLiteCopy.isPackedFieldLabel), findsWidgets);",
+		"expect(find.text(openLiteCopy.detailIsPackedLabel), findsOneWidget);",
+		"expect(find.text(openLiteCopy.booleanValueLabel(true)), findsWidgets);",
+	} {
+		if !strings.Contains(result.Content, marker) {
+			t.Fatalf("content missing field-driven marker %q: %s", marker, result.Content)
+		}
+	}
+}
+
+func TestEmitTestGenericCoversNumericWidgets(t *testing.T) {
+	dm := appprepare.DomainModel{
+		DomainCopy: appprepare.DomainCopy{Title: "观影清单 App"},
+		Entities: []appprepare.DataEntity{
+			{
+				EntityID: "entity-movie-entry",
+				Name:     "MovieEntry",
+				Fields: []appprepare.DataField{
+					{Name: "movie_id", Type: "string", Role: "identifier", Required: true},
+					{Name: "movie_title", Type: "string", Role: "primary_text", Required: true},
+					{Name: "rating", Type: "number", Role: "rating"},
+				},
+			},
+			{
+				EntityID: "entity-dashboard-summary",
+				Source:   "derived",
+				Fields: []appprepare.DataField{
+					{Name: "average_rating", Type: "double"},
+				},
+			},
+		},
+	}
+	result, ok := EmitTest(dm, TestEmitConfig{})
+	if !ok {
+		t.Fatal("EmitTest returned false for generic numeric schema")
+	}
+	for _, marker := range []string{
+		"InMemoryRecordRepository(seedRecords: [MovieEntry(movieTitle: '测试记录', rating: 4.5)])",
+		"expect(find.textContaining(openLiteCopy.summaryAverageRatingLabel), findsWidgets);",
+		"expect(find.text(openLiteCopy.ratingFieldLabel), findsOneWidget);",
+		"await tester.enterText(find.byKey(const Key('rating-field')), '4.6');",
+	} {
+		if !strings.Contains(result.Content, marker) {
+			t.Fatalf("content missing numeric marker %q: %s", marker, result.Content)
+		}
 	}
 }
 
