@@ -51,6 +51,10 @@ func tryDeterministicEmit(run runRecord, roundInput appruns.RoundInput, patchID 
 	}
 	var ops []appruns.WorkspacePatchOperation
 	ops = append(ops, deterministicRelationModelOperations(dm, selectedTask.TargetPaths)...)
+	// generic model 回退：domain-model.json 读取实体字段，确定性生成 record.dart / dashboard_summary.dart。
+	if len(ops) == 0 {
+		ops = append(ops, deterministicGenericModelOperations(dm, selectedTask.TargetPaths)...)
+	}
 	ops = append(ops, deterministicTemplateSlotOperations(matchedSlots, deterministicTemplateSlotContext{
 		run:                 run,
 		dm:                  dm,
@@ -58,6 +62,17 @@ func tryDeterministicEmit(run runRecord, roundInput appruns.RoundInput, patchID 
 		relationRichProfile: relationRichProfile,
 		targetSet:           targetSet,
 	})...)
+
+	// generic mutation 是 repository-driven，不需要 form controller。
+	// 但 fallback normalize 可能在 form page 中添加 controller import。
+	// 无条件写入空壳 stub 避免 Dart 编译失败。
+	if strings.TrimSpace(dm.TemplateID) == "flutter-open-lite" && containsMutationSlot(matchedSlots) {
+		ops = append(ops, appruns.WorkspacePatchOperation{
+			Type:    "write_file",
+			Path:    "lib/controllers/record_form_controller.dart",
+			Content: "// Generic mutation page is repository-driven; no controller needed.\n",
+		})
+	}
 
 	if len(ops) == 0 {
 		return emitRunnerResult{}, nil
@@ -155,6 +170,409 @@ func deterministicRelationModelOperations(dm appprepare.DomainModel, targetPaths
 	return ops
 }
 
+// deterministicGenericModelOperations 从 domain-model.json 当 relation-rich emitter 不支持时确定性生成模型文件。
+func deterministicGenericModelOperations(dm appprepare.DomainModel, targetPaths []string) []appruns.WorkspacePatchOperation {
+	if len(dm.Entities) == 0 {
+		return nil
+	}
+	var primaryEnt *appprepare.DataEntity
+	for i := range dm.Entities {
+		e := &dm.Entities[i]
+		id := strings.TrimSpace(e.EntityID)
+		if id == "entity-record" || id == "record" || (!strings.Contains(id, "dashboard") && !strings.Contains(id, "summary")) {
+			primaryEnt = e
+			break
+		}
+	}
+	ops := make([]appruns.WorkspacePatchOperation, 0, 2)
+	targetSet := make(map[string]bool, len(targetPaths))
+	for _, p := range targetPaths {
+		targetSet[filepath.ToSlash(strings.TrimSpace(p))] = true
+	}
+	if primaryEnt != nil && targetSet["lib/models/record.dart"] {
+		if c := emitGenericRecordModel(dm, primaryEnt); c != "" {
+			ops = append(ops, appruns.WorkspacePatchOperation{Type: "write_file", Path: "lib/models/record.dart", Content: c})
+		}
+	}
+	for i := range dm.Entities {
+		e := &dm.Entities[i]
+		if strings.Contains(strings.TrimSpace(e.EntityID), "dashboard") || strings.Contains(strings.TrimSpace(e.EntityID), "summary") {
+			if targetSet["lib/models/dashboard_summary.dart"] {
+				if c := emitGenericSummaryModel(e); c != "" {
+					ops = append(ops, appruns.WorkspacePatchOperation{Type: "write_file", Path: "lib/models/dashboard_summary.dart", Content: c})
+				}
+			}
+			break
+		}
+	}
+	return ops
+}
+
+func emitGenericRecordModel(dm appprepare.DomainModel, ent *appprepare.DataEntity) string {
+	className := emitEntityClassName(ent)
+	if className == "" {
+		className = "Record"
+	}
+	enumDefs := make([]string, 0)
+	enumTypes := map[string]string{}
+	for _, field := range ent.Fields {
+		if m := emitEnumMembers(field.Type); len(m) > 0 {
+			dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+			enumName := className + emitSnakeToPascal(dartName)
+			if dartName == "status" {
+				enumName = className + "Status"
+			}
+			enumTypes[dartName] = enumName
+			members := make([]string, 0, len(m))
+			for _, member := range m {
+				members = append(members, emitSnakeToCamel(member))
+			}
+			enumDefs = append(enumDefs, "enum "+enumName+" {\n  "+strings.Join(members, ",\n  ")+
+				",\n}\n")
+		}
+	}
+	prefix := ""
+	if len(enumDefs) > 0 {
+		prefix = strings.Join(enumDefs, "\n") + "\n"
+	}
+	cp := make([]string, 0)
+	ci := make([]string, 0)
+	fd := make([]string, 0)
+	cwp := make([]string, 0)
+	cwr := make([]string, 0)
+	for _, field := range ent.Fields {
+		dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+		if dartName == "" {
+			continue
+		}
+		dt := emitFieldToDartType(field.Type, dartName)
+		if enumType := strings.TrimSpace(enumTypes[dartName]); enumType != "" {
+			dt = enumType
+		}
+		switch {
+		case dartName == "recordId":
+			cp = append(cp, "    String? "+dartName+",")
+			ci = append(ci, "        "+dartName+" = "+dartName+" ?? DateTime.now().microsecondsSinceEpoch.toString()")
+		case dt == "DateTime":
+			cp = append(cp, "    DateTime? "+dartName+",")
+			ci = append(ci, "        "+dartName+" = "+dartName+" ?? DateTime.now()")
+		case strings.HasPrefix(dt, className) && len(emitEnumMembers(field.Type)) > 0:
+			members := emitEnumMembers(field.Type)
+			defaultMember := "inbox"
+			if len(members) > 0 {
+				defaultMember = emitSnakeToCamel(members[0])
+			}
+			cp = append(cp, "    this."+dartName+" = "+dt+"."+defaultMember+",")
+		case dt == "int":
+			cp = append(cp, "    this."+dartName+" = 0,")
+		case dt == "double":
+			cp = append(cp, "    this."+dartName+" = 0,")
+		case dt == "bool":
+			cp = append(cp, "    this."+dartName+" = false,")
+		default:
+			cp = append(cp, "    this."+dartName+" = '',")
+		}
+		fd = append(fd, "  final "+dt+" "+dartName+";")
+		cwp = append(cwp, "    "+dt+"? "+dartName+",")
+		cwr = append(cwr, "      "+dartName+": "+dartName+" ?? this."+dartName+",")
+	}
+	constructorClose := "  });"
+	if len(ci) > 0 {
+		constructorClose = "  }) :\n" + strings.Join(ci, ",\n") + ";"
+	}
+	lines := []string{
+		"class " + className + " {",
+		"  " + className + "({",
+		strings.Join(cp, "\n"),
+		constructorClose,
+		"",
+		strings.Join(fd, "\n"),
+	}
+	if len(cwp) > 0 {
+		lines = append(lines,
+			"",
+			"  "+className+" copyWith({",
+			strings.Join(cwp, "\n"),
+			"  }) {",
+			"    return "+className+"(",
+			strings.Join(cwr, "\n"),
+			"    );",
+			"  }",
+		)
+	}
+	lines = append(lines, "}")
+	return prefix + strings.Join(lines, "\n") + "\n"
+}
+
+func emitGenericSummaryModel(ent *appprepare.DataEntity) string {
+	className := emitEntityClassName(ent)
+	if className == "" {
+		className = "DashboardSummary"
+	}
+	cp := make([]string, 0)
+	fd := make([]string, 0)
+	for _, field := range ent.Fields {
+		dartName := emitSnakeToCamel(strings.TrimSpace(field.Name))
+		if dartName == "" {
+			continue
+		}
+		dt := emitFieldToDartType(field.Type, dartName)
+		defaultValue := "''"
+		switch dt {
+		case "int":
+			defaultValue = "0"
+		case "double":
+			defaultValue = "0"
+		case "bool":
+			defaultValue = "false"
+		}
+		cp = append(cp, "    this."+dartName+" = "+defaultValue+",")
+		fd = append(fd, "  final "+dt+" "+dartName+";")
+	}
+	return strings.Join([]string{
+		"class " + className + " {",
+		"  const " + className + "({",
+		strings.Join(cp, "\n"),
+		"  });",
+		"",
+		strings.Join(fd, "\n"),
+		"}",
+	}, "\n") + "\n"
+}
+
+func emitSnakeToCamel(s string) string {
+	parts := strings.Split(s, "_")
+	for i, p := range parts {
+		if p == "" {
+			continue
+		}
+		if i == 0 {
+			parts[i] = strings.ToLower(p[:1]) + p[1:]
+		} else if len(p) > 0 {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+func emitSnakeToPascal(s string) string {
+	parts := strings.Split(s, "_")
+	for i, p := range parts {
+		if p == "" {
+			continue
+		}
+		if len(p) > 0 {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+// emitEntityClassName 从 DomainModel entity 推导稳定的 ASCII Dart 类名。
+// 若 entity name 无法转为有效 PascalCase（如中文），则回退到 entity_id。
+func emitEntityClassName(ent *appprepare.DataEntity) string {
+	name := strings.TrimSpace(ent.Name)
+	nameLower := strings.ToLower(name)
+	// 检查是否包含 ASCII 字母（至少一个 [a-z]）
+	hasASCII := false
+	for _, r := range nameLower {
+		if r >= 'a' && r <= 'z' {
+			hasASCII = true
+			break
+		}
+	}
+	if hasASCII {
+		candidate := emitSnakeToPascal(name)
+		if candidate != "" {
+			return candidate
+		}
+	}
+	// 从 entity_id 推导：entity-record → Record, entity-dashboard-summary → DashboardSummary
+	id := strings.TrimSpace(ent.EntityID)
+	if strings.HasPrefix(id, "entity-") {
+		id = strings.TrimPrefix(id, "entity-")
+	}
+	id = strings.ReplaceAll(id, "-", "_")
+	return emitSnakeToPascal(id)
+}
+
+func emitFieldToDartType(typeStr, dartName string) string {
+	if strings.HasPrefix(typeStr, "enum[") {
+		return emitSnakeToPascal(dartName) + "Status"
+	}
+	switch typeStr {
+	case "int", "integer":
+		return "int"
+	case "bool", "boolean":
+		return "bool"
+	case "date", "datetime":
+		return "DateTime"
+	case "double", "float":
+		return "double"
+	default:
+		return "String"
+	}
+}
+
+func emitEnumMembers(raw string) []string {
+	start := strings.Index(raw, "[")
+	end := strings.Index(raw, "]")
+	if start < 0 || end <= start {
+		return nil
+	}
+	parts := strings.Split(raw[start+1:end], ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+// emitGenericRepositoryContent 从 domain-model.json 生成泛型 Hive 仓储。
+func emitGenericRepositoryContent(workspacePath string, dm appprepare.DomainModel) string {
+	if len(dm.Entities) == 0 {
+		return ""
+	}
+	repoClass := "HiveRecordRepository"
+	repoInterface := "RecordRepository"
+	var primaryEnt *appprepare.DataEntity
+	for i := range dm.Entities {
+		e := &dm.Entities[i]
+		id := strings.TrimSpace(e.EntityID)
+		if !strings.Contains(id, "dashboard") && !strings.Contains(id, "summary") {
+			primaryEnt = e
+			break
+		}
+	}
+	if primaryEnt == nil {
+		return ""
+	}
+	recordClass := emitEntityClassName(primaryEnt)
+	if recordClass == "" {
+		recordClass = "Record"
+	}
+	countClass := "DashboardSummary"
+	summaryImport := ""
+	hasIDField := false
+	for _, e := range dm.Entities {
+		if strings.Contains(strings.TrimSpace(e.EntityID), "dashboard") || strings.Contains(strings.TrimSpace(e.EntityID), "summary") {
+			summaryImport = "import '../models/dashboard_summary.dart';"
+			countClass = emitEntityClassName(&e)
+			if countClass == "" {
+				countClass = "DashboardSummary"
+			}
+			break
+		}
+	}
+	for _, f := range primaryEnt.Fields {
+		if emitSnakeToCamel(strings.TrimSpace(f.Name)) == "recordId" {
+			hasIDField = true
+			break
+		}
+	}
+	if !hasIDField {
+		return "" // 需要 record_id 字段才能生成正确仓储
+	}
+	methods := []string{
+		"  @override",
+		"  Future<List<" + recordClass + ">> loadRecords() async {",
+		"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
+		"    return _recordBox!.values.toList();",
+		"  }",
+		"",
+		"  @override",
+		"  Future<void> addRecord(" + recordClass + " record) async {",
+		"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
+		"    await _recordBox!.put(record.recordId, record);",
+		"  }",
+		"",
+		"  @override",
+		"  Future<void> updateRecord(" + recordClass + " record) async {",
+		"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
+		"    await _recordBox!.put(record.recordId, record);",
+		"  }",
+		"",
+		"  @override",
+		"  Future<void> deleteRecord(String recordId) async {",
+		"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
+		"    await _recordBox!.delete(recordId);",
+		"  }",
+	}
+	loadSummaryMethod := ""
+	if summaryImport != "" {
+		loadSummaryMethod = "\n" + strings.Join([]string{
+			"",
+			"  Future<" + countClass + "> loadSummary() async {",
+			"    _recordBox ??= await Hive.openBox<" + recordClass + ">('records');",
+			"    final records = _recordBox!.values.toList();",
+			"    return " + countClass + "(totalCount: records.length);",
+			"  }",
+		}, "\n")
+	}
+	return strings.Join([]string{
+		"import 'package:hive/hive.dart';",
+		"",
+		"import '../models/record.dart';",
+		summaryImport,
+		"",
+		"abstract class " + repoInterface + " {",
+		"  Future<void> init();",
+		"  Future<List<" + recordClass + ">> loadRecords();",
+		"  Future<void> addRecord(" + recordClass + " record);",
+		"  Future<void> updateRecord(" + recordClass + " record);",
+		"  Future<void> deleteRecord(String recordId);",
+		"}",
+		"",
+		"class " + repoClass + " implements " + repoInterface + " {",
+		"  Box<" + recordClass + ">? _recordBox;",
+		"",
+		"  @override",
+		"  Future<void> init() async {",
+		"    _recordBox = await Hive.openBox<" + recordClass + ">('records');",
+		"  }",
+		"",
+		strings.Join(methods, "\n"),
+		loadSummaryMethod,
+		"",
+		"}",
+		"",
+		"class InMemoryRecordRepository implements " + repoInterface + " {",
+		"  InMemoryRecordRepository({List<" + recordClass + ">? seedRecords})",
+		"      : _records = List<" + recordClass + ">.of(seedRecords ?? const <" + recordClass + ">[]);",
+		"",
+		"  final List<" + recordClass + "> _records;",
+		"",
+		"  @override",
+		"  Future<void> init() async {}",
+		"",
+		"  @override",
+		"  Future<List<" + recordClass + ">> loadRecords() async => List<" + recordClass + ">.unmodifiable(_records);",
+		"",
+		"  @override",
+		"  Future<void> addRecord(" + recordClass + " record) async {",
+		"    _records.add(record);",
+		"  }",
+		"",
+		"  @override",
+		"  Future<void> updateRecord(" + recordClass + " record) async {",
+		"    final index = _records.indexWhere((item) => item.recordId == record.recordId);",
+		"    if (index >= 0) {",
+		"      _records[index] = record;",
+		"    } else {",
+		"      _records.add(record);",
+		"    }",
+		"  }",
+		"",
+		"  @override",
+		"  Future<void> deleteRecord(String recordId) async {",
+		"    _records.removeWhere((record) => record.recordId == recordId);",
+		"  }",
+		"}",
+	}, "\n") + "\n"
+}
+
 func resolveDeterministicTemplateSlots(task appruns.TaskBundleItem, slotMap appprepare.TemplateSlotMap, targetSet map[string]struct{}) []appprepare.TemplateSlot {
 	if len(slotMap.Slots) == 0 {
 		return nil
@@ -236,6 +654,7 @@ func deterministicTemplateSlotOperations(slots []appprepare.TemplateSlot, ctx de
 	}
 	ops := make([]appruns.WorkspacePatchOperation, 0, len(slots))
 	seenPaths := make(map[string]struct{}, len(slots))
+	allowDeleteFlow := builderRuntimeTaskBundleHasSemanticIntentRef(ctx.run.TaskBundle, "ac-delete")
 	appendIfTargeted := func(path, content string) {
 		normalizedPath := filepath.ToSlash(strings.TrimSpace(path))
 		if normalizedPath == "" || strings.TrimSpace(content) == "" {
@@ -263,24 +682,65 @@ func deterministicTemplateSlotOperations(slots []appprepare.TemplateSlot, ctx de
 			if result, emitted := emitter.EmitOverview(ctx.dm); emitted {
 				appendIfTargeted(result.HomePagePath, result.HomePageContent)
 				appendIfTargeted(result.HomeControllerPath, result.HomeControllerContent)
+			} else {
+				reg := builderRuntimeOpenLiteOverviewSurfaceRegistry(ctx.run.WorkspacePath)
+				if c := builderRuntimeOpenLiteCanonicalGenericOverviewPage(ctx.run.WorkspacePath); c != "" {
+					p := strings.TrimSpace(reg.view.resolvedPath)
+					if p == "" {
+						p = "lib/views/home_page.dart"
+					}
+					appendIfTargeted(p, c)
+				}
+				if c := builderRuntimeOpenLiteCanonicalGenericOverviewControllerWithDelete(ctx.run.WorkspacePath, allowDeleteFlow); c != "" {
+					p := strings.TrimSpace(reg.controller.resolvedPath)
+					if p == "" {
+						p = "lib/controllers/home_controller.dart"
+					}
+					appendIfTargeted(p, c)
+				}
 			}
 		case "list":
 			if result, emitted := emitter.EmitCollection(ctx.dm); emitted {
 				appendIfTargeted(result.ListPagePath, result.ListPageContent)
 				appendIfTargeted(result.ListControllerPath, result.ListControllerContent)
+			} else {
+				pageC := builderRuntimeOpenLiteCanonicalNoFilterListPage(ctx.run.WorkspacePath)
+				ctrlC := builderRuntimeOpenLiteCanonicalNoFilterListControllerWithDelete(ctx.run.WorkspacePath, allowDeleteFlow)
+				if pageC != "" {
+					appendIfTargeted("lib/views/record_list_page.dart", pageC)
+				}
+				if ctrlC != "" {
+					appendIfTargeted("lib/controllers/record_list_controller.dart", ctrlC)
+				}
 			}
 		case "form":
 			if result, emitted := emitter.EmitMutation(ctx.dm); emitted {
 				appendIfTargeted(result.FormPagePath, result.FormPageContent)
 				appendIfTargeted(result.FormControllerPath, result.FormControllerContent)
+			} else {
+				if c := builderRuntimeOpenLiteCanonicalGenericMutationPage(ctx.run.WorkspacePath); c != "" {
+					appendIfTargeted("lib/views/record_form_page.dart", c)
+				}
 			}
 		case "detail":
 			if result, emitted := emitter.EmitInspection(ctx.dm); emitted {
 				appendIfTargeted(result.DetailPagePath, result.DetailPageContent)
+			} else {
+				if c := builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(ctx.run.WorkspacePath, allowDeleteFlow); c != "" {
+					dp := strings.TrimSpace(builderRuntimeOpenLiteDetailSurfaceRegistry(ctx.run.WorkspacePath).view.resolvedPath)
+					if dp == "" {
+						dp = "lib/views/record_detail_page.dart"
+					}
+					appendIfTargeted(dp, c)
+				}
 			}
 		case "app_entry":
 			if result, emitted := emitter.EmitAppEntry(ctx.dm, ctx.planningContext); emitted {
 				appendIfTargeted(result.FilePath, result.Content)
+			} else {
+				if c := builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(ctx.run.WorkspacePath, allowDeleteFlow); c != "" {
+					appendIfTargeted("lib/main.dart", c)
+				}
 			}
 		case "copy":
 			if result, emitted := emitter.EmitCopy(ctx.dm); emitted {
@@ -296,6 +756,8 @@ func deterministicTemplateSlotOperations(slots []appprepare.TemplateSlot, ctx de
 		case "storage":
 			if content := builderRuntimeCanonicalRelationRichRecordRepository(ctx.relationRichProfile); strings.TrimSpace(content) != "" {
 				appendIfTargeted("lib/repositories/record_repository.dart", content)
+			} else if c := emitGenericRepositoryContent(ctx.run.WorkspacePath, ctx.dm); c != "" {
+				appendIfTargeted("lib/repositories/record_repository.dart", c)
 			}
 		case "test":
 			cfg := buildTestEmitConfig(ctx.run)
@@ -305,6 +767,15 @@ func deterministicTemplateSlotOperations(slots []appprepare.TemplateSlot, ctx de
 		}
 	}
 	return ops
+}
+
+func containsMutationSlot(slots []appprepare.TemplateSlot) bool {
+	for _, s := range slots {
+		if normalizeDeterministicSlotKind(s.SlotKind) == "form" {
+			return true
+		}
+	}
+	return false
 }
 
 func deterministicTemplateSlotCanEmit(slot appprepare.TemplateSlot) bool {
@@ -366,8 +837,6 @@ func deterministicRelationRichModelProfile(dm appprepare.DomainModel) builderRun
 
 // buildTestEmitConfig 从 runRecord 构建 TestEmitConfig，使用默认值。
 func buildTestEmitConfig(run runRecord) emitter.TestEmitConfig {
-	// 默认值在 EmitTest 内部处理，此处只提供零值即可。
-	// 未来可从 workspace 的 pubspec.yaml / main.dart 提取动态值。
 	_ = run
-	return emitter.TestEmitConfig{}
+	return emitter.TestEmitConfig{AppClassName: "AppFactoryApp", RepositoryType: "InMemoryRecordRepository"}
 }

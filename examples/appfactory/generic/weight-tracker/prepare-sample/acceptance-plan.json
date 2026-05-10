@@ -45,7 +45,6 @@
       "source_type": "acceptance_check",
       "source_ref": "check-open-lite-record-flow-wiring",
       "slot_refs": [
-        "flow-controller",
         "widget-test"
       ],
       "timeout_seconds": 30

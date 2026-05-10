@@ -4,7 +4,7 @@
   "approval_type": "prd",
   "job_id": "job-weight-tracker-detail-without-delete-sample-001",
   "prd_id": "prd-weight-tracker-detail-without-delete-sample-001",
-  "subject_version": "prd-weight-tracker-detail-without-delete-sample-001@0.1.0@sha256:494ce6f96b471d5f@sha256:f4557e8eca940514",
+  "subject_version": "prd-weight-tracker-detail-without-delete-sample-001@0.1.0@sha256:bf14bba8197b0beb@sha256:f4557e8eca940514",
   "status": "approved",
   "requested_by": {
     "actor_type": "system",

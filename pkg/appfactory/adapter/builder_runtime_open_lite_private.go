@@ -43,18 +43,18 @@ var builderRuntimeOpenLiteCategorylessCopyGetterPattern = regexp.MustCompile(`(?
 var builderRuntimeOpenLiteRecordImportPattern = regexp.MustCompile(`(?m)^import '../models/record\.dart';\n?`)
 
 type builderRuntimeOpenLiteSurfaceRegistryConstructorContract struct {
-	controllerParam    string
-	controllerType     string
-	repositoryParam    string
-	recordParam        string
-	initialParam       string
-	detailCallbackName string
-	detailCallbackType string
-	createCallbackName string
+	controllerParam     string
+	controllerType      string
+	repositoryParam     string
+	recordParam         string
+	initialParam        string
+	detailCallbackName  string
+	detailCallbackType  string
+	createCallbackName  string
 	viewAllCallbackName string
-	editCallbackName   string
-	deleteCallbackName string
-	requiredParams     []string
+	editCallbackName    string
+	deleteCallbackName  string
+	requiredParams      []string
 }
 
 type builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags struct {
@@ -71,53 +71,53 @@ type builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags struct {
 }
 
 type builderRuntimeOpenLiteSurfaceRegistryFieldSemantics struct {
-	primaryTextField         string
-	secondaryTextField       string
-	statusField              string
-	statusEnumType           string
+	primaryTextField          string
+	secondaryTextField        string
+	statusField               string
+	statusEnumType            string
 	statusCopyLabelMethodName string
-	timeField                string
-	noteField                string
+	timeField                 string
+	noteField                 string
 }
 
 type builderRuntimeOpenLiteSurfaceRegistryFallbackMode string
 
 const (
-	builderRuntimeOpenLiteSurfaceRegistryFallbackExplicitSurface   builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "explicit_surface"
+	builderRuntimeOpenLiteSurfaceRegistryFallbackExplicitSurface    builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "explicit_surface"
 	builderRuntimeOpenLiteSurfaceRegistryFallbackWorkspaceCandidate builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "workspace_candidate"
-	builderRuntimeOpenLiteSurfaceRegistryFallbackLikelyPath        builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "likely_path"
-	builderRuntimeOpenLiteSurfaceRegistryFallbackLegacyTemplate    builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "legacy_template"
-	builderRuntimeOpenLiteSurfaceRegistryFallbackUnresolved        builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "unresolved"
+	builderRuntimeOpenLiteSurfaceRegistryFallbackLikelyPath         builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "likely_path"
+	builderRuntimeOpenLiteSurfaceRegistryFallbackLegacyTemplate     builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "legacy_template"
+	builderRuntimeOpenLiteSurfaceRegistryFallbackUnresolved         builderRuntimeOpenLiteSurfaceRegistryFallbackMode = "unresolved"
 )
 
 type builderRuntimeOpenLiteSurfaceRegistryResolutionSource string
 
 const (
-	builderRuntimeOpenLiteSurfaceRegistryResolutionExplicitSurface   builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "explicit_surface"
+	builderRuntimeOpenLiteSurfaceRegistryResolutionExplicitSurface    builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "explicit_surface"
 	builderRuntimeOpenLiteSurfaceRegistryResolutionWorkspaceCandidate builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "workspace_candidate"
-	builderRuntimeOpenLiteSurfaceRegistryResolutionLikelyPath        builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "likely_path"
-	builderRuntimeOpenLiteSurfaceRegistryResolutionLegacyTemplate    builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "legacy_template"
-	builderRuntimeOpenLiteSurfaceRegistryResolutionUnresolved        builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "unresolved"
+	builderRuntimeOpenLiteSurfaceRegistryResolutionLikelyPath         builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "likely_path"
+	builderRuntimeOpenLiteSurfaceRegistryResolutionLegacyTemplate     builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "legacy_template"
+	builderRuntimeOpenLiteSurfaceRegistryResolutionUnresolved         builderRuntimeOpenLiteSurfaceRegistryResolutionSource = "unresolved"
 )
 
 type builderRuntimeOpenLiteSurfaceRegistryEntry struct {
-	registryKey         string
-	bindingRef          string
-	surfaceRef          string
-	pathClass           string
-	templateRole        string
-	resolvedPath        string
-	resolvedClassName   string
-	modelImportPath     string
-	modelType           string
+	registryKey          string
+	bindingRef           string
+	surfaceRef           string
+	pathClass            string
+	templateRole         string
+	resolvedPath         string
+	resolvedClassName    string
+	modelImportPath      string
+	modelType            string
 	repositoryImportPath string
-	repositoryType      string
+	repositoryType       string
 	controllerImportPath string
-	constructorContract builderRuntimeOpenLiteSurfaceRegistryConstructorContract
-	capabilityFlags     builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags
-	fieldSemantics      builderRuntimeOpenLiteSurfaceRegistryFieldSemantics
-	fallbackMode        builderRuntimeOpenLiteSurfaceRegistryFallbackMode
-	resolutionSource    builderRuntimeOpenLiteSurfaceRegistryResolutionSource
+	constructorContract  builderRuntimeOpenLiteSurfaceRegistryConstructorContract
+	capabilityFlags      builderRuntimeOpenLiteSurfaceRegistryCapabilityFlags
+	fieldSemantics       builderRuntimeOpenLiteSurfaceRegistryFieldSemantics
+	fallbackMode         builderRuntimeOpenLiteSurfaceRegistryFallbackMode
+	resolutionSource     builderRuntimeOpenLiteSurfaceRegistryResolutionSource
 }
 
 type builderRuntimeOpenLiteCollectionSurfaceRegistrySnapshot struct {
@@ -286,7 +286,7 @@ func builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath string, hints
 				supportsRefresh: surface.controller.supportsRefresh,
 				supportsUpdate:  surface.controller.supportsUpdate,
 			},
-			fieldSemantics:  fieldSemantics,
+			fieldSemantics:   fieldSemantics,
 			fallbackMode:     controllerFallbackMode,
 			resolutionSource: controllerResolutionSource,
 		},
@@ -314,7 +314,7 @@ func builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath string, hints
 				hasCategory:    !builderRuntimeOpenLiteShouldDropCategoryField(workspacePath),
 				hasStatus:      builderRuntimeOpenLiteRecordModelHasStatus(workspacePath),
 			},
-			fieldSemantics:  fieldSemantics,
+			fieldSemantics:   fieldSemantics,
 			fallbackMode:     viewFallbackMode,
 			resolutionSource: viewResolutionSource,
 		},
@@ -1764,7 +1764,6 @@ func normalizeBuilderRuntimeOpenLiteMainMutationViewImports(workspacePath, conte
 	return updated
 }
 
-
 func normalizeBuilderRuntimeOpenLiteEnsureListControllerVariable(content string, controller builderRuntimeCollectionControllerCandidate) string {
 	if controller.className == "" || controller.repositoryParam == "" {
 		return content
@@ -1853,8 +1852,8 @@ func builderRuntimeOpenLiteMainDetailSurfaceCallbackReplacementWithResolvedArgs(
 	lines = append(lines,
 		"          await Navigator.of(context).push<void>(",
 		"            MaterialPageRoute(",
-			"              builder: (context) => " + detailView.className + "(",
-			"                " + detailView.recordParam + ": record,",
+		"              builder: (context) => "+detailView.className+"(",
+		"                "+detailView.recordParam+": record,",
 	)
 	for _, name := range detailView.requiredParams {
 		trimmedName := strings.TrimSpace(name)
@@ -2242,6 +2241,10 @@ func builderRuntimeOpenLiteListControllerSupportsRefresh(workspacePath string) b
 }
 
 func builderRuntimeOpenLiteCanonicalNoFilterListController(workspacePath string) string {
+	return builderRuntimeOpenLiteCanonicalNoFilterListControllerWithDelete(workspacePath, false)
+}
+
+func builderRuntimeOpenLiteCanonicalNoFilterListControllerWithDelete(workspacePath string, allowDeleteFlow bool) string {
 	entry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath).controller
 	repositoryType := strings.TrimSpace(entry.repositoryType)
 	if repositoryType == "" {
@@ -2252,7 +2255,7 @@ func builderRuntimeOpenLiteCanonicalNoFilterListController(workspacePath string)
 		recordType = "TodoItem"
 	}
 	className := strings.TrimSpace(entry.resolvedClassName)
-	if className == "" {
+	if className == "" || className == "HomeController" {
 		className = "RecordListController"
 	}
 	repositoryParam := strings.TrimSpace(entry.constructorContract.repositoryParam)
@@ -2267,8 +2270,8 @@ func builderRuntimeOpenLiteCanonicalNoFilterListController(workspacePath string)
 	if repositoryImportPath == "" {
 		repositoryImportPath = "../repositories/record_repository.dart"
 	}
-	loadMethodName, addMethodName, updateMethodName := builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, recordType)
-	return strings.Join([]string{
+	loadMethodName, addMethodName, updateMethodName, deleteMethodName := builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, recordType)
+	lines := []string{
 		"import 'package:flutter/foundation.dart' show ChangeNotifier;",
 		"",
 		"import '" + modelImportPath + "';",
@@ -2311,18 +2314,29 @@ func builderRuntimeOpenLiteCanonicalNoFilterListController(workspacePath string)
 		"    await _repository." + updateMethodName + "(record);",
 		"    await refresh();",
 		"  }",
-		"}",
-	}, "\n") + "\n"
+	}
+	if allowDeleteFlow {
+		lines = append(lines,
+			"",
+			"  Future<void> deleteRecord(String recordId) async {",
+			"    await _repository."+deleteMethodName+"(recordId);",
+			"    await refresh();",
+			"  }",
+		)
+	}
+	lines = append(lines, "}")
+	return strings.Join(lines, "\n") + "\n"
 }
 
-func builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, recordType string) (string, string, string) {
+func builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, recordType string) (string, string, string, string) {
 	loadMethodName := "loadRecords"
 	addMethodName := "addRecord"
 	updateMethodName := "updateRecord"
+	deleteMethodName := "deleteRecord"
 	trimmedWorkspacePath := strings.TrimSpace(workspacePath)
 	trimmedRecordType := strings.TrimSpace(recordType)
 	if trimmedWorkspacePath == "" || trimmedRecordType == "" {
-		return loadMethodName, addMethodName, updateMethodName
+		return loadMethodName, addMethodName, updateMethodName, deleteMethodName
 	}
 	surface := builderRuntimePrimaryCollectionSurfaceCandidate(trimmedWorkspacePath)
 	repositoryPath := strings.TrimSpace(surface.repository.path)
@@ -2331,7 +2345,7 @@ func builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, record
 	}
 	repositoryContent, err := builderRuntimeSemanticFileContent(trimmedWorkspacePath, nil, repositoryPath)
 	if err != nil || strings.TrimSpace(repositoryContent) == "" {
-		return loadMethodName, addMethodName, updateMethodName
+		return loadMethodName, addMethodName, updateMethodName, deleteMethodName
 	}
 	loadPattern := regexp.MustCompile(`Future<List<` + regexp.QuoteMeta(trimmedRecordType) + `>>\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
 	if match := loadPattern.FindStringSubmatch(repositoryContent); len(match) >= 2 {
@@ -2351,7 +2365,13 @@ func builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, record
 			updateMethodName = candidate
 		}
 	}
-	return loadMethodName, addMethodName, updateMethodName
+	deletePattern := regexp.MustCompile(`Future<void>\s+(delete[A-Z][A-Za-z0-9_]*)\s*\(\s*String\s+[A-Za-z_][A-Za-z0-9_]*\s*\)`)
+	if match := deletePattern.FindStringSubmatch(repositoryContent); len(match) >= 2 {
+		if candidate := strings.TrimSpace(match[1]); candidate != "" {
+			deleteMethodName = candidate
+		}
+	}
+	return loadMethodName, addMethodName, updateMethodName, deleteMethodName
 }
 
 func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) string {
@@ -2372,11 +2392,11 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 		statusCopyLabelMethodName = "statusLabel"
 	}
 	className := strings.TrimSpace(entry.resolvedClassName)
-	if className == "" {
+	if className == "" || className == "HomePage" {
 		className = "RecordListPage"
 	}
 	controllerType := strings.TrimSpace(entry.constructorContract.controllerType)
-	if controllerType == "" {
+	if controllerType == "" || controllerType == "HomeController" {
 		controllerType = "RecordListController"
 	}
 	controllerParam := strings.TrimSpace(entry.constructorContract.controllerParam)
@@ -2396,7 +2416,7 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 		createCallbackName = "onCreateRecord"
 	}
 	controllerImportPath := strings.TrimSpace(entry.controllerImportPath)
-	if controllerImportPath == "" {
+	if controllerImportPath == "" || !strings.Contains(controllerImportPath, "record_list_controller.dart") {
 		controllerImportPath = "../controllers/record_list_controller.dart"
 	}
 	modelImportPath := strings.TrimSpace(entry.modelImportPath)
@@ -2490,7 +2510,7 @@ func builderRuntimeOpenLiteCanonicalNoFilterListPage(workspacePath string) strin
 		"  @override",
 		"  Widget build(BuildContext context) {",
 		"    return Material(",
-		"      color: Colors.white,",
+		"      color: Theme.of(context).colorScheme.surface,",
 		"      borderRadius: BorderRadius.circular(18),",
 		"      child: InkWell(",
 		"        onTap: onTap,",
@@ -2548,7 +2568,503 @@ func builderRuntimeOpenLiteInterpolatedExpression(parts []string) string {
 	return builder.String()
 }
 
-// fallback-only: LLM 模型路径兜底规范化，emit 路径不经过此函数
+// ── Generic deterministic generators（from-scratch、registry-driven）───────────────────
+
+// builderRuntimeOpenLiteCanonicalGenericInspectionPage 从 registry 生成 generic 详情页。
+func builderRuntimeOpenLiteCanonicalGenericInspectionPage(workspacePath string) string {
+	return builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePath, false)
+}
+
+func builderRuntimeOpenLiteCanonicalGenericInspectionPageWithDelete(workspacePath string, allowDeleteFlow bool) string {
+	detailRegistry := builderRuntimeOpenLiteDetailSurfaceRegistry(workspacePath)
+	collectionRegistry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath)
+	modelType := strings.TrimSpace(collectionRegistry.view.modelType)
+	if modelType == "" {
+		modelType = "TodoItem"
+	}
+	className := strings.TrimSpace(detailRegistry.view.resolvedClassName)
+	if className == "" {
+		className = "RecordDetailPage"
+	}
+	recordParam := strings.TrimSpace(detailRegistry.view.constructorContract.recordParam)
+	if recordParam == "" {
+		recordParam = "record"
+	}
+	editCallbackName := strings.TrimSpace(detailRegistry.view.constructorContract.editCallbackName)
+	hasEdit := editCallbackName != ""
+	deleteCallbackName := "onDeleteRecord"
+	modelImportPath := strings.TrimSpace(collectionRegistry.view.modelImportPath)
+	if modelImportPath == "" {
+		modelImportPath = "../models/record.dart"
+	}
+	copyImportPath := builderRuntimeOpenLiteRelativeImport(strings.TrimSpace(detailRegistry.view.resolvedPath), "lib/template/open_lite_copy.dart", "../template/open_lite_copy.dart")
+	fs := collectionRegistry.view.fieldSemantics
+	primaryTextField := strings.TrimSpace(fs.primaryTextField)
+	secondaryTextField := strings.TrimSpace(fs.secondaryTextField)
+	statusField := strings.TrimSpace(fs.statusField)
+	statusMethod := strings.TrimSpace(fs.statusCopyLabelMethodName)
+	if statusField != "" && statusMethod == "" {
+		statusMethod = "statusLabel"
+	}
+	noteField := strings.TrimSpace(fs.noteField)
+	constructorParams := []string{"super.key", "required this." + recordParam}
+	if hasEdit {
+		constructorParams = append(constructorParams, "required this."+editCallbackName)
+	}
+	if allowDeleteFlow {
+		constructorParams = append(constructorParams, "required this."+deleteCallbackName)
+	}
+	fields := []string{"  final " + modelType + " " + recordParam + ";"}
+	if hasEdit {
+		fields = append(fields, "  final Future<void> Function("+modelType+" "+recordParam+") "+editCallbackName+";")
+	}
+	if allowDeleteFlow {
+		fields = append(fields, "  final Future<void> Function("+modelType+" "+recordParam+") "+deleteCallbackName+";")
+	}
+	bodyChildren := []string{
+		"          _DetailCard(",
+		"            title: " + recordParam + "." + primaryTextField + ",",
+	}
+	if statusField != "" {
+		bodyChildren = append(bodyChildren, "            subtitle: openLiteCopy."+statusMethod+"("+recordParam+"."+statusField+"),")
+	} else {
+		bodyChildren = append(bodyChildren, "            subtitle: '',")
+	}
+	bodyChildren = append(bodyChildren, "          ),", "          const SizedBox(height: 16),")
+	if statusField != "" {
+		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy.detailStatusLabel, value: openLiteCopy."+statusMethod+"("+recordParam+"."+statusField+")),")
+	}
+	if secondaryTextField != "" {
+		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy.detailCategoryLabel, value: "+recordParam+"."+secondaryTextField+"),")
+	}
+	if noteField != "" {
+		bodyChildren = append(bodyChildren, "          _InfoTile(label: openLiteCopy.detailNoteLabel, value: "+recordParam+"."+noteField+".trim().isEmpty ? openLiteCopy.emptyNoteLabel : "+recordParam+"."+noteField+".trim(), multiline: true),")
+	}
+	bodyChildren = append(bodyChildren, "        ],")
+	appBarActions := ""
+	if hasEdit || allowDeleteFlow {
+		actions := make([]string, 0, 2)
+		if hasEdit {
+			actions = append(actions, "TextButton(onPressed: () => "+editCallbackName+"("+recordParam+"), child: Text(openLiteCopy.editActionLabel))")
+		}
+		if allowDeleteFlow {
+			actions = append(actions, "IconButton(onPressed: () => "+deleteCallbackName+"("+recordParam+"), icon: const Icon(Icons.delete_outline))")
+		}
+		appBarActions = "\n      actions: [" + strings.Join(actions, ", ") + "],"
+	}
+	return strings.Join([]string{
+		"import 'package:flutter/material.dart';",
+		"", "import '" + modelImportPath + "';", "import '" + copyImportPath + "';", "",
+		"class " + className + " extends StatelessWidget {",
+		"  const " + className + "({" + strings.Join(constructorParams, ", ") + "});",
+		"", strings.Join(fields, "\n"), "",
+		"  @override", "  Widget build(BuildContext context) {",
+		"    return Scaffold(",
+		"      appBar: AppBar(title: Text(openLiteCopy.detailPageTitle)," + appBarActions,
+		"      ),",
+		"      body: ListView(padding: const EdgeInsets.all(20), children: [",
+		strings.Join(bodyChildren, "\n"),
+		"      ),",
+		"    );",
+		"  }", "}", "",
+		"class _DetailCard extends StatelessWidget {",
+		"  const _DetailCard({required this.title, required this.subtitle});",
+		"  final String title; final String subtitle;",
+		"  @override Widget build(BuildContext context) {",
+		"    final colors = Theme.of(context).colorScheme;",
+		"    return Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(24), color: colors.primary),",
+		"      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [",
+		"        Text(title, style: TextStyle(color: colors.onPrimary, fontSize: 24, fontWeight: FontWeight.w700)),",
+		"        const SizedBox(height: 8),",
+		"        Text(subtitle, style: TextStyle(color: colors.onPrimary.withValues(alpha: 0.7))),",
+		"      ]),", "    );", "  }", "}", "",
+		"class _InfoTile extends StatelessWidget {",
+		"  const _InfoTile({required this.label, required this.value, this.multiline = false});",
+		"  final String label; final String value; final bool multiline;",
+		"  @override Widget build(BuildContext context) {",
+		"    final colors = Theme.of(context).colorScheme;",
+		"    return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(18)),",
+		"      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [",
+		"        Text(label, style: Theme.of(context).textTheme.labelMedium),",
+		"        const SizedBox(height: 6),",
+		"        Text(value, style: TextStyle(height: multiline ? 1.4 : 1.2)),",
+		"      ]),", "    );", "  }", "}",
+	}, "\n") + "\n"
+}
+
+// builderRuntimeOpenLiteCanonicalGenericMutationPage 从 registry 生成 generic 表单页（支持 create + edit）。
+func builderRuntimeOpenLiteCanonicalGenericMutationPage(workspacePath string) string {
+	mutReg := builderRuntimeOpenLiteMutationSurfaceRegistry(workspacePath)
+	colReg := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath)
+	modelType := strings.TrimSpace(colReg.view.modelType)
+	if modelType == "" || modelType == "TodoItem" {
+		modelType = "Record"
+	}
+	className := strings.TrimSpace(mutReg.view.resolvedClassName)
+	if className == "" || className == "HomePage" {
+		className = "RecordFormPage"
+	}
+	repoParam := strings.TrimSpace(mutReg.view.constructorContract.repositoryParam)
+	if repoParam == "" {
+		repoParam = "repository"
+	}
+	repoType := strings.TrimSpace(mutReg.controller.repositoryType)
+	if repoType == "" {
+		repoType = "RecordRepository"
+	}
+	modelImportPath := strings.TrimSpace(colReg.view.modelImportPath)
+	if modelImportPath == "" {
+		modelImportPath = "../models/record.dart"
+	}
+	copyImportPath := "../template/open_lite_copy.dart"
+	repoImportPath := "../repositories/record_repository.dart"
+	fs := colReg.view.fieldSemantics
+	primaryField := strings.TrimSpace(fs.primaryTextField)
+	if primaryField == "" {
+		primaryField = "title"
+	}
+	noteField := strings.TrimSpace(fs.noteField)
+	hasNote := noteField != ""
+	nodeInit := ""
+	if hasNote {
+		nodeInit = "\n    _noteController = TextEditingController();"
+	}
+	notebody := ""
+	if hasNote {
+		notebody = "\n              const SizedBox(height: 16),\n              TextField(controller: _noteController, key: const Key('note-field'), decoration: InputDecoration(labelText: openLiteCopy.noteFieldLabel), maxLines: 3),"
+	}
+	nodedisp := ""
+	if hasNote {
+		nodedisp = "\n    _noteController.dispose();"
+	}
+	noteDecl := ""
+	if hasNote {
+		noteDecl = "\n  late final TextEditingController _noteController;"
+	}
+	noteArg := ""
+	if hasNote {
+		noteArg = ", " + noteField + ": _noteController.text.trim()"
+	}
+	initParam := strings.TrimSpace(mutReg.view.constructorContract.initialParam)
+	hasEdit := initParam != "" && mutReg.view.capabilityFlags.supportsEdit
+	_, _, updateMethod, _ := builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, modelType)
+	extraParam := ""
+	extraField := ""
+	if hasEdit {
+		extraParam = ", this." + initParam
+		extraField = "\n  final " + modelType + "? " + initParam + ";"
+	}
+	titleInit := "    _titleController = TextEditingController();"
+	if hasEdit {
+		titleInit = "    _titleController = TextEditingController(text: widget." + initParam + "?." + primaryField + " ?? '');"
+	}
+	pageTitle := "openLiteCopy.createPageTitle"
+	submitLabel := "openLiteCopy.createSubmitLabel"
+	if hasEdit {
+		pageTitle = "openLiteCopy.editPageTitle"
+		submitLabel = "openLiteCopy.editSubmitLabel"
+	}
+	submitBody := ""
+	if hasEdit {
+		submitBody = "    final title = _titleController.text.trim(); if (title.isEmpty) return;\n    final record = widget." + initParam + "!.copyWith(" + primaryField + ": title" + noteArg + ");\n    await widget." + repoParam + "." + updateMethod + "(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
+	} else {
+		submitBody = "    final title = _titleController.text.trim(); if (title.isEmpty) return;\n    final record = " + modelType + "(" + primaryField + ": title" + noteArg + ");\n    await widget." + repoParam + ".addRecord(record);\n    if (!mounted) return;\n    Navigator.of(context).pop(record);"
+	}
+	return strings.Join([]string{
+		"import 'package:flutter/material.dart';",
+		"", "import '" + modelImportPath + "';", "import '" + repoImportPath + "';", "import '" + copyImportPath + "';", "",
+		"class " + className + " extends StatefulWidget {",
+		"  const " + className + "({super.key, required this." + repoParam + extraParam + "});",
+		"  final " + repoType + " " + repoParam + ";" + extraField,
+		"  @override State<" + className + "> createState() => _" + className + "State();",
+		"}", "",
+		"class _" + className + "State extends State<" + className + "> {",
+		"  late final TextEditingController _titleController;" + noteDecl,
+		"  @override void initState() { super.initState();", titleInit + nodeInit, "  }",
+		"  @override void dispose() { _titleController.dispose();" + nodedisp + " super.dispose(); }",
+		"  Future<void> _submit() async {", submitBody, "  }",
+		"  @override Widget build(BuildContext context) {",
+		"    return Scaffold(appBar: AppBar(title: Text(" + pageTitle + ")),",
+		"      body: ListView(padding: const EdgeInsets.all(20), children: [",
+		"        TextField(controller: _titleController, key: const Key('title-field'), decoration: InputDecoration(labelText: openLiteCopy.titleFieldLabel))," + notebody,
+		"        const SizedBox(height: 24),",
+		"        ElevatedButton(onPressed: _submit, child: Text(" + submitLabel + ")),",
+		"      ]),",
+		"    );",
+		"  }", "}",
+	}, "\n") + "\n"
+}
+
+// builderRuntimeOpenLiteCanonicalGenericOverviewPage 从 registry 生成 generic 主页（含摘要卡片）。
+func builderRuntimeOpenLiteCanonicalGenericOverviewPage(workspacePath string) string {
+	ovReg := builderRuntimeOpenLiteOverviewSurfaceRegistry(workspacePath)
+	colReg := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath)
+	className := strings.TrimSpace(ovReg.view.resolvedClassName)
+	if className == "" {
+		className = "HomePage"
+	}
+	ctrlType := strings.TrimSpace(ovReg.view.constructorContract.controllerType)
+	if ctrlType == "" {
+		ctrlType = "HomeController"
+	}
+	ctrlParam := strings.TrimSpace(ovReg.view.constructorContract.controllerParam)
+	if ctrlParam == "" {
+		ctrlParam = "controller"
+	}
+	createCB := strings.TrimSpace(ovReg.view.constructorContract.createCallbackName)
+	if createCB == "" {
+		createCB = "onCreateRecord"
+	}
+	viewAllCB := strings.TrimSpace(ovReg.view.constructorContract.viewAllCallbackName)
+	if viewAllCB == "" {
+		viewAllCB = "onViewAllRecords"
+	}
+	fs := colReg.view.fieldSemantics
+	primaryField := strings.TrimSpace(fs.primaryTextField)
+	if primaryField == "" {
+		primaryField = "title"
+	}
+	statusField := strings.TrimSpace(fs.statusField)
+	hasStatus := statusField != ""
+	ctrlImportPath := strings.TrimSpace(ovReg.view.controllerImportPath)
+	if ctrlImportPath == "" {
+		ctrlImportPath = "../controllers/home_controller.dart"
+	}
+	copyImportPath := builderRuntimeOpenLiteRelativeImport(strings.TrimSpace(ovReg.view.resolvedPath), "lib/template/open_lite_copy.dart", "../template/open_lite_copy.dart")
+	modelImport := ""
+	if hasStatus {
+		modelImport = "import '../models/record.dart';"
+	}
+	summaryCard := "                    _SummaryCard(totalCount: " + ctrlParam + ".records.length,"
+	if hasStatus {
+		summaryCard += "\n                      doneCount: " + ctrlParam + ".records.where((r) => r." + statusField + " == RecordStatus.done).length,"
+	}
+	summaryCard += "\n                    ),\n                    const SizedBox(height: 16),"
+	recentPreview := "                    if (" + ctrlParam + ".records.isNotEmpty)\n                      Padding(padding: const EdgeInsets.only(bottom: 16),\n                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [\n                          Text(openLiteCopy.recentRecordsTitle, style: Theme.of(context).textTheme.titleMedium),\n                          const SizedBox(height: 8),\n                          ...List<Widget>.generate(" + ctrlParam + ".records.length.clamp(0, 3), (index) { final r = " + ctrlParam + ".records[index];\n                            return ListTile(dense: true, title: Text(r." + primaryField + "), contentPadding: EdgeInsets.zero);\n                          }),\n                        ],),\n                      ),"
+	return strings.Join([]string{
+		"import 'package:flutter/material.dart';",
+		"", "import '" + ctrlImportPath + "';", modelImport, "import '" + copyImportPath + "';", "",
+		"class " + className + " extends StatelessWidget {",
+		"  const " + className + "({super.key, required this." + ctrlParam + ", required this." + createCB + ", required this." + viewAllCB + "});",
+		"  final " + ctrlType + " " + ctrlParam + ";",
+		"  final Future<void> Function() " + createCB + ";",
+		"  final Future<void> Function() " + viewAllCB + ";",
+		"  @override Widget build(BuildContext context) {",
+		"    return AnimatedBuilder(animation: " + ctrlParam + ", builder: (context, _) {",
+		"      return Scaffold(appBar: AppBar(title: Text(openLiteCopy.appTitle)),",
+		"        body: " + ctrlParam + ".isLoading ? const Center(child: CircularProgressIndicator()) : ListView(padding: const EdgeInsets.all(20), children: [",
+		"          _OverviewActions(" + createCB + ": () => " + createCB + "(), " + viewAllCB + ": () => " + viewAllCB + "()),",
+		"          const SizedBox(height: 20),",
+		summaryCard,
+		recentPreview,
+		"        ],),",
+		"      );",
+		"    },);",
+		"  }", "}", "",
+		"class _OverviewActions extends StatelessWidget {",
+		"  const _OverviewActions({required this." + createCB + ", required this." + viewAllCB + "});",
+		"  final Future<void> Function() " + createCB + ";",
+		"  final Future<void> Function() " + viewAllCB + ";",
+		"  @override Widget build(BuildContext context) {",
+		"    return Row(children: [",
+		"      Expanded(child: ElevatedButton.icon(onPressed: () => " + createCB + "(), icon: const Icon(Icons.add), label: Text(openLiteCopy.createPrimaryActionLabel))),",
+		"      const SizedBox(width: 12),",
+		"      Expanded(child: OutlinedButton.icon(onPressed: () => " + viewAllCB + "(), icon: const Icon(Icons.list), label: Text(openLiteCopy.viewAllActionLabel))),",
+		"    ]);",
+		"  }", "}", "",
+		"class _SummaryCard extends StatelessWidget {",
+		"  const _SummaryCard({required this.totalCount, this.doneCount});",
+		"  final int totalCount; final int? doneCount;",
+		"  @override Widget build(BuildContext context) {",
+		"    final colors = Theme.of(context).colorScheme;",
+		"    return Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), color: colors.primaryContainer),",
+		"      child: Row(children: [",
+		"        Text('$totalCount', style: TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: colors.onPrimaryContainer)),",
+		"        const SizedBox(width: 12),",
+		"        Text(openLiteCopy.summaryCountLabel(totalCount), style: TextStyle(color: colors.onPrimaryContainer.withValues(alpha: 0.8))),",
+		"        if (doneCount != null) ...[const Spacer(), Text('$doneCount ${openLiteCopy.doneFilterLabel}', style: TextStyle(color: colors.onPrimaryContainer.withValues(alpha: 0.8)))],",
+		"      ]),",
+		"    );",
+		"  }", "}",
+	}, "\n") + "\n"
+}
+
+// builderRuntimeOpenLiteCanonicalGenericOverviewController 从 registry 生成 generic 主页控制器。
+func builderRuntimeOpenLiteCanonicalGenericOverviewController(workspacePath string) string {
+	return builderRuntimeOpenLiteCanonicalGenericOverviewControllerWithDelete(workspacePath, false)
+}
+
+func builderRuntimeOpenLiteCanonicalGenericOverviewControllerWithDelete(workspacePath string, allowDeleteFlow bool) string {
+	ovReg := builderRuntimeOpenLiteOverviewSurfaceRegistry(workspacePath)
+	colReg := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath)
+	className := strings.TrimSpace(ovReg.controller.resolvedClassName)
+	if className == "" {
+		className = "HomeController"
+	}
+	repoType := strings.TrimSpace(ovReg.controller.repositoryType)
+	if repoType == "" {
+		repoType = "RecordRepository"
+	}
+	repoParam := strings.TrimSpace(ovReg.controller.constructorContract.repositoryParam)
+	if repoParam == "" {
+		repoParam = "repository"
+	}
+	repoImportPath := strings.TrimSpace(ovReg.controller.repositoryImportPath)
+	if repoImportPath == "" {
+		repoImportPath = "../repositories/record_repository.dart"
+	}
+	recordType := strings.TrimSpace(colReg.view.modelType)
+	if recordType == "" {
+		recordType = "TodoItem"
+	}
+	modelImportPath := strings.TrimSpace(colReg.view.modelImportPath)
+	if modelImportPath == "" {
+		modelImportPath = "../models/record.dart"
+	}
+	loadMethod, _, _, deleteMethod := builderRuntimeOpenLiteCollectionRepositoryMethodNames(workspacePath, recordType)
+	lines := []string{
+		"import 'package:flutter/foundation.dart' show ChangeNotifier;",
+		"", "import '" + modelImportPath + "';", "import '" + repoImportPath + "';", "",
+		"class " + className + " extends ChangeNotifier {",
+		"  " + className + "({required " + repoType + " " + repoParam + "}) : _repository = " + repoParam + " { _init(); }",
+		"  final " + repoType + " _repository;",
+		"  List<" + recordType + "> _records = [];",
+		"  bool _isLoading = true;",
+		"  List<" + recordType + "> get records => List.unmodifiable(_records);",
+		"  bool get isLoading => _isLoading;",
+		"  Future<void> _init() async { await refresh(); }",
+		"  Future<void> refresh() async {",
+		"    _isLoading = true; notifyListeners();",
+		"    try { _records = await _repository." + loadMethod + "(); } finally { _isLoading = false; notifyListeners(); }",
+		"  }",
+	}
+	if allowDeleteFlow {
+		lines = append(lines,
+			"  Future<void> deleteRecord(String recordId) async {",
+			"    await _repository."+deleteMethod+"(recordId);",
+			"    await refresh();",
+			"  }",
+		)
+	}
+	lines = append(lines, "}")
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// builderRuntimeOpenLiteCanonicalGenericAppEntry 从各 surface registry 生成 generic main.dart。
+// 注意：该函数在运行时不依赖 registry 的 resolvedPath/ClassName（workspace 中文件可能尚未生成）。
+// 使用模板默认值以确保稳定性。
+func builderRuntimeOpenLiteCanonicalGenericAppEntry(workspacePath string) string {
+	return builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(workspacePath, false)
+}
+
+func builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(workspacePath string, allowDeleteFlow bool) string {
+	appClassName := "AppFactoryApp"
+	concRepoType := builderRuntimeOpenLiteConcreteRecordRepositoryTypeName(workspacePath)
+	if concRepoType == "" {
+		concRepoType = "HiveRecordRepository"
+	}
+	detailPageLine := "      MaterialPageRoute(builder: (context) => RecordDetailPage(record: record)),"
+	deleteMethodLines := []string{}
+	if allowDeleteFlow {
+		detailPageLine = "      MaterialPageRoute(builder: (context) => RecordDetailPage(record: record, onDeleteRecord: _deleteRecord)),"
+		deleteMethodLines = []string{
+			"  Future<void> _deleteRecord(dynamic record) async {",
+			"    await _overviewController.deleteRecord(record.recordId);",
+			"    await _collectionController.refresh();",
+			"    _navigatorKey.currentState!.pop(true);",
+			"  }",
+			"",
+		}
+	}
+	lines := []string{
+		"import 'package:flutter/material.dart';",
+		"",
+		"import 'controllers/home_controller.dart';",
+		"import 'controllers/record_list_controller.dart';",
+		"import 'views/home_page.dart';",
+		"import 'views/record_list_page.dart';",
+		"import 'views/record_form_page.dart';",
+		"import 'views/record_detail_page.dart';",
+		"import 'repositories/record_repository.dart';",
+		"import 'template/open_lite_copy.dart';",
+		"",
+		"Future<void> main() async {",
+		"  WidgetsFlutterBinding.ensureInitialized();",
+		"  final repository = " + concRepoType + "();",
+		"  await repository.init();",
+		"  runApp(" + appClassName + "(repository: repository));",
+		"}",
+		"",
+		"class " + appClassName + " extends StatefulWidget {",
+		"  const " + appClassName + "({super.key, required this.repository});",
+		"  final RecordRepository repository;",
+		"  @override",
+		"  State<" + appClassName + "> createState() => _" + appClassName + "State();",
+		"}",
+		"",
+		"class _" + appClassName + "State extends State<" + appClassName + "> {",
+		"  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();",
+		"  late final HomeController _overviewController;",
+		"  late final RecordListController _collectionController;",
+		"",
+		"  @override",
+		"  void initState() {",
+		"    super.initState();",
+		"    _overviewController = HomeController(repository: widget.repository);",
+		"    _collectionController = RecordListController(repository: widget.repository);",
+		"  }",
+		"",
+		"  @override",
+		"  void dispose() {",
+		"    _collectionController.dispose();",
+		"    _overviewController.dispose();",
+		"    super.dispose();",
+		"  }",
+		"",
+		"  Future<void> _openCreateRecord() async {",
+		"    final created = await _navigatorKey.currentState!.push(",
+		"      MaterialPageRoute(builder: (context) => RecordFormPage(repository: widget.repository)),",
+		"    );",
+		"    if (created != null) { await _overviewController.refresh(); await _collectionController.refresh(); }",
+		"  }",
+		"",
+		"  Future<void> _openDetail(dynamic record) async {",
+		"    final deleted = await _navigatorKey.currentState!.push(",
+		detailPageLine,
+		"    );",
+		"    if (deleted == true) { await _overviewController.refresh(); }",
+		"  }",
+		"",
+	}
+	lines = append(lines, deleteMethodLines...)
+	lines = append(lines,
+		"  Future<void> _openCollection() async {",
+		"    await _navigatorKey.currentState!.push(",
+		"      MaterialPageRoute(builder: (context) => RecordListPage(",
+		"        controller: _collectionController,",
+		"        onOpenRecordDetail: _openDetail,",
+		"        onCreateRecord: _openCreateRecord,",
+		"      )),",
+		"    );",
+		"  }",
+		"",
+		"  @override",
+		"  Widget build(BuildContext context) {",
+		"    return MaterialApp(",
+		"      navigatorKey: _navigatorKey,",
+		"      title: openLiteCopy.appTitle,",
+		"      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),",
+		"      initialRoute: '/',",
+		"      routes: {",
+		"        '/': (context) => HomePage(controller: _overviewController, onCreateRecord: _openCreateRecord, onViewAllRecords: _openCollection),",
+		"        '/collection': (context) => RecordListPage(controller: _collectionController, onOpenRecordDetail: _openDetail, onCreateRecord: _openCreateRecord),",
+		"      },",
+		"    );",
+		"  }",
+		"}",
+	)
+	return strings.Join(lines, "\n") + "\n"
+}
 func normalizeBuilderRuntimeOpenLiteWidgetTestContent(workspacePath string, needsCollectionCreateEntry bool, content string) string {
 	if strings.TrimSpace(content) == "" {
 		return content

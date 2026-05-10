@@ -785,7 +785,7 @@ func TestTryDeterministicEmitNoMatchingEmitterReturnsUnhandled(t *testing.T) {
 		TaskBundle: []appruns.TaskBundleItem{{
 			TaskID:      "task-unknown",
 			RouteHint:   appruns.TaskRouteHintDeterministic,
-			TargetPaths: []string{"lib/models/record.dart"}, // 没有 emitter 能处理
+			TargetPaths: []string{"lib/models/unknown.dart"}, // generic 模型生成器不覆盖未知目标路径
 		}},
 	}
 	roundInput := appruns.RoundInput{RoundID: "round-7", TaskBundle: run.TaskBundle}

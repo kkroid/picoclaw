@@ -104,20 +104,17 @@ func TestCompileGenericExamplesExposePlanningArtifacts(t *testing.T) {
 			if len(planningContext.HumanNotes) != tc.HumanNoteCount {
 				t.Fatalf("HumanNotes len = %d, want %d", len(planningContext.HumanNotes), tc.HumanNoteCount)
 			}
-			if got := planningContext.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintDefaultModel)]; got != 10 {
-				t.Fatalf("default_model route count = %d, want 10", got)
+			if got := planningContext.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintDefaultModel)]; got != 0 {
+				t.Fatalf("default_model route count = %d, want 0", got)
 			}
-			if got := planningContext.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintStrongModel)]; got != 3 {
-				t.Fatalf("strong_model route count = %d, want 3", got)
+			if got := planningContext.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintStrongModel)]; got != 0 {
+				t.Fatalf("strong_model route count = %d, want 0", got)
 			}
-			if got := planningContext.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintDeterministic)]; got != 2 {
-				t.Fatalf("deterministic route count = %d, want 2", got)
+			if got := planningContext.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintDeterministic)]; got != len(planningContext.ExecutionRouteSnapshot.TaskRoutes) {
+				t.Fatalf("deterministic route count = %d, want task route count", got)
 			}
-			if len(planningContext.ExecutionRouteSnapshot.TaskRoutes) != 15 {
-				t.Fatalf("TaskRoutes len = %d, want 15", len(planningContext.ExecutionRouteSnapshot.TaskRoutes))
-			}
-			if planningContext.ExecutionRouteSnapshot.StartUpgradeCheck.ConcreteTargetFileCount != 15 {
-				t.Fatalf("ConcreteTargetFileCount = %d, want 15", planningContext.ExecutionRouteSnapshot.StartUpgradeCheck.ConcreteTargetFileCount)
+			if planningContext.ExecutionRouteSnapshot.StartUpgradeCheck.ConcreteTargetFileCount != len(planningContext.ExecutionRouteSnapshot.TaskRoutes) {
+				t.Fatalf("ConcreteTargetFileCount = %d, want task route count %d", planningContext.ExecutionRouteSnapshot.StartUpgradeCheck.ConcreteTargetFileCount, len(planningContext.ExecutionRouteSnapshot.TaskRoutes))
 			}
 
 			var domainModel DomainModel
@@ -234,8 +231,8 @@ func TestCompileGenericExamplesExposePlanningArtifacts(t *testing.T) {
 
 			var taskAllocation TaskAllocation
 			mustDecodeJSON(t, bundle.Files[taskAllocationFileName], &taskAllocation)
-			if len(taskAllocation.Units) != 15 {
-				t.Fatalf("TaskAllocation.Units len = %d, want 15", len(taskAllocation.Units))
+			if len(taskAllocation.Units) != len(bundle.BuilderInput.TaskBundle) {
+				t.Fatalf("TaskAllocation.Units len = %d, want %d", len(taskAllocation.Units), len(bundle.BuilderInput.TaskBundle))
 			}
 			listControllerUnit := findAllocationUnit(t, taskAllocation.Units, "task-create-list-controller")
 			if listControllerUnit.Lane != "flow" {

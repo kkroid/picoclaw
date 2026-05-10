@@ -307,6 +307,7 @@ func flutterOpenLiteTemplateSlots() []TemplateSlot {
 			OverridePolicy:    "replace",
 			RequiredInputs:    []string{"domain-model.json", "planning-context.json"},
 			AcceptanceImpacts: []string{"ac-overview", "ac-navigation"},
+			EmitEligible:      true,
 		},
 		{
 			BindingID:         genericSurfaceCollectionID,
@@ -316,6 +317,7 @@ func flutterOpenLiteTemplateSlots() []TemplateSlot {
 			OverridePolicy:    "replace",
 			RequiredInputs:    []string{"domain-model.json", "task-allocation.json"},
 			AcceptanceImpacts: []string{"ac-list", "ac-detail"},
+			EmitEligible:      true,
 		},
 		{
 			BindingID:         genericSurfaceMutationID,
@@ -325,6 +327,7 @@ func flutterOpenLiteTemplateSlots() []TemplateSlot {
 			OverridePolicy:    "replace",
 			RequiredInputs:    []string{"domain-model.json", "task-allocation.json"},
 			AcceptanceImpacts: []string{"ac-form"},
+			EmitEligible:      true,
 		},
 		{
 			BindingID:         genericSurfaceInspectionID,
@@ -334,6 +337,7 @@ func flutterOpenLiteTemplateSlots() []TemplateSlot {
 			OverridePolicy:    "replace",
 			RequiredInputs:    []string{"domain-model.json", "task-allocation.json"},
 			AcceptanceImpacts: []string{"ac-detail", "ac-delete"},
+			EmitEligible:      true,
 		},
 		{
 			BindingID:         publicBindingAppEntry,

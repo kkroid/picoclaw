@@ -42,14 +42,6 @@
 - 目标路径：lib/controllers/home_controller.dart
 - 完成标准：概览承载控制器可读取摘要与最近记录；概览摘要字段与领域语义一致
 
-### 创建实体变更控制器
-
-- 目标：围绕领域记录创建实体变更控制器，负责输入状态、校验和保存动作。
-- 分类：flow
-- 依赖任务：task-create-repository, task-create-record-model
-- 目标路径：lib/controllers/record_form_controller.dart
-- 完成标准：实体变更状态与领域字段一致；保存动作可写入仓储
-
 ### 创建集合浏览与筛选控制器
 
 - 目标：围绕领域记录提供集合读取、排序、筛选和结果检查跳转所需的控制器接口。
@@ -102,7 +94,7 @@
 
 - 目标：根据实体变更控制器和领域文案绑定实体变更承载单元，承接领域字段输入。
 - 分类：screen
-- 依赖任务：task-create-form-controller, task-create-copy
+- 依赖任务：task-create-copy
 - 目标路径：lib/views/record_form_page.dart
 - 完成标准：实体变更承载单元字段与领域记录一致；保存动作已接线到控制器
 

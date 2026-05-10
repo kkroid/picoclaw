@@ -45,7 +45,7 @@
       "category": "domain",
       "task_type": "dual_file_wiring",
       "risk_level": "high",
-      "route_hint": "strong_model",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-create-record-model",
         "semantic_intent_refs": [
@@ -91,7 +91,7 @@
       "category": "summary",
       "task_type": "dual_file_wiring",
       "risk_level": "high",
-      "route_hint": "strong_model",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-create-summary-model",
         "semantic_intent_refs": [
@@ -138,6 +138,7 @@
       "title": "创建本地仓储实现",
       "category": "storage",
       "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-create-repository",
         "semantic_intent_refs": [
@@ -186,6 +187,7 @@
       "title": "创建概览承载控制器",
       "category": "summary",
       "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-create-home-controller",
         "semantic_intent_refs": [
@@ -229,57 +231,11 @@
       ]
     },
     {
-      "task_id": "task-create-form-controller",
-      "title": "创建实体变更控制器",
-      "category": "flow",
-      "task_type": "dual_file_wiring",
-      "allocation_transition": {
-        "allocation_id": "task-create-form-controller",
-        "semantic_intent_refs": [
-          "ac-form",
-          "check-open-lite-record-flow-wiring",
-          "check-profile-open-lite-domain-language"
-        ],
-        "binding_refs": [
-          "flow-controller"
-        ],
-        "surface_refs": [
-          "surface-mutation"
-        ],
-        "entity_refs": [
-          "entity-weight-record"
-        ],
-        "owned_paths": [
-          "lib/controllers/record_form_controller.dart"
-        ],
-        "blocked_by": [
-          "task-create-repository",
-          "task-create-record-model"
-        ],
-        "success_evidence": [
-          "实体变更控制器已创建",
-          "新增与编辑动作围绕领域字段收口"
-        ]
-      },
-      "objective": "围绕领域记录创建实体变更控制器，负责输入状态、校验和保存动作。",
-      "priority": "p0",
-      "dependencies": [
-        "task-create-repository",
-        "task-create-record-model"
-      ],
-      "target_paths": [
-        "lib/controllers/record_form_controller.dart"
-      ],
-      "completion_criteria": [
-        "实体变更状态与领域字段一致",
-        "保存动作可写入仓储"
-      ]
-    },
-    {
       "task_id": "task-create-list-controller",
       "title": "创建集合浏览控制器",
       "category": "flow",
       "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-create-list-controller",
         "semantic_intent_refs": [
@@ -331,7 +287,7 @@
       "category": "content",
       "task_type": "dual_file_wiring",
       "risk_level": "high",
-      "route_hint": "strong_model",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-create-copy",
         "semantic_intent_refs": [
@@ -476,6 +432,7 @@
       "title": "绑定概览承载单元",
       "category": "screen",
       "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-bind-overview-surface",
         "semantic_intent_refs": [
@@ -523,6 +480,7 @@
       "title": "绑定集合浏览承载单元",
       "category": "screen",
       "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-bind-collection-surface",
         "semantic_intent_refs": [
@@ -570,6 +528,7 @@
       "title": "绑定实体变更承载单元",
       "category": "screen",
       "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-bind-mutation-surface",
         "semantic_intent_refs": [
@@ -589,7 +548,6 @@
           "lib/views/record_form_page.dart"
         ],
         "blocked_by": [
-          "task-create-form-controller",
           "task-create-copy"
         ],
         "success_evidence": [
@@ -600,7 +558,6 @@
       "objective": "根据实体变更控制器和领域文案绑定实体变更承载单元，承接领域字段输入。",
       "priority": "p0",
       "dependencies": [
-        "task-create-form-controller",
         "task-create-copy"
       ],
       "target_paths": [
@@ -616,6 +573,7 @@
       "title": "绑定结果检查承载单元",
       "category": "screen",
       "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-bind-inspection-surface",
         "semantic_intent_refs": [
@@ -663,6 +621,7 @@
       "title": "接线应用入口与承载单元路由",
       "category": "screen",
       "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-bind-app-entry",
         "semantic_intent_refs": [
@@ -725,6 +684,7 @@
       "title": "创建最小 Widget 测试",
       "category": "flow",
       "task_type": "dual_file_wiring",
+      "route_hint": "deterministic",
       "allocation_transition": {
         "allocation_id": "task-create-test",
         "semantic_intent_refs": [

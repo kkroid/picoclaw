@@ -39,7 +39,7 @@
         "不再保留默认 generic record 字段"
       ],
       "risk_level": "high",
-      "route_hint": "strong_model"
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-repository",
@@ -75,44 +75,8 @@
       "success_evidence": [
         "仓储实现已创建",
         "领域记录读写入口稳定"
-      ]
-    },
-    {
-      "allocation_id": "task-create-form-controller",
-      "title": "创建实体变更控制器",
-      "wave": 2,
-      "lane": "flow",
-      "priority": "p0",
-      "slot_refs": [
-        "flow-controller"
       ],
-      "surface_refs": [
-        "surface-mutation"
-      ],
-      "entity_refs": [
-        "entity-todo-item"
-      ],
-      "task_type": "dual_file_wiring",
-      "objective": "围绕领域记录创建实体变更控制器，负责输入状态、校验和保存动作。",
-      "semantic_intent_refs": [
-        "ac-form",
-        "check-open-lite-record-flow-wiring",
-        "check-profile-open-lite-domain-language"
-      ],
-      "target_paths": [
-        "lib/controllers/record_form_controller.dart"
-      ],
-      "owned_paths": [
-        "lib/controllers/record_form_controller.dart"
-      ],
-      "blocked_by": [
-        "task-create-repository",
-        "task-create-record-model"
-      ],
-      "success_evidence": [
-        "实体变更控制器已创建",
-        "新增与编辑动作围绕领域字段收口"
-      ]
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-list-controller",
@@ -148,7 +112,8 @@
       "success_evidence": [
         "集合浏览控制器已创建",
         "集合浏览入口可浏览领域记录"
-      ]
+      ],
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-copy",
@@ -187,7 +152,7 @@
         "默认 seed 文案已被领域文案替换"
       ],
       "risk_level": "high",
-      "route_hint": "strong_model"
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-android-branding",
@@ -295,12 +260,13 @@
       "success_evidence": [
         "集合浏览承载单元已绑定",
         "集合结果可浏览领域记录"
-      ]
+      ],
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-bind-mutation-surface",
       "title": "绑定实体变更承载单元",
-      "wave": 3,
+      "wave": 2,
       "lane": "screen",
       "priority": "p0",
       "slot_refs": [
@@ -325,13 +291,13 @@
         "lib/views/record_form_page.dart"
       ],
       "blocked_by": [
-        "task-create-form-controller",
         "task-create-copy"
       ],
       "success_evidence": [
         "实体变更承载单元已绑定",
         "字段输入链路已接线到控制器"
-      ]
+      ],
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-bind-app-entry",
@@ -371,7 +337,8 @@
       "success_evidence": [
         "应用入口已接线",
         "集合浏览、实体变更承载单元导航骨架可用"
-      ]
+      ],
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-test",
@@ -410,7 +377,8 @@
       "success_evidence": [
         "最小 Widget 测试已创建",
         "测试断言与当前领域文案和主流程保持同步"
-      ]
+      ],
+      "route_hint": "deterministic"
     }
   ]
 }

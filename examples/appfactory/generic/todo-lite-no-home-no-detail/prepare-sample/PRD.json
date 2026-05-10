@@ -345,38 +345,6 @@
           "target_path": "surface_list[].surface_id",
           "cardinality": "many"
         }
-      ],
-      "compatibility_fields": [
-        {
-          "field_path": "screen_list",
-          "canonical_path": "surface_list",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "surface_list[].legacy_screen_ref",
-          "canonical_path": "surface_list[].surface_id",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "feature_list[].related_screens[]",
-          "canonical_path": "feature_list[].related_surface_refs[]",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "user_flows[].steps[].screen_ref",
-          "canonical_path": "user_flows[].steps[].surface_ref",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "task_bundle[].allocation_transition.screen_refs[]",
-          "canonical_path": "task_bundle[].allocation_transition.surface_refs[]",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "task_allocation.units[].screen_refs[]",
-          "canonical_path": "task_allocation.units[].surface_refs[]",
-          "policy": "read_only_input"
-        }
       ]
     },
     "surface_contracts": [
@@ -538,7 +506,6 @@
           "check-open-lite-record-flow-wiring"
         ],
         "slot_refs": [
-          "flow-controller",
           "widget-test"
         ],
         "check_refs": [
@@ -769,7 +736,7 @@
         "lane": "domain",
         "category": "domain",
         "task_type": "dual_file_wiring",
-        "route_hint": "strong_model",
+        "route_hint": "deterministic",
         "risk_level": "high",
         "surface_refs": [
           "surface-collection",
@@ -805,6 +772,7 @@
         "lane": "storage",
         "category": "storage",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection",
           "surface-mutation"
@@ -834,48 +802,13 @@
         ]
       },
       {
-        "task_id": "task-create-form-controller",
-        "title": "创建实体变更控制器",
-        "wave": 2,
-        "lane": "flow",
-        "category": "flow",
-        "task_type": "dual_file_wiring",
-        "surface_refs": [
-          "surface-mutation"
-        ],
-        "entity_refs": [
-          "entity-todo-item"
-        ],
-        "semantic_intent_refs": [
-          "ac-form",
-          "check-open-lite-record-flow-wiring",
-          "check-profile-open-lite-domain-language"
-        ],
-        "depends_on": [
-          "task-create-repository",
-          "task-create-record-model"
-        ],
-        "slot_refs": [
-          "flow-controller"
-        ],
-        "target_paths": [
-          "lib/controllers/record_form_controller.dart"
-        ],
-        "owned_paths": [
-          "lib/controllers/record_form_controller.dart"
-        ],
-        "success_evidence": [
-          "实体变更控制器已创建",
-          "新增与编辑动作围绕领域字段收口"
-        ]
-      },
-      {
         "task_id": "task-create-list-controller",
         "title": "创建集合浏览控制器",
         "wave": 2,
         "lane": "flow",
         "category": "flow",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection"
         ],
@@ -911,7 +844,7 @@
         "lane": "content",
         "category": "content",
         "task_type": "dual_file_wiring",
-        "route_hint": "strong_model",
+        "route_hint": "deterministic",
         "risk_level": "high",
         "surface_refs": [
           "surface-collection",
@@ -1020,6 +953,7 @@
         "lane": "screen",
         "category": "screen",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection"
         ],
@@ -1050,10 +984,11 @@
       {
         "task_id": "task-bind-mutation-surface",
         "title": "绑定实体变更承载单元",
-        "wave": 3,
+        "wave": 2,
         "lane": "screen",
         "category": "screen",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-mutation"
         ],
@@ -1065,7 +1000,6 @@
           "mrp-domain-wording"
         ],
         "depends_on": [
-          "task-create-form-controller",
           "task-create-copy"
         ],
         "slot_refs": [
@@ -1089,6 +1023,7 @@
         "lane": "screen",
         "category": "screen",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection",
           "surface-mutation"
@@ -1128,6 +1063,7 @@
         "lane": "flow",
         "category": "flow",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection",
           "surface-mutation"

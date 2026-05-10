@@ -33,7 +33,7 @@
       }
     ]
   },
-  "prepared_prd_subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:301024ece902c062",
+  "prepared_prd_subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:2c848b3e1a88da10",
   "prepared_template_subject_version": "selected-template@flutter-finance-lite@v0.1.0@sha256:044bdae5cb92f850",
   "workspace_path": "/workspace/job-bookkeeping-prepare-sample",
   "artifact_dir": "/artifacts/job-bookkeeping-prepare-sample",

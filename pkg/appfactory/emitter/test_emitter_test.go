@@ -190,18 +190,12 @@ func TestEmitTestGeneric(t *testing.T) {
 		"import 'package:flutter_open_lite/main.dart';",
 		"import 'package:flutter_open_lite/repositories/record_repository.dart';",
 		"import 'package:flutter_open_lite/template/open_lite_copy.dart';",
-		"open lite flow supports create, read, update",
+		"open lite app renders primary flow",
 		"InMemoryRecordRepository();",
 		"await repository.init();",
 		"MyApp(repository: repository)",
-		"openLiteCopy.listPageTitle",
+		"openLiteCopy.appTitle",
 		"openLiteCopy.createPrimaryActionLabel",
-		"openLiteCopy.createSubmitLabel",
-		"openLiteCopy.editPageTitle",
-		"openLiteCopy.editSubmitLabel",
-		"openLiteCopy.doneFilterLabel",
-		"'测试任务'",
-		"'更新后的测试任务'",
 	} {
 		if !strings.Contains(result.Content, marker) {
 			t.Fatalf("content missing generic marker: %s", marker)

@@ -3,8 +3,8 @@
   "job_id": "job-todo-lite-no-home-no-detail-sample-001",
   "prd_id": "prd-todo-lite-no-home-no-detail-sample-001",
   "template_id": "flutter-open-lite",
-  "prd_subject_version": "prd-todo-lite-no-home-no-detail-sample-001@0.1.0@sha256:2e4d02cc2744005e",
-  "template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:98b892c5043151b1",
+  "prd_subject_version": "prd-todo-lite-no-home-no-detail-sample-001@0.1.0@sha256:53c267b24bc63490",
+  "template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47",
   "planning_policy_version": "phase1-boundary-v1",
   "planning_model_snapshot": {
     "requirement_structuring": "planning_model",
@@ -16,16 +16,14 @@
   "execution_route_snapshot": {
     "default_route_hint": "default_model",
     "route_hint_counts": {
-      "default_model": 7,
-      "deterministic": 2,
-      "strong_model": 2
+      "deterministic": 10
     },
     "task_routes": [
       {
         "allocation_id": "task-create-record-model",
         "category": "domain",
         "task_type": "dual_file_wiring",
-        "route_hint": "strong_model",
+        "route_hint": "deterministic",
         "risk_level": "high",
         "target_paths": [
           "lib/models/record.dart"
@@ -35,25 +33,16 @@
         "allocation_id": "task-create-repository",
         "category": "storage",
         "task_type": "dual_file_wiring",
-        "route_hint": "default_model",
+        "route_hint": "deterministic",
         "target_paths": [
           "lib/repositories/record_repository.dart"
-        ]
-      },
-      {
-        "allocation_id": "task-create-form-controller",
-        "category": "flow",
-        "task_type": "dual_file_wiring",
-        "route_hint": "default_model",
-        "target_paths": [
-          "lib/controllers/record_form_controller.dart"
         ]
       },
       {
         "allocation_id": "task-create-list-controller",
         "category": "flow",
         "task_type": "dual_file_wiring",
-        "route_hint": "default_model",
+        "route_hint": "deterministic",
         "target_paths": [
           "lib/controllers/record_list_controller.dart"
         ]
@@ -62,7 +51,7 @@
         "allocation_id": "task-create-copy",
         "category": "content",
         "task_type": "dual_file_wiring",
-        "route_hint": "strong_model",
+        "route_hint": "deterministic",
         "risk_level": "high",
         "target_paths": [
           "lib/template/open_lite_copy.dart"
@@ -90,7 +79,7 @@
         "allocation_id": "task-bind-collection-surface",
         "category": "screen",
         "task_type": "dual_file_wiring",
-        "route_hint": "default_model",
+        "route_hint": "deterministic",
         "target_paths": [
           "lib/views/record_list_page.dart"
         ]
@@ -99,7 +88,7 @@
         "allocation_id": "task-bind-mutation-surface",
         "category": "screen",
         "task_type": "dual_file_wiring",
-        "route_hint": "default_model",
+        "route_hint": "deterministic",
         "target_paths": [
           "lib/views/record_form_page.dart"
         ]
@@ -108,7 +97,7 @@
         "allocation_id": "task-bind-app-entry",
         "category": "screen",
         "task_type": "dual_file_wiring",
-        "route_hint": "default_model",
+        "route_hint": "deterministic",
         "target_paths": [
           "lib/main.dart"
         ]
@@ -117,7 +106,7 @@
         "allocation_id": "task-create-test",
         "category": "flow",
         "task_type": "dual_file_wiring",
-        "route_hint": "default_model",
+        "route_hint": "deterministic",
         "target_paths": [
           "test/widget_test.dart"
         ]
@@ -144,7 +133,7 @@
     },
     "start_upgrade_check": {
       "current_attempt": 1,
-      "concrete_target_file_count": 11,
+      "concrete_target_file_count": 10,
       "would_upgrade_from_start": true,
       "triggered_reasons": [
         "max_files_before_upgrade"

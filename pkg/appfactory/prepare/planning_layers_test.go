@@ -169,8 +169,8 @@ func TestCompileGenericSpecLayerKeepsTodoDomainSignals(t *testing.T) {
 	if spec.Title != "待办事项 App" {
 		t.Fatalf("Title = %q, want 待办事项 App", spec.Title)
 	}
-	if len(spec.TaskBundle) != 15 {
-		t.Fatalf("TaskBundle len = %d, want 15", len(spec.TaskBundle))
+	if len(spec.TaskBundle) != 14 {
+		t.Fatalf("TaskBundle len = %d, want 14", len(spec.TaskBundle))
 	}
 	if spec.TaskBundle[6].Category != appruns.TaskCategoryContent {
 		t.Fatalf("domain copy category = %q, want content", spec.TaskBundle[6].Category)
@@ -247,8 +247,8 @@ func TestCompileGenericSpecLayerPrunesExplicitNoHomeNoDetailTopology(t *testing.
 	if !containsString(featureIDs, "feature-record-list") || !containsString(featureIDs, "feature-record-form") {
 		t.Fatalf("feature ids = %v, want list/form kept", featureIDs)
 	}
-	if len(spec.TaskBundle) != 11 {
-		t.Fatalf("TaskBundle len = %d, want 11", len(spec.TaskBundle))
+	if len(spec.TaskBundle) != 10 {
+		t.Fatalf("TaskBundle len = %d, want 10", len(spec.TaskBundle))
 	}
 	if len(spec.UserFlows) != 1 || spec.UserFlows[0].FlowID != "flow-create-record" {
 		t.Fatalf("UserFlows = %+v, want only create flow", spec.UserFlows)

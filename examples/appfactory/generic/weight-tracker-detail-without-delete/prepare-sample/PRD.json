@@ -306,38 +306,6 @@
           "target_path": "surface_list[].surface_id",
           "cardinality": "many"
         }
-      ],
-      "compatibility_fields": [
-        {
-          "field_path": "screen_list",
-          "canonical_path": "surface_list",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "surface_list[].legacy_screen_ref",
-          "canonical_path": "surface_list[].surface_id",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "feature_list[].related_screens[]",
-          "canonical_path": "feature_list[].related_surface_refs[]",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "user_flows[].steps[].screen_ref",
-          "canonical_path": "user_flows[].steps[].surface_ref",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "task_bundle[].allocation_transition.screen_refs[]",
-          "canonical_path": "task_bundle[].allocation_transition.surface_refs[]",
-          "policy": "read_only_input"
-        },
-        {
-          "field_path": "task_allocation.units[].screen_refs[]",
-          "canonical_path": "task_allocation.units[].surface_refs[]",
-          "policy": "read_only_input"
-        }
       ]
     },
     "surface_contracts": [
@@ -703,7 +671,7 @@
         "lane": "domain",
         "category": "domain",
         "task_type": "dual_file_wiring",
-        "route_hint": "strong_model",
+        "route_hint": "deterministic",
         "risk_level": "high",
         "surface_refs": [
           "surface-collection",
@@ -739,6 +707,7 @@
         "lane": "storage",
         "category": "storage",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection",
           "surface-inspection"
@@ -774,6 +743,7 @@
         "lane": "flow",
         "category": "flow",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection",
           "surface-inspection"
@@ -812,7 +782,7 @@
         "lane": "content",
         "category": "content",
         "task_type": "dual_file_wiring",
-        "route_hint": "strong_model",
+        "route_hint": "deterministic",
         "risk_level": "high",
         "surface_refs": [
           "surface-collection",
@@ -921,6 +891,7 @@
         "lane": "screen",
         "category": "screen",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection"
         ],
@@ -957,6 +928,7 @@
         "lane": "screen",
         "category": "screen",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-inspection"
         ],
@@ -992,6 +964,7 @@
         "lane": "screen",
         "category": "screen",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection",
           "surface-inspection"
@@ -1030,6 +1003,7 @@
         "lane": "flow",
         "category": "flow",
         "task_type": "dual_file_wiring",
+        "route_hint": "deterministic",
         "surface_refs": [
           "surface-collection",
           "surface-inspection"

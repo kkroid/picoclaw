@@ -33,14 +33,14 @@ func TestBuildPlanningContextLayerCapturesPolicyAndRoutes(t *testing.T) {
 	if context.PlanningModelSnapshot.BuildInputProjection != string(appruns.PlanningStageRouteDeterministic) {
 		t.Fatalf("BuildInputProjection route = %q, want deterministic", context.PlanningModelSnapshot.BuildInputProjection)
 	}
-	if got := context.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintDefaultModel)]; got != len(spec.TaskBundle)-5 {
-		t.Fatalf("default_model count = %d, want %d", got, len(spec.TaskBundle)-5)
+	if got := context.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintDefaultModel)]; got != 0 {
+		t.Fatalf("default_model count = %d, want 0", got)
 	}
-	if got := context.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintStrongModel)]; got != 3 {
-		t.Fatalf("strong_model count = %d, want 3", got)
+	if got := context.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintStrongModel)]; got != 1 {
+		t.Fatalf("strong_model count = %d, want 1", got)
 	}
-	if got := context.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintDeterministic)]; got != 2 {
-		t.Fatalf("deterministic count = %d, want 2", got)
+	if got := context.ExecutionRouteSnapshot.RouteHintCounts[string(appruns.TaskRouteHintDeterministic)]; got != len(context.ExecutionRouteSnapshot.TaskRoutes)-1 {
+		t.Fatalf("deterministic count = %d, want task route count minus strong_model", got)
 	}
 	if context.ExecutionRouteSnapshot.TaskRoutes[1].AllocationID != "alloc-domain-copy" {
 		t.Fatalf("TaskRoutes[1].AllocationID = %q, want alloc-domain-copy", context.ExecutionRouteSnapshot.TaskRoutes[1].AllocationID)

@@ -39,7 +39,7 @@
         "不再保留默认 generic record 字段"
       ],
       "risk_level": "high",
-      "route_hint": "strong_model"
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-repository",
@@ -75,7 +75,8 @@
       "success_evidence": [
         "仓储实现已创建",
         "领域记录读写入口稳定"
-      ]
+      ],
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-list-controller",
@@ -114,7 +115,8 @@
         "集合浏览控制器已创建",
         "集合浏览入口可浏览领域记录",
         "结果检查入口与集合数据保持一致"
-      ]
+      ],
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-copy",
@@ -153,7 +155,7 @@
         "默认 seed 文案已被领域文案替换"
       ],
       "risk_level": "high",
-      "route_hint": "strong_model"
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-android-branding",
@@ -263,7 +265,8 @@
         "集合浏览承载单元已绑定",
         "集合结果可浏览领域记录",
         "结果检查入口与集合数据保持一致"
-      ]
+      ],
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-bind-inspection-surface",
@@ -299,7 +302,8 @@
       "success_evidence": [
         "结果检查承载单元已绑定",
         "结果检查可围绕单条领域记录展示"
-      ]
+      ],
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-bind-app-entry",
@@ -338,7 +342,8 @@
       "success_evidence": [
         "应用入口已接线",
         "集合浏览、结果检查承载单元导航骨架可用"
-      ]
+      ],
+      "route_hint": "deterministic"
     },
     {
       "allocation_id": "task-create-test",
@@ -376,7 +381,8 @@
       "success_evidence": [
         "最小 Widget 测试已创建",
         "测试断言与当前领域文案和主流程保持同步"
-      ]
+      ],
+      "route_hint": "deterministic"
     }
   ]
 }

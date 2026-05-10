@@ -1,7 +1,7 @@
 {
   "schema_version": "0.1.0",
   "template_id": "flutter-open-lite",
-  "template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:98b892c5043151b1",
+  "template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47",
   "slots": [
     {
       "binding_id": "surface-overview",
@@ -21,7 +21,7 @@
         "ac-overview",
         "ac-navigation"
       ],
-      "emit_eligible": false
+      "emit_eligible": true
     },
     {
       "binding_id": "surface-collection",
@@ -40,7 +40,7 @@
         "ac-list",
         "ac-detail"
       ],
-      "emit_eligible": false
+      "emit_eligible": true
     },
     {
       "binding_id": "surface-mutation",
@@ -58,7 +58,7 @@
       "acceptance_impacts": [
         "ac-form"
       ],
-      "emit_eligible": false
+      "emit_eligible": true
     },
     {
       "binding_id": "surface-inspection",
@@ -76,7 +76,7 @@
         "ac-detail",
         "ac-delete"
       ],
-      "emit_eligible": false
+      "emit_eligible": true
     },
     {
       "binding_id": "app-entry",

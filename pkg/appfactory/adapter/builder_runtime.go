@@ -59,10 +59,10 @@ type defaultBuilderRuntimePatchGenerator struct {
 }
 
 type builderRuntimeExecutionResult struct {
-	Patch       *appruns.WorkspacePatch
-	ApplyResult appruns.WorkspacePatchApplyResult
+	Patch             *appruns.WorkspacePatch
+	ApplyResult       appruns.WorkspacePatchApplyResult
 	AppliedRoundInput *appruns.RoundInput
-	Stats       *appruns.BuilderRuntimeExecutionStats
+	Stats             *appruns.BuilderRuntimeExecutionStats
 }
 
 type builderRuntimeExecutionError struct {
@@ -2469,7 +2469,13 @@ func shouldUseCompactBuilderRuntimeOverviewBindPrompt(request BuilderRuntimePatc
 		return false
 	}
 	if !builderRuntimeTaskHasSurfaceRef(dominantTask, builderRuntimeOverviewSurfaceRef) && normalizedTargetPath != "lib/views/home_page.dart" {
-		return false
+		if strings.TrimSpace(request.Run.WorkspacePath) == "" {
+			return false
+		}
+		registry := builderRuntimeOpenLiteOverviewSurfaceRegistry(request.Run.WorkspacePath)
+		if strings.TrimSpace(registry.view.resolvedPath) != normalizedTargetPath {
+			return false
+		}
 	}
 	if strings.TrimSpace(request.Run.WorkspacePath) == "" {
 		return false
@@ -4940,11 +4946,23 @@ func pruneUnexpectedNoFilterCollectionControllerOperations(workspacePath string,
 			collectionControllerPaths = likelyControllerPaths
 		}
 	}
-	if len(collectionViewPaths) == 0 {
-		collectionViewPaths = []string{"lib/views/record_list_page.dart"}
-	}
-	if len(collectionControllerPaths) == 0 {
-		collectionControllerPaths = []string{"lib/controllers/record_list_controller.dart"}
+	// 兜底优先用 registry 解析，registry 也失败时才退回模板默认路径。
+	if len(collectionViewPaths) == 0 || len(collectionControllerPaths) == 0 {
+		registry := builderRuntimeOpenLiteCollectionSurfaceRegistry(workspacePath)
+		if len(collectionViewPaths) == 0 {
+			if vp := strings.TrimSpace(registry.view.resolvedPath); vp != "" {
+				collectionViewPaths = []string{vp}
+			} else {
+				collectionViewPaths = []string{"lib/views/record_list_page.dart"}
+			}
+		}
+		if len(collectionControllerPaths) == 0 {
+			if cp := strings.TrimSpace(registry.controller.resolvedPath); cp != "" {
+				collectionControllerPaths = []string{cp}
+			} else {
+				collectionControllerPaths = []string{"lib/controllers/record_list_controller.dart"}
+			}
+		}
 	}
 	hasExistingCollectionController := false
 	for _, controllerPath := range collectionControllerPaths {
@@ -8546,9 +8564,14 @@ func selectBuilderRuntimeRoute(run runRecord) (appruns.BuilderRuntimeTaskRoute, 
 		}
 	}
 	if selected.Model.Primary == "" && run.BuilderRuntime.DefaultModel.Primary != "" && selected.RouteSource != "route_hint" {
-		selected.Model = run.BuilderRuntime.DefaultModel
-		if selected.RouteSource == "unconfigured" {
-			selected.RouteSource = "default_model"
+		// 保留 route_hint=deterministic 任务的空 model，供 tryDeterministicEmit 消费。
+		if appruns.NormalizeTaskRouteHint(string(selectedTask.RouteHint)) != appruns.TaskRouteHintDeterministic {
+			selected.Model = run.BuilderRuntime.DefaultModel
+			if selected.RouteSource == "unconfigured" {
+				selected.RouteSource = "default_model"
+			}
+		} else if selected.RouteSource == "unconfigured" {
+			selected.RouteSource = "route_hint"
 		}
 	}
 	if shouldUpgradeBuilderRuntimeFromStart(run, selected) && run.BuilderRuntime.UpgradeModel.Primary != "" && selected.RouteSource != "route_hint" {

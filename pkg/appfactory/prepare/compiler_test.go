@@ -810,8 +810,8 @@ func TestCompileGenericRequirementUsesRegistrySelection(t *testing.T) {
 	if len(bundle.BuilderInput.AcceptanceChecks) != 6 {
 		t.Fatalf("AcceptanceChecks len = %d, want 6", len(bundle.BuilderInput.AcceptanceChecks))
 	}
-	if len(bundle.BuilderInput.TaskBundle) != 15 {
-		t.Fatalf("TaskBundle len = %d, want 15", len(bundle.BuilderInput.TaskBundle))
+	if len(bundle.BuilderInput.TaskBundle) != 14 {
+		t.Fatalf("TaskBundle len = %d, want 14", len(bundle.BuilderInput.TaskBundle))
 	}
 	if bundle.PRD.FeatureList[1].Summary != "承接记录集合浏览、状态筛选与结果检查入口。" {
 		t.Fatalf("record list summary = %q, want collection+filter summary", bundle.PRD.FeatureList[1].Summary)
