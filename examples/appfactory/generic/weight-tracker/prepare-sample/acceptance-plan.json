@@ -143,6 +143,13 @@
       "slot_refs": [
         "surface-overview"
       ],
+      "capability_refs": [
+        "summary-card",
+        "derived-summary"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary"
+      ],
       "field_refs": [
         "latest_weight",
         "record_count",
@@ -165,6 +172,12 @@
         "surface-collection",
         "surface-inspection"
       ],
+      "capability_refs": [
+        "list"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records"
+      ],
       "field_refs": [
         "record_id",
         "weight",
@@ -186,6 +199,17 @@
       "source_ref": "ac-form",
       "slot_refs": [
         "surface-mutation"
+      ],
+      "capability_refs": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record"
+      ],
+      "behavior_refs": [
+        "behavior-create-record",
+        "behavior-update-record"
       ],
       "field_refs": [
         "record_id",
@@ -210,6 +234,12 @@
         "surface-collection",
         "surface-inspection"
       ],
+      "capability_refs": [
+        "detail"
+      ],
+      "behavior_refs": [
+        "behavior-inspect-record"
+      ],
       "field_refs": [
         "latest_weight",
         "record_count",
@@ -231,6 +261,13 @@
       "slot_refs": [
         "surface-inspection",
         "surface-collection"
+      ],
+      "capability_refs": [
+        "delete-record",
+        "local-storage"
+      ],
+      "behavior_refs": [
+        "behavior-delete-record"
       ],
       "field_refs": [
         "latest_weight",
@@ -255,6 +292,18 @@
         "surface-collection",
         "surface-inspection"
       ],
+      "capability_refs": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "delete-record"
+      ],
+      "behavior_refs": [
+        "behavior-create-record",
+        "behavior-delete-record",
+        "behavior-persist-records"
+      ],
       "field_refs": [
         "record_id",
         "weight",
@@ -276,6 +325,12 @@
       "source_ref": "ac-navigation",
       "slot_refs": [
         "surface-overview"
+      ],
+      "capability_refs": [
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-navigate-surfaces"
       ],
       "field_refs": [
         "latest_weight",
@@ -333,6 +388,23 @@
       "slot_refs": [
         "surface-overview",
         "surface-mutation"
+      ],
+      "capability_refs": [
+        "summary-card",
+        "derived-summary",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     },
     {
@@ -345,6 +417,24 @@
       "slot_refs": [
         "surface-inspection",
         "surface-mutation"
+      ],
+      "capability_refs": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "delete-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     },
     {
@@ -356,6 +446,22 @@
       "source_ref": "flow-delete-record",
       "slot_refs": [
         "surface-inspection"
+      ],
+      "capability_refs": [
+        "form",
+        "edit-record",
+        "field-validation",
+        "local-storage",
+        "detail",
+        "delete-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     },
     {
@@ -368,6 +474,21 @@
       "slot_refs": [
         "surface-overview",
         "surface-collection"
+      ],
+      "capability_refs": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "delete-record",
+        "local-storage",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     }
   ],

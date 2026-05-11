@@ -29,6 +29,10 @@ type domainSpec struct {
 	ScreenList              []Screen
 	UserFlows               []UserFlow
 	DataEntities            []DataEntity
+	ComplexityLevel         string
+	CapabilityFlags         []string
+	BehaviorRules           []DomainBehaviorRule
+	PersistenceContract     *PersistenceContract
 	TemplateConstraints     TemplateConstraints
 	AcceptanceCriteria      []AcceptanceCriterion
 	ManualReviewPoints      []ManualReviewPoint
@@ -1469,6 +1473,166 @@ func buildGenericRequiredCapabilities(signals genericDomainSignals, topology gen
 	return capabilities
 }
 
+func buildGenericCapabilityFlags(signals genericDomainSignals, topology genericTopologyPlan) []string {
+	capabilities := []string{"navigation", "local-storage", "theme"}
+	if topology.Overview {
+		capabilities = append(capabilities, "summary-card", "derived-summary")
+	}
+	if topology.Collection {
+		capabilities = append(capabilities, "list")
+	}
+	if topology.Mutation {
+		capabilities = append(capabilities, "form", "create-record", "edit-record", "field-validation")
+	}
+	if topology.Inspection {
+		capabilities = append(capabilities, "detail")
+	}
+	if topology.Delete {
+		capabilities = append(capabilities, "delete-record")
+	}
+	if topology.Filter {
+		capabilities = append(capabilities, "filter", "status-filter")
+	}
+	for _, field := range signals.Entity.Fields {
+		switch genericFieldRole(field) {
+		case "status":
+			capabilities = append(capabilities, "status-field")
+		case "due_date":
+			capabilities = append(capabilities, "due-date")
+		case "date":
+			capabilities = append(capabilities, "date-field")
+		case "rating":
+			capabilities = append(capabilities, "rating-field")
+		case "duration":
+			capabilities = append(capabilities, "duration-field")
+		case "flag":
+			capabilities = append(capabilities, "boolean-field")
+		}
+	}
+	return uniqueStrings(capabilities)
+}
+
+func buildGenericComplexityLevel(signals genericDomainSignals, topology genericTopologyPlan) string {
+	if topology.Filter || topology.Delete || genericFieldHasRole(signals.Entity.Fields, "due_date", "rating", "duration", "flag") {
+		return "L2-behavior-contract"
+	}
+	return "L1-field-profile"
+}
+
+func buildGenericBehaviorRules(signals genericDomainSignals, topology genericTopologyPlan) []DomainBehaviorRule {
+	rules := make([]DomainBehaviorRule, 0, 8)
+	primaryEntityRef := strings.TrimSpace(signals.Entity.EntityID)
+	summaryEntityRef := strings.TrimSpace(signals.SummaryEntity.EntityID)
+	mutableFieldRefs := genericMutableFieldRefs(signals.Entity.Fields)
+	if topology.Overview {
+		rules = append(rules, DomainBehaviorRule{RuleID: "behavior-overview-summary", Kind: "summarize", Description: signals.OverviewAcceptance, CapabilityRefs: []string{"summary-card", "derived-summary"}, SurfaceRefs: []string{genericSurfaceOverviewID}, EntityRefs: []string{summaryEntityRef}, FieldRefs: genericEntityFieldNames(signals.SummaryEntity), AcceptanceRefs: []string{"ac-overview"}, Required: true})
+	}
+	if topology.Collection {
+		rules = append(rules, DomainBehaviorRule{RuleID: "behavior-browse-records", Kind: "browse", Description: signals.ListAcceptance, CapabilityRefs: []string{"list"}, SurfaceRefs: []string{genericSurfaceCollectionID}, EntityRefs: []string{primaryEntityRef}, FieldRefs: genericEntityFieldNames(signals.Entity), AcceptanceRefs: []string{"ac-list"}, Required: true})
+	}
+	if topology.Mutation {
+		rules = append(rules, DomainBehaviorRule{RuleID: "behavior-create-record", Kind: "create", Description: signals.FormAcceptance, CapabilityRefs: []string{"form", "create-record", "field-validation", "local-storage"}, SurfaceRefs: []string{genericSurfaceMutationID}, EntityRefs: []string{primaryEntityRef}, FieldRefs: mutableFieldRefs, AcceptanceRefs: []string{"ac-form", "ac-persistence"}, Required: true})
+		rules = append(rules, DomainBehaviorRule{RuleID: "behavior-update-record", Kind: "update", Description: signals.UpdateSummary, CapabilityRefs: []string{"form", "edit-record", "field-validation", "local-storage"}, SurfaceRefs: compactRefs(genericSurfaceMutationID, genericConditionalRef(topology.Inspection, genericSurfaceInspectionID)), EntityRefs: []string{primaryEntityRef}, FieldRefs: mutableFieldRefs, AcceptanceRefs: []string{"ac-form"}, Required: true})
+	}
+	if topology.Inspection {
+		rules = append(rules, DomainBehaviorRule{RuleID: "behavior-inspect-record", Kind: "inspect", Description: signals.DetailFieldsExpected, CapabilityRefs: []string{"detail"}, SurfaceRefs: []string{genericSurfaceInspectionID}, EntityRefs: []string{primaryEntityRef}, FieldRefs: genericEntityFieldNames(signals.Entity), AcceptanceRefs: []string{"ac-detail"}, Required: true})
+	}
+	if topology.Delete {
+		rules = append(rules, DomainBehaviorRule{RuleID: "behavior-delete-record", Kind: "delete", Description: signals.DeleteAcceptance, CapabilityRefs: []string{"delete-record", "local-storage"}, SurfaceRefs: compactRefs(genericSurfaceInspectionID, genericSurfaceCollectionID), EntityRefs: []string{primaryEntityRef}, AcceptanceRefs: []string{"ac-delete", "ac-persistence"}, Required: true})
+	}
+	if topology.Filter {
+		filterFieldRefs := genericFieldNamesWithRoles(signals.Entity.Fields, "status", "secondary_text", "flag")
+		rules = append(rules, DomainBehaviorRule{RuleID: "behavior-filter-records", Kind: "filter", Description: signals.FilterExpected, CapabilityRefs: []string{"filter", "status-filter"}, SurfaceRefs: []string{genericSurfaceCollectionID}, EntityRefs: []string{primaryEntityRef}, FieldRefs: filterFieldRefs, AcceptanceRefs: []string{"ac-list"}, Required: true})
+	}
+	rules = append(rules, DomainBehaviorRule{RuleID: "behavior-persist-records", Kind: "persist", Description: "领域记录必须通过本地仓储持久化并可在应用重启后恢复。", CapabilityRefs: []string{"local-storage"}, SurfaceRefs: genericActiveSurfaceRefs(topology), EntityRefs: []string{primaryEntityRef}, AcceptanceRefs: []string{"ac-persistence"}, Required: true})
+	rules = append(rules, DomainBehaviorRule{RuleID: "behavior-navigate-surfaces", Kind: "navigate", Description: buildGenericNonDefaultNavigationAcceptance(signals, topology), CapabilityRefs: []string{"navigation"}, SurfaceRefs: genericActiveSurfaceRefs(topology), EntityRefs: compactRefs(primaryEntityRef, genericConditionalRef(topology.Overview, summaryEntityRef)), AcceptanceRefs: []string{"ac-navigation"}, Required: true})
+	return rules
+}
+
+func buildGenericPersistenceContract(signals genericDomainSignals) *PersistenceContract {
+	return &PersistenceContract{Mode: "local-hive", RepositoryPath: "lib/repositories/record_repository.dart", EntityRefs: []string{strings.TrimSpace(signals.Entity.EntityID)}, CapabilityRefs: []string{"local-storage"}, Required: true}
+}
+
+func genericActiveSurfaceRefs(topology genericTopologyPlan) []string {
+	return compactRefs(
+		genericConditionalRef(topology.Overview, genericSurfaceOverviewID),
+		genericConditionalRef(topology.Collection, genericSurfaceCollectionID),
+		genericConditionalRef(topology.Mutation, genericSurfaceMutationID),
+		genericConditionalRef(topology.Inspection, genericSurfaceInspectionID),
+	)
+}
+
+func genericEntityFieldNames(entity DataEntity) []string {
+	fieldRefs := make([]string, 0, len(entity.Fields))
+	for _, field := range entity.Fields {
+		fieldRefs = append(fieldRefs, field.Name)
+	}
+	return uniqueStrings(fieldRefs)
+}
+
+func genericMutableFieldRefs(fields []DataField) []string {
+	fieldRefs := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if genericFieldRole(field) == "identifier" {
+			continue
+		}
+		fieldRefs = append(fieldRefs, field.Name)
+	}
+	return uniqueStrings(fieldRefs)
+}
+
+func genericFieldNamesWithRoles(fields []DataField, roles ...string) []string {
+	roleSet := make(map[string]struct{}, len(roles))
+	for _, role := range roles {
+		if trimmed := strings.TrimSpace(role); trimmed != "" {
+			roleSet[trimmed] = struct{}{}
+		}
+	}
+	fieldRefs := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if _, ok := roleSet[genericFieldRole(field)]; ok {
+			fieldRefs = append(fieldRefs, field.Name)
+		}
+	}
+	return uniqueStrings(fieldRefs)
+}
+
+func genericFieldHasRole(fields []DataField, roles ...string) bool {
+	return len(genericFieldNamesWithRoles(fields, roles...)) > 0
+}
+
+func genericFieldRole(field DataField) string {
+	if role := strings.TrimSpace(field.Role); role != "" {
+		return role
+	}
+	name := strings.ToLower(strings.TrimSpace(field.Name))
+	fieldType := strings.ToLower(strings.TrimSpace(field.Type))
+	switch {
+	case name == "id", strings.HasSuffix(name, "_id"):
+		return "identifier"
+	case strings.Contains(name, "status") || strings.HasPrefix(fieldType, "enum["):
+		return "status"
+	case strings.Contains(name, "due"):
+		return "due_date"
+	case strings.HasSuffix(name, "_at") || strings.Contains(name, "date") || fieldType == "date":
+		return "date"
+	case strings.Contains(name, "rating"):
+		return "rating"
+	case strings.Contains(name, "duration") || strings.Contains(name, "minutes"):
+		return "duration"
+	case strings.HasPrefix(fieldType, "bool") || strings.HasPrefix(name, "is_") || strings.HasPrefix(name, "has_"):
+		return "flag"
+	case strings.Contains(name, "note") || strings.Contains(name, "review"):
+		return "note"
+	case strings.Contains(name, "title") || strings.Contains(name, "name"):
+		return "primary_text"
+	case strings.Contains(name, "category") || strings.Contains(name, "type"):
+		return "secondary_text"
+	default:
+		return ""
+	}
+}
+
 func buildGenericTemplateFitReasons(signals genericDomainSignals, topology genericTopologyPlan) []string {
 	if topology.isDefault(signals) {
 		return []string{
@@ -1801,6 +1965,8 @@ func compileGenericSpec(request Request, requirementText string) domainSpec {
 	surfaceList := buildGenericSurfaceList(featureList)
 	acceptanceCriteria := buildGenericAcceptanceCriteria(signals, topology)
 	manualReviewPoints := buildGenericManualReviewPoints(signals, topology)
+	capabilityFlags := buildGenericCapabilityFlags(signals, topology)
+	behaviorRules := buildGenericBehaviorRules(signals, topology)
 	return domainSpec{
 		Kind:                    "generic",
 		Slug:                    "generic-open-lite",
@@ -1821,6 +1987,10 @@ func compileGenericSpec(request Request, requirementText string) domainSpec {
 		SurfaceList:             surfaceList,
 		UserFlows:               userFlows,
 		DataEntities:            buildGenericDataEntities(signals, topology),
+		ComplexityLevel:         buildGenericComplexityLevel(signals, topology),
+		CapabilityFlags:         capabilityFlags,
+		BehaviorRules:           behaviorRules,
+		PersistenceContract:     buildGenericPersistenceContract(signals),
 		TemplateConstraints:     TemplateConstraints{Stack: "flutter", AndroidRequired: true, RequiredCapabilities: buildGenericRequiredCapabilities(signals, topology), PreferredTemplateIDs: preferredTemplateIDs},
 		AcceptanceCriteria:      acceptanceCriteria,
 		ManualReviewPoints:      manualReviewPoints,

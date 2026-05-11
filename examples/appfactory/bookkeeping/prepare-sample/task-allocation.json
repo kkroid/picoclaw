@@ -22,6 +22,12 @@
         "entity-entry",
         "entity-summary"
       ],
+      "capability_flags": [
+        "summary-card",
+        "list",
+        "form",
+        "domain-model"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "先明确记账 App 的账单实体、派生汇总和目录落点，避免后续承载单元与存储边界反复漂移。",
       "semantic_intent_refs": [
@@ -70,6 +76,12 @@
       "entity_refs": [
         "entity-entry",
         "entity-summary"
+      ],
+      "capability_flags": [
+        "summary-card",
+        "list",
+        "form",
+        "local-storage"
       ],
       "task_type": "dual_file_wiring",
       "objective": "把本地持久化方案和 repository 边界固定下来，确保新增账单后可恢复概览与账单集合。",
@@ -124,6 +136,12 @@
       "entity_refs": [
         "entity-entry",
         "entity-summary"
+      ],
+      "capability_flags": [
+        "summary-card",
+        "list",
+        "form",
+        "navigation"
       ],
       "task_type": "dual_file_wiring",
       "objective": "先把概览承载、实体变更承载、集合浏览承载和主导航入口搭出来，不把默认 seed 骨架当作完成结果。",
@@ -182,6 +200,13 @@
       "entity_refs": [
         "entity-entry",
         "entity-summary"
+      ],
+      "capability_flags": [
+        "summary-card",
+        "list",
+        "form",
+        "local-storage",
+        "acceptance-test"
       ],
       "task_type": "dual_file_wiring",
       "objective": "把账单录入保存、概览刷新和账单集合回显串成一个完整功能闭环。",
@@ -246,6 +271,13 @@
       "entity_refs": [
         "entity-entry",
         "entity-summary"
+      ],
+      "capability_flags": [
+        "summary-card",
+        "list",
+        "form",
+        "navigation",
+        "local-storage"
       ],
       "task_type": "closure_repair",
       "objective": "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 debug APK 全通过。",

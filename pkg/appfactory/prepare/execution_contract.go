@@ -30,11 +30,15 @@ func (contract *ExecutionContract) UnmarshalJSON(data []byte) error {
 }
 
 type ExecutionDomainModel struct {
-	DomainName             string       `json:"domain_name"`
-	Entities               []DataEntity `json:"entities,omitempty"`
-	SummaryMetrics         []string     `json:"summary_metrics,omitempty"`
-	CriticalFlowRefs       []string     `json:"critical_flow_refs,omitempty"`
-	SemanticAcceptanceRefs []string     `json:"semantic_acceptance_refs,omitempty"`
+	DomainName             string               `json:"domain_name"`
+	ComplexityLevel        string               `json:"complexity_level,omitempty"`
+	CapabilityFlags        []string             `json:"capability_flags,omitempty"`
+	Entities               []DataEntity         `json:"entities,omitempty"`
+	SummaryMetrics         []string             `json:"summary_metrics,omitempty"`
+	BehaviorRules          []DomainBehaviorRule `json:"behavior_rules,omitempty"`
+	PersistenceContract    *PersistenceContract `json:"persistence_contract,omitempty"`
+	CriticalFlowRefs       []string             `json:"critical_flow_refs,omitempty"`
+	SemanticAcceptanceRefs []string             `json:"semantic_acceptance_refs,omitempty"`
 }
 
 type SurfaceRelationSchema struct {
@@ -168,8 +172,12 @@ func buildExecutionContract(spec domainSpec, prd PRD, taskBundle []appruns.TaskB
 func buildExecutionDomainModel(prd PRD, domainModel DomainModel) ExecutionDomainModel {
 	result := ExecutionDomainModel{
 		DomainName:             firstNonEmpty(domainModel.DomainName, prd.Title),
+		ComplexityLevel:        strings.TrimSpace(domainModel.ComplexityLevel),
+		CapabilityFlags:        append([]string(nil), domainModel.CapabilityFlags...),
 		Entities:               append([]DataEntity(nil), domainModel.Entities...),
 		SummaryMetrics:         append([]string(nil), domainModel.SummaryMetrics...),
+		BehaviorRules:          append([]DomainBehaviorRule(nil), domainModel.BehaviorRules...),
+		PersistenceContract:    clonePersistenceContract(domainModel.PersistenceContract),
 		CriticalFlowRefs:       collectUserFlowRefs(prd.UserFlows),
 		SemanticAcceptanceRefs: collectAcceptanceRefs(prd.AcceptanceCriteria),
 	}

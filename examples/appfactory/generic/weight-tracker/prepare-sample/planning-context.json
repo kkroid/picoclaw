@@ -3,7 +3,7 @@
   "job_id": "job-weight-tracker-sample-001",
   "prd_id": "prd-weight-tracker-sample-001",
   "template_id": "flutter-open-lite",
-  "prd_subject_version": "prd-weight-tracker-sample-001@0.1.0@sha256:517b32049d4506a4",
+  "prd_subject_version": "prd-weight-tracker-sample-001@0.1.0@sha256:f32015d70e283049",
   "template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47",
   "planning_policy_version": "phase1-boundary-v1",
   "planning_model_snapshot": {

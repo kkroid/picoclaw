@@ -20,6 +20,23 @@
       "entity_refs": [
         "entity-todo-item"
       ],
+      "capability_flags": [
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation",
+        "domain-model"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "根据 domain model JSON 创建最终的领域记录实体，替代默认 generic record 语义。",
       "semantic_intent_refs": [
@@ -57,6 +74,22 @@
       "entity_refs": [
         "entity-todo-item"
       ],
+      "capability_flags": [
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "固定本地持久化边界，为后续控制器和页面提供稳定的记录读写入口。",
       "semantic_intent_refs": [
@@ -92,6 +125,16 @@
       ],
       "entity_refs": [
         "entity-todo-item"
+      ],
+      "capability_flags": [
+        "list",
+        "local-storage",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "围绕领域记录提供集合读取和排序所需的控制器接口。",
@@ -130,6 +173,22 @@
       ],
       "entity_refs": [
         "entity-todo-item"
+      ],
+      "capability_flags": [
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "基于参考模板创建 open_lite_copy.dart，使页面标题、标签和空态文案直接映射到领域语义。",
@@ -170,6 +229,22 @@
       "entity_refs": [
         "entity-todo-item"
       ],
+      "capability_flags": [
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "在 strings.xml 中创建 Android 启动器名称与品牌文案，确保不再残留默认 seed branding。",
       "semantic_intent_refs": [
@@ -207,6 +282,22 @@
       "entity_refs": [
         "entity-todo-item"
       ],
+      "capability_flags": [
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "在 build.gradle.kts 中保留 Android branding 的单点覆盖入口，避免品牌改动分散到其他文件。",
       "semantic_intent_refs": [
@@ -241,6 +332,16 @@
       ],
       "entity_refs": [
         "entity-todo-item"
+      ],
+      "capability_flags": [
+        "list",
+        "local-storage",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "根据集合浏览控制器和领域文案绑定集合浏览承载单元，提供记录浏览入口。",
@@ -278,6 +379,20 @@
       "entity_refs": [
         "entity-todo-item"
       ],
+      "capability_flags": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "根据实体变更控制器和领域文案绑定实体变更承载单元，承接领域字段输入。",
       "semantic_intent_refs": [
@@ -314,6 +429,22 @@
       ],
       "entity_refs": [
         "entity-todo-item"
+      ],
+      "capability_flags": [
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "把已创建的控制器、承载单元和仓储接线到应用入口，形成稳定的中性交互骨架。",
@@ -355,6 +486,23 @@
       ],
       "entity_refs": [
         "entity-todo-item"
+      ],
+      "capability_flags": [
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation",
+        "acceptance-test"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "为当前领域承载单元和主流程创建最小 widget 测试，确保后续 analyze/test 收口有稳定入口。",

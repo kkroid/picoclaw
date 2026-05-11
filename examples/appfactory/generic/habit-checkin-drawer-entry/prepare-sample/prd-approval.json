@@ -4,7 +4,7 @@
   "approval_type": "prd",
   "job_id": "job-habit-checkin-drawer-entry-sample-001",
   "prd_id": "prd-habit-checkin-drawer-entry-sample-001",
-  "subject_version": "prd-habit-checkin-drawer-entry-sample-001@0.1.0@sha256:2fc9641ddc3350ba@sha256:80bc4edec903a021",
+  "subject_version": "prd-habit-checkin-drawer-entry-sample-001@0.1.0@sha256:a708d91ca84fa826@sha256:80bc4edec903a021",
   "status": "approved",
   "requested_by": {
     "actor_type": "system",

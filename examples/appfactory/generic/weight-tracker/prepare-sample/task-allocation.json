@@ -22,6 +22,30 @@
       "entity_refs": [
         "entity-weight-record"
       ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "delete-record",
+        "navigation",
+        "domain-model"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "根据 domain model JSON 创建最终的领域记录实体，替代默认 generic record 语义。",
       "semantic_intent_refs": [
@@ -59,6 +83,30 @@
       "entity_refs": [
         "entity-weight-record",
         "entity-weight-summary"
+      ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "delete-record",
+        "navigation",
+        "domain-model"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "根据领域记录模型创建首页摘要模型，让首页指标直接承接领域语义。",
@@ -102,6 +150,29 @@
         "entity-weight-record",
         "entity-weight-summary"
       ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "delete-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "固定本地持久化边界，为后续控制器和页面提供稳定的记录读写入口。",
       "semantic_intent_refs": [
@@ -138,6 +209,17 @@
       "entity_refs": [
         "entity-weight-record",
         "entity-weight-summary"
+      ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "local-storage",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "围绕领域记录与摘要模型创建概览承载控制器，承接概览入口与最近记录读取。",
@@ -176,6 +258,24 @@
       ],
       "entity_refs": [
         "entity-weight-record"
+      ],
+      "capability_flags": [
+        "list",
+        "form",
+        "edit-record",
+        "field-validation",
+        "local-storage",
+        "detail",
+        "delete-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "围绕领域记录提供集合读取、排序和结果检查跳转所需的控制器接口。",
@@ -220,6 +320,29 @@
         "entity-weight-record",
         "entity-weight-summary"
       ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "delete-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "基于参考模板创建 open_lite_copy.dart，使页面标题、标签和空态文案直接映射到领域语义。",
       "semantic_intent_refs": [
@@ -261,6 +384,29 @@
       "entity_refs": [
         "entity-weight-record"
       ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "delete-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "在 strings.xml 中创建 Android 启动器名称与品牌文案，确保不再残留默认 seed branding。",
       "semantic_intent_refs": [
@@ -300,6 +446,29 @@
       "entity_refs": [
         "entity-weight-record"
       ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "delete-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "在 build.gradle.kts 中保留 Android branding 的单点覆盖入口，避免品牌改动分散到其他文件。",
       "semantic_intent_refs": [
@@ -335,6 +504,17 @@
       "entity_refs": [
         "entity-weight-record",
         "entity-weight-summary"
+      ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "local-storage",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "根据概览承载控制器和领域文案绑定概览承载单元，承接领域摘要与最近记录入口。",
@@ -372,6 +552,18 @@
       ],
       "entity_refs": [
         "entity-weight-record"
+      ],
+      "capability_flags": [
+        "list",
+        "delete-record",
+        "local-storage",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "根据集合浏览控制器和领域文案绑定集合浏览承载单元，提供记录浏览与结果定位入口。",
@@ -411,6 +603,20 @@
       "entity_refs": [
         "entity-weight-record"
       ],
+      "capability_flags": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
+      ],
       "task_type": "dual_file_wiring",
       "objective": "根据实体变更控制器和领域文案绑定实体变更承载单元，承接领域字段输入。",
       "semantic_intent_refs": [
@@ -446,6 +652,22 @@
       ],
       "entity_refs": [
         "entity-weight-record"
+      ],
+      "capability_flags": [
+        "form",
+        "edit-record",
+        "field-validation",
+        "local-storage",
+        "detail",
+        "delete-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "根据领域记录模型和文案绑定结果检查承载单元，承接单条记录展示、编辑和删除入口。",
@@ -488,6 +710,29 @@
       "entity_refs": [
         "entity-weight-record",
         "entity-weight-summary"
+      ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "delete-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "把已创建的控制器、承载单元和仓储接线到应用入口，形成稳定的中性交互骨架。",
@@ -535,6 +780,30 @@
       "entity_refs": [
         "entity-weight-record",
         "entity-weight-summary"
+      ],
+      "capability_flags": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "delete-record",
+        "navigation",
+        "acceptance-test"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-delete-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ],
       "task_type": "dual_file_wiring",
       "objective": "为当前领域承载单元和主流程创建最小 widget 测试，确保后续 analyze/test 收口有稳定入口。",

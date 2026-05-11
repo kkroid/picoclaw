@@ -2,7 +2,7 @@
 
 > 状态：R1-R3 已完成，进入持续矩阵验证
 >
-> 前置文档：`appfactory-architecture-evolution.zh.md`（Route B 架构）与 `appfactory-architecture-evolution-todo.zh.md`（P1-P9 完成）。P5-P6 已将 deterministic emit 基础设施就位（5 个 from-scratch 生成器、emit_runner 回退链路、`selectBuilderRuntimeRoute` 修复、`emit_eligible` 收口），验证会话确认模型与仓储生成器可稳定工作。
+> 前置文档：`appfactory-architecture-evolution.zh.md`（统一确定性生成架构）与 `appfactory-architecture-evolution-todo.zh.md`（P1-P9 完成）。P5-P6 已将 deterministic emit 基础设施就位（5 个 from-scratch 生成器、emit_runner 回退链路、`selectBuilderRuntimeRoute` 修复、`emit_eligible` 收口），验证会话确认模型与仓储生成器可稳定工作。
 >
 > 本文件将剩余工作定义为 **配置级 rollout**——将 generic task bundle 中的任务从 `StrongModel` / 空 `RouteHint` 逐个迁移到 `Deterministic`，并在 live `/jobs` 环境下逐批验证。当前配置级 rollout 已完成，后续仅保留持续矩阵验证记录。
 
@@ -176,7 +176,7 @@ APPFACTORY_JOBS_TEMPLATE_ID="flutter-open-lite" \
 
 | 文档 | 状态 | 关系 |
 |---|---|---|
-| `appfactory-architecture-evolution.zh.md` | Frozen | Route B 架构定义 |
+| `appfactory-architecture-evolution.zh.md` | Frozen | 统一确定性生成架构定义 |
 | `appfactory-architecture-evolution-todo.zh.md` | 已完成 | P1-P9 退出标准已满足；可冻结 |
 | **本文档** | **Active** | 配置级 rollout 新前线 |
 | `appfactory-generic-policy-contract.zh.md` | Active | binding-surface 语义表 + repair taxonomy |

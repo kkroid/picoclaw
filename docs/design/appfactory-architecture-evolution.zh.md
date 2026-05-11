@@ -2,9 +2,9 @@
 
 > 状态：Active
 >
-> Route B 迁移状态：relation-rich canonical 主路径已达终局，generic open-lite 通用化仍未完成。M6.3 完成后，Deterministic Emitter 已覆盖 relation-rich canonical 模板的 UI 表面；generic 主线当前仍保留 fallback、targeted repair 与 runtime private normalize/canonicalize 负担，后续以 `appfactory-architecture-evolution-todo.zh.md` 的 capability / binding / surface / policy 收口计划为准。
+> 当前方案状态：OneAppFactory 只有一条主架构线：Planning Artifacts 作为唯一语义源，Deterministic Emitter 作为已知表面的默认生成路径，builder-runtime 只保留受控 fallback / repair。relation-rich canonical 主路径已达终局；generic open-lite 仍需继续把字段语义、复杂行为、持久化和验收合同前移到 compile / planning 后段，再由 schema-driven emitter 消费。
 >
-> 本文档是 AppFactory 规划层与执行层边界的主设计文档，涵盖当前架构诊断、目标对象模型、分解流水线、模型分层策略和完整演进路线（M0-M6）。
+> 本文档是 AppFactory 规划层与执行层边界的主设计文档，涵盖当前架构诊断、目标对象模型、分解流水线、模型分层策略和后续演进方案。
 > 原 `appfactory-planning-engine.zh.md` 和 `appfactory-planning-engine-todo.zh.md` 的有效内容已合并至本文档，旧文档已移除。
 
 ## 0. 文档在设计体系中的位置
@@ -30,7 +30,7 @@
 - generic open-lite 的 P5 进入“先规划冻结、再按波次迁移”的执行阶段；默认不再继续以发现一个 helper 漏口就追加一刀的方式推进主线。
 - 在继续迁移 runtime consumer 之前，必须先冻结四类执行输入：template-private `surface -> class/path` registry 合同、consumer 迁移矩阵、验收矩阵，以及每一波迁移的停止条件。
 - P5 未完成上述冻结前，允许的代码改动只应服务于当前波次的已批准范围；不再接受与当前波次无关的症状级 generic helper 修补进入主线。
-- P6 的 deterministic emitter 扩展继续以后续 todo 为准，但默认受阻于 P5 的合同冻结与 consumer 收口；避免 emitter 和 runtime registry 在 path/class 推断上再次长出两套语义。
+- deterministic emitter 扩展继续以后续 todo 为准，但必须复用已冻结的 registry 与 planning artifact 合同；避免 emitter 和 runtime registry 在 path/class 推断上再次长出两套语义。
 
 ## 1. 问题陈述
 
@@ -139,11 +139,13 @@ flowchart TB
 
 这本质上就是一个 Emitter——系统已经知道每种表面的正确输出应该是什么。只是它以 post-hoc patch 的形式存在，而不是以 pre-generation emit 的形式存在。
 
-## 3. 两条演进路线
+## 3. 唯一架构方案
 
-### 3.1 Route A：Planning Layer 权责归位（Prepare as Single Source of Truth）
+### 3.1 Planning Layer 权责归位（Prepare as Single Source of Truth）
 
 **核心思想**：让 Planning Engine 产出的 5 个 Intermediate Artifacts 成为 Single Source of Truth，`builder-input.json` 降级为 Thin Projection，Runtime 不再越权做规划决策。
+
+这不是一条可选路线，而是当前架构的上半身。后续复杂 app 的字段、能力、行为、关系和验收语义，都必须先在 compile / planning 后段进入这些结构化制品，再允许执行层消费。
 
 ```mermaid
 flowchart TB
@@ -203,9 +205,11 @@ flowchart TB
 - 无论规划多完美，LLM 生成的代码仍有随机性
 - 那 5431 行 canonicalization 代码一行都删不掉
 
-### 3.2 Route B：Deterministic Emitter
+### 3.2 Deterministic Emitter
 
 **核心思想**：对已知模式的表面，直接从 Planning Artifacts 参数化 emit 正确代码，不经过 LLM。
+
+这不是另一条路线，而是当前架构的下半身。Planning Artifacts 和 Deterministic Emitter 必须一起推进：前者定义“做什么、改哪里、怎么验收”，后者把这些合同稳定落成代码。
 
 ```mermaid
 flowchart TB
@@ -259,13 +263,13 @@ flowchart TB
     style E7 fill:#f90,stroke:#333,color:#000
 ```
 
-#### Route B 架构图详解
+#### 确定性生成架构图详解
 
-上图是 Route B 的目标状态架构，从上到下分为四层：
+上图是当前唯一方案的目标状态架构，从上到下分为四层：
 
 **Planning Output（规划输出层）**
 
-Emitter 的输入来自 Planning Engine 产出的两个核心制品：`DomainModel` 提供领域语义（实体、字段、流程、文案），`TemplateSlotMap` 提供模板覆盖点声明（每个 slot 的类型、绑定 ID、目标文件路径和 override policy）。这两个制品在 Route A 阶段落地为 JSON 文件，是 Emitter 的 Input Contract。
+Emitter 的输入来自 Planning Engine 产出的两个核心制品：`DomainModel` 提供领域语义（实体、字段、流程、文案），`TemplateSlotMap` 提供模板覆盖点声明（每个 slot 的类型、绑定 ID、目标文件路径和 override policy）。这些制品在 compile / planning 后段落地为 JSON 文件，是 Emitter 的 Input Contract。
 
 **Surface / Binding Router（路由层）**
 
@@ -299,7 +303,7 @@ Workspace Assembler 将所有 Emitter 的产出文件合并到模板骨架中，
 
 **优势对比**：
 
-| 维度 | Route A（LLM + 完美规划） | Route B（Deterministic Emission） |
+| 维度 | 旧模式：LLM 生成 + runtime 补偿 | 当前方案：Planning Artifacts + Deterministic Emission |
 |---|---|---|
 | 速度 | 每个表面需 LLM 推理（秒级） | 即时生成（毫秒级） |
 | Token 成本 | 每个表面消耗 token | 零 token 成本 |
@@ -308,39 +312,38 @@ Workspace Assembler 将所有 Emitter 的产出文件合并到模板骨架中，
 | 可维护性 | prompt 工程 + canonicalization | Go 代码（IDE 支持、类型安全） |
 | canonicalization 代码 | 仍然需要（兜底） | 大部分可删除 |
 
-## 4. 结论：以 Emitter 为终点，反向设计 Planning Layer
+## 4. 结论：唯一方案是 Planning Artifacts 驱动 Deterministic Emission
 
 ### 4.1 核心判断
 
-**Route B 是长期终局架构。Route A 是它的必要地基。两者不是二选一，而是同一条路的两个阶段。**
+**当前只有一个方案：compile / planning 后段产出机器可读的领域、槽位、任务和验收合同；执行层默认按这些合同 deterministic emit，只有未覆盖能力才进入受控 generate / repair。**
 
-但关键在于：**不应该把 Route A 当作独立方案来投入**。
+这个方案同时解决两类问题：
 
-原因：
+- Planning Artifacts 让系统明确知道要做什么 app、哪些文件归谁、哪些证据算完成。
+- Deterministic Emitter 让已知模式的代码生成退出 LLM 随机性和 runtime post-fix。
 
-1. 如果只做 Route A，那 5431 行 canonicalization 代码一行都删不掉——它只是从“Runtime 越权补偿”变成了“Runtime 在完美规划下依然需要的修复层”。
-2. 系统已经在自发向 Route B 演化——那 19 个 canonicalization 函数就是“部署在错误位置的 Emitter”。
-3. `domainSpec` 已经包含 50+ 字段（DataEntities、SurfaceList、UserFlows、AcceptanceCriteria 等），配合 `TemplateSlotMap` 的 SlotKind，完全可以参数化 emit 所有已被 canonicalization 覆盖的表面。
+`domainSpec` 已经包含 DataEntities、SurfaceList、UserFlows、AcceptanceCriteria 等结构，配合 `TemplateSlotMap` 的 SlotKind，足以把现有 canonicalization 逻辑前移为显式 Emitter。后续复杂 app 继续沿这条线推进，不再维护“先补规划、以后再谈生成”的阶段性分叉。
 
-### 4.2 为什么不能跳过 Route A 直接做 Route B
+### 4.2 执行边界
 
-1. **Emitter 需要消费结构化的 Planning Output**——当前 thin_executor 主要从 `BuildInput.TaskBundle` 工作，不直接消费 `TemplateSlotMap` 和 `DomainModel`。Route A 完成后，这些制品才有稳定的消费接口。
-2. **不是所有表面都能 emit**——19 个 canonicalization 函数覆盖了大部分 UI 表面，但真正的业务逻辑（自定义流程、特殊计算规则）仍需 LLM。Planning Layer 必须清晰标注哪些表面走 emit、哪些走 LLM generate。
-3. **渐进迁移需要两层共存**——过渡期内，已有 Emitter 的表面走 emit，尚未覆盖的仍走 LLM + canonicalization。没有清晰的规划边界，两层会互相打架。
+1. **Planning Engine 是唯一语义决策层**：需求理解、领域字段、能力开关、行为规则、关系边界和验收条件都必须在 compile / planning 后段收口。
+2. **Emitter 是已知表面的默认执行层**：overview、collection、mutation、inspection、copy、branding、test、storage 等已知模板表面优先 deterministic emit。
+3. **builder-runtime 是 fallback / repair 层**：只处理未覆盖能力、Emitter 失败后的降级路径、受控 validation repair；不得重新承担领域建模或产品语义分配。
+4. **兼容不是目标**：历史 `record_*`、默认文件名、旧 helper、旧 screen 语义只允许作为迁移期安全网；新架构调整以代码质量、类型化合同和可验证边界优先。
 
-### 4.3 正确的实施策略
+### 4.3 后续复杂 app 的架构要求
 
-> **从一开始就以 Route B 为目标来设计 Route A 的接口。**
+复杂 app 不通过“更多 prompt repair”实现，而通过扩展 Planning Artifacts 的表达力实现。近期新增或强化的合同包括：
 
-具体要求：
+- `DomainModel` 承载字段类型、字段角色、字段校验、实体角色、关系引用和摘要指标来源。
+- `TemplateSlotMap` 承载每个能力可落到哪些稳定槽位，以及哪些槽位允许 emit / generate / manual。
+- `TaskAllocation` 承载能力开关、行为规则和跨表面同步关系，例如删除确认、筛选、排序、状态切换、到期判断、父子聚合。
+- `AcceptancePlan` 承载结构验收、语义验收、行为验收和持久化验收，字段缺失、能力越界或行为无证据必须自动失败。
 
-- Route A 的 `TemplateSlotMap` 设计时就要考虑它是 Emitter 的 Input Contract
-- Route A 的 `DomainModel` 设计时就要包含 Emitter 参数化所需的所有字段
-- Route A 的 Task Allocation 应包含 `route_hint: emit | generate` 的区分，明确哪些表面走 Deterministic Emission、哪些走 LLM Generation
+这意味着 generic open-lite 的下一阶段不是增加更多样本数，而是先让单实体字段、字段驱动行为、真实持久化和语义验收稳定，再进入轻关系模型。
 
-这样 Route A 完成的那一天，第一个 Emitter 就可以立即上线，而不需要再做一轮重构。
-
-### 4.4 综合架构图：迁移路径
+### 4.4 综合架构图：唯一主线
 
 ```mermaid
 flowchart LR
@@ -351,7 +354,7 @@ flowchart LR
         S4["Symptom 4: Unstable execution tail"]
     end
 
-    subgraph A["Route A: Planning Authority"]
+    subgraph Planning["Planning Authority"]
         A1["M0: Extract Object Model
         from Super Compiler"]
         A2["M1: 5 Intermediate Artifacts landed
@@ -360,7 +363,7 @@ flowchart LR
         Task Allocation carries route_hint"]
     end
 
-    subgraph B["Route B: Deterministic Emission"]
+    subgraph Emission["Deterministic Emission"]
         B1["M3: First Emitters online
         (Copy + Brand + Test)"]
         B2["M4: UI Surface Emitters online
@@ -387,7 +390,7 @@ flowchart LR
     style B3 fill:#f90,stroke:#333,color:#000
 ```
 
-## 5. 分阶段实施路线
+## 5. 当前方案推进顺序
 
 ### 5.1 M0：对象模型从 compiler.go 拆出
 
@@ -397,7 +400,7 @@ flowchart LR
 - `PlanningContext`、`DomainModel`、`TemplateSlotMap`、`TaskAllocationUnit`、`AcceptancePlan` 有正式 Go 类型
 - `compiler.go` 不再同时承载识别 / 建模 / 渲染 / 打包
 
-**对 Route B 的预埋**：
+**对当前生成主线的要求**：
 - `TemplateSlotMap` 的 SlotKind 枚举同时覆盖 Emitter 类型
 - `DomainModel` 的字段集合足以驱动已有 canonicalization 函数的参数化
 
@@ -410,7 +413,7 @@ flowchart LR
 - `builder-input.json` 可从上述 5 个文件重建
 - thin_executor 直接消费 `task-allocation.json` 而非 `BuildInput.TaskBundle`
 
-**对 Route B 的预埋**：
+**对当前生成主线的要求**：
 - `task-allocation.json` 中每个 allocation unit 携带 `route_hint`（emit / generate / deterministic）
 
 ### 5.3 M2：Prompt 补丁回收为 Planning Rules
@@ -422,7 +425,7 @@ flowchart LR
 - 多文件同步、文案同步、Android branding 同步规则迁入 `task-allocation.json` 的依赖关系
 - runtime prompt 只保留 patch 语法约束和运行时安全规则
 
-**对 Route B 的预埋**：
+**对当前生成主线的要求**：
 - 每个被回收的 prompt 规则都有对应的 allocation unit 或 slot 声明
 - slot 声明包含 `emit_eligible: true/false`
 
@@ -468,9 +471,20 @@ flowchart LR
 - canonicalization 仅在以下条件触发：(1) 新域变体尚无 Emitter，(2) Emitter 产出校验失败后 fallback，(3) 手动禁用 Emitter 时的降级路径
 - `builder_runtime_open_lite_private.go` 可标记为 deprecated
 
+### 5.7 M6：generic complexity 合同前移到 compile 后段
+
+**目标**：generic open-lite 支持更复杂 app 时，不依赖样本 profile 命中或 runtime 补丁猜测，而由 compile / planning 后段产出可消费的复杂度合同。
+
+**退出条件**：
+- `DomainModel` 能表达字段角色、字段校验、实体角色、关系引用、摘要指标来源和领域行为。
+- `TemplateSlotMap` 能表达 collection / mutation / inspection / app-entry / storage 等表面的稳定 slot、path class 和 override policy。
+- `TaskAllocation` 能把 create/edit/delete/filter/sort/status-toggle/due-state/aggregate 等能力分配到明确表面和目标文件。
+- `AcceptancePlan` 对字段覆盖、负能力、行为复杂度、持久化、语义文案和生成多样性有 machine-check。
+- generic deterministic emitters 直接消费上述合同；runtime fallback 只处理未覆盖能力或校验失败后的隔离降级。
+
 ## 6. Emitter Input Contract 要求
 
-为使 Route A 的制品设计直接服务 Route B，Planning Layer 制品必须满足以下最低要求：
+为使 Planning Layer 制品直接服务 Deterministic Emitter，compile / planning 后段必须满足以下最低要求：
 
 ### 6.1 DomainModel 必须包含
 
@@ -645,7 +659,7 @@ flowchart LR
 边界：
 
 - 该 registry 由 `template-slot-map.json`、模板扫描与 workspace candidate detection 派生，可缓存为执行期 snapshot，但不能替代 `TemplateSlotMap`。
-- Route B 的 Emitter、Route A 过渡期的 canonical factory，以及 runtime private normalize 都必须共享它；否则系统会重新长出多套默认文件名触发器。
+- Deterministic Emitter、legacy canonical factory 与 runtime private normalize 都必须共享它；否则系统会重新长出多套默认文件名触发器。
 
 ### 8.4 TaskAllocationUnit
 
@@ -784,7 +798,7 @@ planning-engine 应按阶段运行，每阶段有明确输入输出。
 | builder_runtime_open_lite_private.go 标记 deprecated | ⚠️ relation-rich dead code 已收缩，但 generic open-lite 仍未从主修补路径退出 |
 | 四包核心回归 | ✅ adapter + prepare + runs + emitter 全部 PASS |
 | fresh /jobs 集成验证 | ⚠️ 历史样本证明过 relation-rich 与部分 generic 主链可跑，不再等价于当前 strict manual-equivalent readiness |
-| Route B 迁移状态 | ⚠️ relation-rich 终局达成；generic open-lite 未终局 |
+| 当前统一方案状态 | ⚠️ relation-rich 终局达成；generic open-lite 未终局 |
 
 补记（2026-04-21）：上述 fresh `/jobs` completed 样本用于证明 M6.3 的架构迁移和 deterministic 主链已经落地，**不等于当前网页人工体验 readiness**。后续 readiness 评估必须额外满足 strict manual-equivalent gate：
 
@@ -794,8 +808,8 @@ planning-engine 应按阶段运行，每阶段有明确输入输出。
 
 特别地，`flutter-finance-lite` 这类 seed 较强的样本可能在 thin fallback 下完成 analyze/test/build 并返回 completed，因此它们继续保留为架构归档证据，但不再作为 readiness 或“可以开始人工体验”的充分条件。
 
-结论：Route B 已从“目标架构”转为“已落地主路径”。后续工作以 generic fallback 维护、遗留 canonical 继续瘦身和证据归档为主，不再是补齐主路径覆盖。
+结论：Deterministic Emitter 已从“目标设想”转为“已落地主路径”。后续工作不再维护双路线叙事，而是继续把 generic fallback、遗留 canonical、字段语义和行为验收收口到统一 compile / planning + emitter 主线。
 
 ## 12. 一句话总结
 
-> **以 Deterministic Emitter 为终点，反向设计 Planning Layer 的 Intermediate Artifacts 接口。先做权责归位，再做 Deterministic Emission；不要反过来。**
+> **唯一方案：Planning Artifacts 是语义真相源，Deterministic Emitter 是默认执行路径；compile / planning 后段继续补强复杂 app 所需的字段、能力、行为、关系和验收合同。**

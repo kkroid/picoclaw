@@ -33,7 +33,7 @@
       }
     ]
   },
-  "prepared_prd_subject_version": "prd-weight-tracker-sample-001@0.1.0@sha256:517b32049d4506a4",
+  "prepared_prd_subject_version": "prd-weight-tracker-sample-001@0.1.0@sha256:f32015d70e283049",
   "prepared_template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47",
   "executor_image": "oneappfactory/appfactory-builder:local",
   "workspace_path": "/workspace/job-weight-tracker-sample-001",

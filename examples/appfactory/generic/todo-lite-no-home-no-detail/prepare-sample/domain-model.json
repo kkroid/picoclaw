@@ -4,6 +4,18 @@
   "prd_id": "prd-todo-lite-no-home-no-detail-sample-001",
   "template_id": "flutter-open-lite",
   "domain_name": "待办事项 App（无首页无详情）",
+  "complexity_level": "L1-field-profile",
+  "capability_flags": [
+    "navigation",
+    "local-storage",
+    "theme",
+    "list",
+    "form",
+    "create-record",
+    "edit-record",
+    "field-validation",
+    "status-field"
+  ],
   "entities": [
     {
       "entity_id": "entity-todo-item",
@@ -51,6 +63,137 @@
   "critical_flows": [
     "创建待办"
   ],
+  "behavior_rules": [
+    {
+      "rule_id": "behavior-browse-records",
+      "kind": "browse",
+      "description": "集合浏览承载单元必须展示完整待办、支持按状态筛选，并允许进入结果检查入口。",
+      "capability_refs": [
+        "list"
+      ],
+      "surface_refs": [
+        "surface-collection"
+      ],
+      "entity_refs": [
+        "entity-todo-item"
+      ],
+      "field_refs": [
+        "task_id",
+        "title",
+        "category",
+        "status",
+        "note"
+      ],
+      "acceptance_refs": [
+        "ac-list"
+      ],
+      "required": true
+    },
+    {
+      "rule_id": "behavior-create-record",
+      "kind": "create",
+      "description": "用户可以通过实体变更承载单元创建或编辑一条待办并立即看到结果。",
+      "capability_refs": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage"
+      ],
+      "surface_refs": [
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-todo-item"
+      ],
+      "field_refs": [
+        "title",
+        "category",
+        "status",
+        "note"
+      ],
+      "acceptance_refs": [
+        "ac-form",
+        "ac-persistence"
+      ],
+      "required": true
+    },
+    {
+      "rule_id": "behavior-update-record",
+      "kind": "update",
+      "description": "用户可以从结果检查入口进入实体变更承载单元，更新标题、分类、状态和备注。",
+      "capability_refs": [
+        "form",
+        "edit-record",
+        "field-validation",
+        "local-storage"
+      ],
+      "surface_refs": [
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-todo-item"
+      ],
+      "field_refs": [
+        "title",
+        "category",
+        "status",
+        "note"
+      ],
+      "acceptance_refs": [
+        "ac-form"
+      ],
+      "required": true
+    },
+    {
+      "rule_id": "behavior-persist-records",
+      "kind": "persist",
+      "description": "领域记录必须通过本地仓储持久化并可在应用重启后恢复。",
+      "capability_refs": [
+        "local-storage"
+      ],
+      "surface_refs": [
+        "surface-collection",
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-todo-item"
+      ],
+      "acceptance_refs": [
+        "ac-persistence"
+      ],
+      "required": true
+    },
+    {
+      "rule_id": "behavior-navigate-surfaces",
+      "kind": "navigate",
+      "description": "当前需求声明的集合浏览和实体变更承载单元之间路径明确且可达。",
+      "capability_refs": [
+        "navigation"
+      ],
+      "surface_refs": [
+        "surface-collection",
+        "surface-mutation"
+      ],
+      "entity_refs": [
+        "entity-todo-item"
+      ],
+      "acceptance_refs": [
+        "ac-navigation"
+      ],
+      "required": true
+    }
+  ],
+  "persistence_contract": {
+    "mode": "local-hive",
+    "repository_path": "lib/repositories/record_repository.dart",
+    "entity_refs": [
+      "entity-todo-item"
+    ],
+    "capability_refs": [
+      "local-storage"
+    ],
+    "required": true
+  },
   "semantic_acceptance_rules": [
     {
       "rule_id": "ac-list",

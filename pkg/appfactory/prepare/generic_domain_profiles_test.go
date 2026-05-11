@@ -250,3 +250,60 @@ func TestDetectGenericDomainSignalsFallsBackToDefaultProfile(t *testing.T) {
 		t.Fatalf("unexpected default domain check pattern: %s", signals.DomainCheckPattern)
 	}
 }
+
+func TestCompileGenericDomainModelCarriesComplexityContracts(t *testing.T) {
+	spec := compileGenericSpec(Request{}, "做一个课程作业追踪 App，记录课程名、作业标题、截止日期、状态和备注。")
+	domainModel := buildDomainModel(spec)
+
+	if domainModel.ComplexityLevel != "L2-behavior-contract" {
+		t.Fatalf("ComplexityLevel = %q, want L2-behavior-contract", domainModel.ComplexityLevel)
+	}
+	for _, capability := range []string{"due-date", "status-field", "local-storage", "status-filter"} {
+		if !containsString(domainModel.CapabilityFlags, capability) {
+			t.Fatalf("CapabilityFlags = %v, want %q", domainModel.CapabilityFlags, capability)
+		}
+	}
+	if domainModel.PersistenceContract == nil || domainModel.PersistenceContract.Mode != "local-hive" {
+		t.Fatalf("PersistenceContract = %+v, want local-hive", domainModel.PersistenceContract)
+	}
+	if !containsString(domainModel.PersistenceContract.EntityRefs, "entity-course-assignment") {
+		t.Fatalf("PersistenceContract.EntityRefs = %v, want primary entity", domainModel.PersistenceContract.EntityRefs)
+	}
+
+	filterRule := findBehaviorRule(t, domainModel.BehaviorRules, "behavior-filter-records")
+	if !containsString(filterRule.FieldRefs, "status") || !containsString(filterRule.CapabilityRefs, "status-filter") {
+		t.Fatalf("filter behavior rule = %+v, want status field and status-filter capability", filterRule)
+	}
+	persistRule := findBehaviorRule(t, domainModel.BehaviorRules, "behavior-persist-records")
+	if !containsString(persistRule.CapabilityRefs, "local-storage") || !containsString(persistRule.AcceptanceRefs, "ac-persistence") {
+		t.Fatalf("persist behavior rule = %+v, want persistence refs", persistRule)
+	}
+
+	allocation := buildTaskAllocation(spec.TaskBundle, spec)
+	repositoryUnit := findAllocationUnit(t, allocation.Units, "task-create-repository")
+	if !containsString(repositoryUnit.CapabilityFlags, "local-storage") || !containsString(repositoryUnit.BehaviorRefs, "behavior-persist-records") {
+		t.Fatalf("repository allocation = %+v, want persistence capability and behavior refs", repositoryUnit)
+	}
+
+	acceptancePlan := buildAcceptancePlan(spec)
+	persistenceCheck := mustFindAcceptancePlanItem(t, acceptancePlan.SemanticChecks, "ac-persistence")
+	if !containsString(persistenceCheck.CapabilityRefs, "local-storage") || !containsString(persistenceCheck.BehaviorRefs, "behavior-persist-records") {
+		t.Fatalf("persistence acceptance check = %+v, want persistence contract refs", persistenceCheck)
+	}
+
+	executionContract := buildExecutionContract(spec, PRD{Title: spec.Title, UserFlows: spec.UserFlows, AcceptanceCriteria: spec.AcceptanceCriteria}, spec.TaskBundle)
+	if executionContract.DomainModel.ComplexityLevel != domainModel.ComplexityLevel {
+		t.Fatalf("ExecutionContract.DomainModel.ComplexityLevel = %q, want %q", executionContract.DomainModel.ComplexityLevel, domainModel.ComplexityLevel)
+	}
+}
+
+func findBehaviorRule(t *testing.T, rules []DomainBehaviorRule, ruleID string) DomainBehaviorRule {
+	t.Helper()
+	for _, rule := range rules {
+		if rule.RuleID == ruleID {
+			return rule
+		}
+	}
+	t.Fatalf("behavior rule %q not found in %+v", ruleID, rules)
+	return DomainBehaviorRule{}
+}

@@ -143,6 +143,12 @@
       "slot_refs": [
         "surface-collection"
       ],
+      "capability_refs": [
+        "list"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records"
+      ],
       "field_refs": [
         "task_id",
         "title",
@@ -165,6 +171,17 @@
       "source_ref": "ac-form",
       "slot_refs": [
         "surface-mutation"
+      ],
+      "capability_refs": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record"
+      ],
+      "behavior_refs": [
+        "behavior-create-record",
+        "behavior-update-record"
       ],
       "field_refs": [
         "task_id",
@@ -189,6 +206,16 @@
       "slot_refs": [
         "surface-collection"
       ],
+      "capability_refs": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage"
+      ],
+      "behavior_refs": [
+        "behavior-create-record",
+        "behavior-persist-records"
+      ],
       "field_refs": [
         "task_id",
         "title",
@@ -209,6 +236,12 @@
       "required": true,
       "source_type": "semantic_acceptance_rule",
       "source_ref": "ac-navigation",
+      "capability_refs": [
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-navigate-surfaces"
+      ],
       "evidence_pattern": "待办事项 App（无首页无详情）"
     },
     {
@@ -247,6 +280,22 @@
       "slot_refs": [
         "surface-collection",
         "surface-mutation"
+      ],
+      "capability_refs": [
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     }
   ],

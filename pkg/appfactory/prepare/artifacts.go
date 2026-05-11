@@ -171,13 +171,17 @@ func buildDomainModel(spec domainSpec) DomainModel {
 	}
 	semanticRules := buildSemanticAcceptanceRules(spec)
 	return DomainModel{
-		SchemaVersion:  defaultSchemaVersion,
-		JobID:          spec.JobID,
-		PRDID:          spec.PRDID,
-		TemplateID:     spec.TemplateID,
-		DomainName:     strings.TrimSpace(spec.Title),
-		Entities:       append([]DataEntity(nil), spec.DataEntities...),
-		SummaryMetrics: summaryMetrics,
+		SchemaVersion:       defaultSchemaVersion,
+		JobID:               spec.JobID,
+		PRDID:               spec.PRDID,
+		TemplateID:          spec.TemplateID,
+		DomainName:          strings.TrimSpace(spec.Title),
+		ComplexityLevel:     strings.TrimSpace(spec.ComplexityLevel),
+		CapabilityFlags:     append([]string(nil), spec.CapabilityFlags...),
+		Entities:            append([]DataEntity(nil), spec.DataEntities...),
+		SummaryMetrics:      summaryMetrics,
+		BehaviorRules:       append([]DomainBehaviorRule(nil), spec.BehaviorRules...),
+		PersistenceContract: clonePersistenceContract(spec.PersistenceContract),
 		DomainCopy: DomainCopy{
 			Title:            strings.TrimSpace(spec.Title),
 			Summary:          strings.TrimSpace(spec.Summary),
@@ -185,6 +189,19 @@ func buildDomainModel(spec domainSpec) DomainModel {
 		},
 		CriticalFlows:           trimStringSlice(criticalFlows),
 		SemanticAcceptanceRules: semanticRules,
+	}
+}
+
+func clonePersistenceContract(contract *PersistenceContract) *PersistenceContract {
+	if contract == nil {
+		return nil
+	}
+	return &PersistenceContract{
+		Mode:           strings.TrimSpace(contract.Mode),
+		RepositoryPath: strings.TrimSpace(contract.RepositoryPath),
+		EntityRefs:     append([]string(nil), contract.EntityRefs...),
+		CapabilityRefs: append([]string(nil), contract.CapabilityRefs...),
+		Required:       contract.Required,
 	}
 }
 
@@ -410,6 +427,7 @@ func buildTaskAllocation(tasks []appruns.TaskBundleItem, spec domainSpec) TaskAl
 		surfaceRefs := append([]string(nil), transition.SurfaceRefs...)
 		surfaceRefs = append(surfaceRefs, deriveSurfaceRefsFromLegacyScreens(transition.ScreenRefs, surfaceByScreen)...)
 		surfaceRefs = normalizeSurfaceRefsForSchema(surfaceRefs, knownSurfaceIDs)
+		behaviorRefs := deriveAllocationBehaviorRefs(spec, surfaceRefs, transition.EntityRefs, task.RelatedRequirements, task.TargetPaths)
 		units = append(units, TaskAllocationUnit{
 			AllocationID:        allocationID,
 			Title:               strings.TrimSpace(task.Title),
@@ -421,6 +439,8 @@ func buildTaskAllocation(tasks []appruns.TaskBundleItem, spec domainSpec) TaskAl
 			EntityRefs:          append([]string(nil), transition.EntityRefs...),
 			RelationGroupRefs:   append([]string(nil), transition.RelationGroupRefs...),
 			SharedOwnershipRefs: append([]string(nil), transition.SharedOwnershipRefs...),
+			CapabilityFlags:     deriveAllocationCapabilityFlags(spec, surfaceRefs, task.TargetPaths, behaviorRefs),
+			BehaviorRefs:        behaviorRefs,
 			TaskType:            task.EffectiveTaskType(),
 			Objective:           strings.TrimSpace(task.Objective),
 			SemanticIntentRefs:  append([]string(nil), transition.SemanticIntentRefs...),
@@ -444,11 +464,111 @@ func buildTaskAllocation(tasks []appruns.TaskBundleItem, spec domainSpec) TaskAl
 	}
 }
 
+func deriveAllocationBehaviorRefs(spec domainSpec, surfaceRefs, entityRefs, acceptanceRefs, targetPaths []string) []string {
+	refs := make([]string, 0, len(spec.BehaviorRules))
+	for _, rule := range spec.BehaviorRules {
+		if behaviorRuleMatches(rule, surfaceRefs, entityRefs, acceptanceRefs, targetPaths) {
+			refs = append(refs, rule.RuleID)
+		}
+	}
+	return uniqueStrings(refs)
+}
+
+func behaviorRuleMatches(rule DomainBehaviorRule, surfaceRefs, entityRefs, acceptanceRefs, targetPaths []string) bool {
+	if intersectsStrings(rule.SurfaceRefs, surfaceRefs) || intersectsStrings(rule.AcceptanceRefs, acceptanceRefs) {
+		return true
+	}
+	if intersectsStrings(rule.EntityRefs, entityRefs) && targetPathsContain(targetPaths, "/models/") {
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(rule.Kind), "persist") {
+		return targetPathsContain(targetPaths, "/repositories/")
+	}
+	return false
+}
+
+func targetPathsContain(targetPaths []string, fragment string) bool {
+	for _, path := range targetPaths {
+		if strings.Contains(filepath.ToSlash(strings.TrimSpace(path)), fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func deriveAllocationCapabilityFlags(spec domainSpec, surfaceRefs, targetPaths, behaviorRefs []string) []string {
+	capabilities := make([]string, 0, len(spec.CapabilityFlags))
+	for _, behaviorRef := range behaviorRefs {
+		if rule, ok := behaviorRuleByID(spec.BehaviorRules, behaviorRef); ok {
+			capabilities = append(capabilities, rule.CapabilityRefs...)
+		}
+	}
+	for _, surfaceRef := range surfaceRefs {
+		switch surfaceRef {
+		case genericSurfaceOverviewID:
+			capabilities = append(capabilities, "summary-card")
+		case genericSurfaceCollectionID:
+			capabilities = append(capabilities, "list")
+		case genericSurfaceMutationID:
+			capabilities = append(capabilities, "form")
+			if strings.TrimSpace(spec.Kind) == "generic" {
+				capabilities = append(capabilities, "create-record", "edit-record")
+			}
+		case genericSurfaceInspectionID:
+			capabilities = append(capabilities, "detail")
+		}
+	}
+	for _, path := range targetPaths {
+		normalizedPath := filepath.ToSlash(strings.TrimSpace(path))
+		switch {
+		case normalizedPath == "lib/main.dart":
+			capabilities = append(capabilities, "navigation")
+		case strings.Contains(normalizedPath, "/repositories/"):
+			capabilities = append(capabilities, "local-storage")
+		case strings.Contains(normalizedPath, "/models/"):
+			capabilities = append(capabilities, "domain-model")
+		case normalizedPath == "test/widget_test.dart":
+			capabilities = append(capabilities, "acceptance-test")
+		}
+	}
+	return uniqueStrings(capabilities)
+}
+
+func behaviorRuleByID(rules []DomainBehaviorRule, ruleID string) (DomainBehaviorRule, bool) {
+	trimmedID := strings.TrimSpace(ruleID)
+	for _, rule := range rules {
+		if strings.TrimSpace(rule.RuleID) == trimmedID {
+			return rule, true
+		}
+	}
+	return DomainBehaviorRule{}, false
+}
+
+func intersectsStrings(left, right []string) bool {
+	if len(left) == 0 || len(right) == 0 {
+		return false
+	}
+	seen := make(map[string]struct{}, len(left))
+	for _, value := range left {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			seen[trimmed] = struct{}{}
+		}
+	}
+	for _, value := range right {
+		if _, ok := seen[strings.TrimSpace(value)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func buildAcceptancePlan(spec domainSpec) AcceptancePlan {
 	acceptanceBindingRefs := buildAcceptanceBindingRefs(spec)
 	semanticRules := buildSemanticAcceptanceRules(spec)
 	semanticChecks := make([]AcceptancePlanItem, 0, len(semanticRules)+len(spec.ManualReviewPoints))
 	for _, rule := range semanticRules {
+		behaviorRefs := deriveAcceptanceBehaviorRefs(spec, strings.TrimSpace(rule.RuleID), nil, rule.FieldRefs)
 		commands := []string(nil)
 		if strings.TrimSpace(rule.EvidencePattern) != "" {
 			commands = []string{buildSemanticEvidenceCommand(rule.EvidencePattern)}
@@ -463,37 +583,46 @@ func buildAcceptancePlan(spec domainSpec) AcceptancePlan {
 			SourceType:      "semantic_acceptance_rule",
 			SourceRef:       strings.TrimSpace(rule.RuleID),
 			BindingRefs:     cloneStringSlice(acceptanceBindingRefs[strings.TrimSpace(rule.RuleID)]),
+			CapabilityRefs:  capabilityRefsForBehaviorRefs(spec.BehaviorRules, behaviorRefs),
+			BehaviorRefs:    behaviorRefs,
 			FieldRefs:       append([]string(nil), rule.FieldRefs...),
 			EvidencePattern: strings.TrimSpace(rule.EvidencePattern),
 		})
 	}
 	for _, point := range spec.ManualReviewPoints {
+		behaviorRefs := deriveAcceptanceBehaviorRefs(spec, strings.TrimSpace(point.PointID), nil, nil)
 		semanticChecks = append(semanticChecks, AcceptancePlanItem{
-			CheckID:     strings.TrimSpace(point.PointID),
-			Label:       strings.TrimSpace(point.Summary),
-			Description: strings.TrimSpace(point.Reason),
-			Required:    true,
-			SourceType:  "manual_review_point",
-			SourceRef:   strings.TrimSpace(point.PointID),
-			BindingRefs: cloneStringSlice(acceptanceBindingRefs[strings.TrimSpace(point.PointID)]),
+			CheckID:        strings.TrimSpace(point.PointID),
+			Label:          strings.TrimSpace(point.Summary),
+			Description:    strings.TrimSpace(point.Reason),
+			Required:       true,
+			SourceType:     "manual_review_point",
+			SourceRef:      strings.TrimSpace(point.PointID),
+			BindingRefs:    cloneStringSlice(acceptanceBindingRefs[strings.TrimSpace(point.PointID)]),
+			CapabilityRefs: capabilityRefsForBehaviorRefs(spec.BehaviorRules, behaviorRefs),
+			BehaviorRefs:   behaviorRefs,
 		})
 	}
 	behaviorChecks := make([]AcceptancePlanItem, 0, len(spec.UserFlows))
 	for _, flow := range spec.UserFlows {
+		behaviorRefs := deriveAcceptanceBehaviorRefs(spec, strings.TrimSpace(flow.FlowID), flowSurfaceRefs(flow), nil)
 		behaviorChecks = append(behaviorChecks, AcceptancePlanItem{
-			CheckID:     strings.TrimSpace(flow.FlowID),
-			Label:       strings.TrimSpace(flow.Title),
-			Description: summarizeFlow(flow),
-			Required:    true,
-			SourceType:  "user_flow",
-			SourceRef:   strings.TrimSpace(flow.FlowID),
-			BindingRefs: cloneStringSlice(acceptanceBindingRefs[strings.TrimSpace(flow.FlowID)]),
+			CheckID:        strings.TrimSpace(flow.FlowID),
+			Label:          strings.TrimSpace(flow.Title),
+			Description:    summarizeFlow(flow),
+			Required:       true,
+			SourceType:     "user_flow",
+			SourceRef:      strings.TrimSpace(flow.FlowID),
+			BindingRefs:    cloneStringSlice(acceptanceBindingRefs[strings.TrimSpace(flow.FlowID)]),
+			CapabilityRefs: capabilityRefsForBehaviorRefs(spec.BehaviorRules, behaviorRefs),
+			BehaviorRefs:   behaviorRefs,
 		})
 	}
 	structureChecks := make([]AcceptancePlanItem, 0, len(spec.AcceptanceChecks))
 	deliveryChecks := make([]AcceptancePlanItem, 0, len(spec.AcceptanceChecks))
 	for _, check := range spec.AcceptanceChecks {
 		checkID := strings.TrimSpace(check.CheckID)
+		behaviorRefs := deriveAcceptanceBehaviorRefs(spec, checkID, nil, nil)
 		item := AcceptancePlanItem{
 			CheckID:        checkID,
 			Label:          strings.TrimSpace(check.Label),
@@ -504,6 +633,8 @@ func buildAcceptancePlan(spec domainSpec) AcceptancePlan {
 			SourceType:     "acceptance_check",
 			SourceRef:      checkID,
 			BindingRefs:    cloneStringSlice(acceptanceBindingRefs[checkID]),
+			CapabilityRefs: capabilityRefsForBehaviorRefs(spec.BehaviorRules, behaviorRefs),
+			BehaviorRefs:   behaviorRefs,
 			TimeoutSeconds: check.TimeoutSeconds,
 		}
 		if isDeliveryAcceptanceCheck(check) {
@@ -522,6 +653,48 @@ func buildAcceptancePlan(spec domainSpec) AcceptancePlan {
 		BehaviorChecks:  behaviorChecks,
 		DeliveryChecks:  deliveryChecks,
 	}
+}
+
+func deriveAcceptanceBehaviorRefs(spec domainSpec, acceptanceRef string, surfaceRefs, fieldRefs []string) []string {
+	refs := make([]string, 0, len(spec.BehaviorRules))
+	for _, rule := range spec.BehaviorRules {
+		if strings.TrimSpace(acceptanceRef) != "" && containsTrimmedString(rule.AcceptanceRefs, acceptanceRef) {
+			refs = append(refs, rule.RuleID)
+			continue
+		}
+		if intersectsStrings(rule.SurfaceRefs, surfaceRefs) {
+			refs = append(refs, rule.RuleID)
+		}
+	}
+	return uniqueStrings(refs)
+}
+
+func capabilityRefsForBehaviorRefs(rules []DomainBehaviorRule, behaviorRefs []string) []string {
+	capabilities := make([]string, 0, len(behaviorRefs))
+	for _, behaviorRef := range behaviorRefs {
+		if rule, ok := behaviorRuleByID(rules, behaviorRef); ok {
+			capabilities = append(capabilities, rule.CapabilityRefs...)
+		}
+	}
+	return uniqueStrings(capabilities)
+}
+
+func flowSurfaceRefs(flow UserFlow) []string {
+	refs := make([]string, 0, len(flow.Steps))
+	for _, step := range flow.Steps {
+		refs = append(refs, step.SurfaceRef)
+	}
+	return uniqueStrings(refs)
+}
+
+func containsTrimmedString(values []string, want string) bool {
+	trimmedWant := strings.TrimSpace(want)
+	for _, value := range values {
+		if strings.TrimSpace(value) == trimmedWant {
+			return true
+		}
+	}
+	return false
 }
 
 func buildSemanticEvidenceCommand(pattern string) string {

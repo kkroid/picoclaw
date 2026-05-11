@@ -220,6 +220,15 @@
     "contract_version": "0.1.0",
     "domain_model": {
       "domain_name": "体重记录 App（只读详情）",
+      "complexity_level": "L1-field-profile",
+      "capability_flags": [
+        "navigation",
+        "local-storage",
+        "theme",
+        "list",
+        "detail",
+        "date-field"
+      ],
       "entities": [
         {
           "entity_id": "entity-weight-record",
@@ -253,6 +262,105 @@
           "source": "local_storage"
         }
       ],
+      "behavior_rules": [
+        {
+          "rule_id": "behavior-browse-records",
+          "kind": "browse",
+          "description": "历史集合承载单元必须按日期展示体重记录，并允许进入结果检查入口。",
+          "capability_refs": [
+            "list"
+          ],
+          "surface_refs": [
+            "surface-collection"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "field_refs": [
+            "record_id",
+            "weight",
+            "recorded_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-list"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-inspect-record",
+          "kind": "inspect",
+          "description": "能看到单条体重记录的体重、日期和备注",
+          "capability_refs": [
+            "detail"
+          ],
+          "surface_refs": [
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "field_refs": [
+            "record_id",
+            "weight",
+            "recorded_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-detail"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-persist-records",
+          "kind": "persist",
+          "description": "领域记录必须通过本地仓储持久化并可在应用重启后恢复。",
+          "capability_refs": [
+            "local-storage"
+          ],
+          "surface_refs": [
+            "surface-collection",
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "acceptance_refs": [
+            "ac-persistence"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-navigate-surfaces",
+          "kind": "navigate",
+          "description": "当前需求声明的集合浏览和结果检查承载单元之间路径明确且可达。",
+          "capability_refs": [
+            "navigation"
+          ],
+          "surface_refs": [
+            "surface-collection",
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "acceptance_refs": [
+            "ac-navigation"
+          ],
+          "required": true
+        }
+      ],
+      "persistence_contract": {
+        "mode": "local-hive",
+        "repository_path": "lib/repositories/record_repository.dart",
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "capability_refs": [
+          "local-storage"
+        ],
+        "required": true
+      },
       "critical_flow_refs": [
         "flow-inspect-record"
       ],

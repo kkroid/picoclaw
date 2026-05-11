@@ -136,11 +136,35 @@ type DomainModel struct {
 	PRDID                   string                   `json:"prd_id"`
 	TemplateID              string                   `json:"template_id"`
 	DomainName              string                   `json:"domain_name"`
+	ComplexityLevel         string                   `json:"complexity_level,omitempty"`
+	CapabilityFlags         []string                 `json:"capability_flags,omitempty"`
 	Entities                []DataEntity             `json:"entities,omitempty"`
 	SummaryMetrics          []string                 `json:"summary_metrics,omitempty"`
 	DomainCopy              DomainCopy               `json:"domain_copy"`
 	CriticalFlows           []string                 `json:"critical_flows,omitempty"`
+	BehaviorRules           []DomainBehaviorRule     `json:"behavior_rules,omitempty"`
+	PersistenceContract     *PersistenceContract     `json:"persistence_contract,omitempty"`
 	SemanticAcceptanceRules []SemanticAcceptanceRule `json:"semantic_acceptance_rules,omitempty"`
+}
+
+type DomainBehaviorRule struct {
+	RuleID         string   `json:"rule_id"`
+	Kind           string   `json:"kind"`
+	Description    string   `json:"description,omitempty"`
+	CapabilityRefs []string `json:"capability_refs,omitempty"`
+	SurfaceRefs    []string `json:"surface_refs,omitempty"`
+	EntityRefs     []string `json:"entity_refs,omitempty"`
+	FieldRefs      []string `json:"field_refs,omitempty"`
+	AcceptanceRefs []string `json:"acceptance_refs,omitempty"`
+	Required       bool     `json:"required,omitempty"`
+}
+
+type PersistenceContract struct {
+	Mode           string   `json:"mode"`
+	RepositoryPath string   `json:"repository_path,omitempty"`
+	EntityRefs     []string `json:"entity_refs,omitempty"`
+	CapabilityRefs []string `json:"capability_refs,omitempty"`
+	Required       bool     `json:"required,omitempty"`
 }
 
 type TemplateSlotMap struct {
@@ -195,6 +219,8 @@ type TaskAllocationUnit struct {
 	EntityRefs          []string                       `json:"entity_refs,omitempty"`
 	RelationGroupRefs   []string                       `json:"relation_group_refs,omitempty"`
 	SharedOwnershipRefs []string                       `json:"shared_ownership_refs,omitempty"`
+	CapabilityFlags     []string                       `json:"capability_flags,omitempty"`
+	BehaviorRefs        []string                       `json:"behavior_refs,omitempty"`
 	TaskType            appruns.BuilderRuntimeTaskType `json:"task_type,omitempty"`
 	Objective           string                         `json:"objective,omitempty"`
 	SemanticIntentRefs  []string                       `json:"semantic_intent_refs,omitempty"`
@@ -230,6 +256,8 @@ type AcceptancePlanItem struct {
 	SourceType      string                 `json:"source_type,omitempty"`
 	SourceRef       string                 `json:"source_ref,omitempty"`
 	BindingRefs     []string               `json:"slot_refs,omitempty"`
+	CapabilityRefs  []string               `json:"capability_refs,omitempty"`
+	BehaviorRefs    []string               `json:"behavior_refs,omitempty"`
 	FieldRefs       []string               `json:"field_refs,omitempty"`
 	EvidencePattern string                 `json:"evidence_pattern,omitempty"`
 	TimeoutSeconds  int                    `json:"timeout_seconds,omitempty"`

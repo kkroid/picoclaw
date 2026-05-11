@@ -4,7 +4,7 @@
   "approval_type": "prd",
   "job_id": "job-todo-lite-no-home-no-detail-sample-001",
   "prd_id": "prd-todo-lite-no-home-no-detail-sample-001",
-  "subject_version": "prd-todo-lite-no-home-no-detail-sample-001@0.1.0@sha256:53c267b24bc63490@sha256:36a56025db3a1652",
+  "subject_version": "prd-todo-lite-no-home-no-detail-sample-001@0.1.0@sha256:1afc3823f8aea4c1@sha256:36a56025db3a1652",
   "status": "approved",
   "requested_by": {
     "actor_type": "system",

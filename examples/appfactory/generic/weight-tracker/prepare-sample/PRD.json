@@ -464,6 +464,22 @@
     "contract_version": "0.1.0",
     "domain_model": {
       "domain_name": "体重记录 App",
+      "complexity_level": "L2-behavior-contract",
+      "capability_flags": [
+        "navigation",
+        "local-storage",
+        "theme",
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "edit-record",
+        "field-validation",
+        "detail",
+        "delete-record",
+        "date-field"
+      ],
       "entities": [
         {
           "entity_id": "entity-weight-record",
@@ -525,6 +541,209 @@
       "summary_metrics": [
         "体重概览摘要"
       ],
+      "behavior_rules": [
+        {
+          "rule_id": "behavior-overview-summary",
+          "kind": "summarize",
+          "description": "概览承载单元必须展示最新体重、记录数量和最近趋势摘要。",
+          "capability_refs": [
+            "summary-card",
+            "derived-summary"
+          ],
+          "surface_refs": [
+            "surface-overview"
+          ],
+          "entity_refs": [
+            "entity-weight-summary"
+          ],
+          "field_refs": [
+            "latest_weight",
+            "record_count",
+            "trend"
+          ],
+          "acceptance_refs": [
+            "ac-overview"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-browse-records",
+          "kind": "browse",
+          "description": "历史集合承载单元必须按日期展示体重记录，并允许进入结果检查入口。",
+          "capability_refs": [
+            "list"
+          ],
+          "surface_refs": [
+            "surface-collection"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "field_refs": [
+            "record_id",
+            "weight",
+            "recorded_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-list"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-create-record",
+          "kind": "create",
+          "description": "用户可以通过实体变更承载单元录入或编辑体重、日期和备注，并立即看到结果。",
+          "capability_refs": [
+            "form",
+            "create-record",
+            "field-validation",
+            "local-storage"
+          ],
+          "surface_refs": [
+            "surface-mutation"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "field_refs": [
+            "weight",
+            "recorded_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-form",
+            "ac-persistence"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-update-record",
+          "kind": "update",
+          "description": "用户可以从结果检查入口进入实体变更承载单元，更新体重、日期和备注。",
+          "capability_refs": [
+            "form",
+            "edit-record",
+            "field-validation",
+            "local-storage"
+          ],
+          "surface_refs": [
+            "surface-mutation",
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "field_refs": [
+            "weight",
+            "recorded_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-form"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-inspect-record",
+          "kind": "inspect",
+          "description": "能看到单条体重记录的体重、日期和备注",
+          "capability_refs": [
+            "detail"
+          ],
+          "surface_refs": [
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "field_refs": [
+            "record_id",
+            "weight",
+            "recorded_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-detail"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-delete-record",
+          "kind": "delete",
+          "description": "删除体重记录后，概览摘要和历史集合内容必须同步刷新。",
+          "capability_refs": [
+            "delete-record",
+            "local-storage"
+          ],
+          "surface_refs": [
+            "surface-inspection",
+            "surface-collection"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "acceptance_refs": [
+            "ac-delete",
+            "ac-persistence"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-persist-records",
+          "kind": "persist",
+          "description": "领域记录必须通过本地仓储持久化并可在应用重启后恢复。",
+          "capability_refs": [
+            "local-storage"
+          ],
+          "surface_refs": [
+            "surface-overview",
+            "surface-collection",
+            "surface-mutation",
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-weight-record"
+          ],
+          "acceptance_refs": [
+            "ac-persistence"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-navigate-surfaces",
+          "kind": "navigate",
+          "description": "概览、历史集合、实体变更和结果检查入口之间路径明确且可达。",
+          "capability_refs": [
+            "navigation"
+          ],
+          "surface_refs": [
+            "surface-overview",
+            "surface-collection",
+            "surface-mutation",
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-weight-record",
+            "entity-weight-summary"
+          ],
+          "acceptance_refs": [
+            "ac-navigation"
+          ],
+          "required": true
+        }
+      ],
+      "persistence_contract": {
+        "mode": "local-hive",
+        "repository_path": "lib/repositories/record_repository.dart",
+        "entity_refs": [
+          "entity-weight-record"
+        ],
+        "capability_refs": [
+          "local-storage"
+        ],
+        "required": true
+      },
       "critical_flow_refs": [
         "flow-create-record",
         "flow-update-record",

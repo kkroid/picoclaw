@@ -141,6 +141,12 @@
         "surface-collection",
         "surface-inspection"
       ],
+      "capability_refs": [
+        "list"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records"
+      ],
       "field_refs": [
         "record_id",
         "weight",
@@ -163,6 +169,12 @@
       "slot_refs": [
         "surface-collection",
         "surface-inspection"
+      ],
+      "capability_refs": [
+        "detail"
+      ],
+      "behavior_refs": [
+        "behavior-inspect-record"
       ],
       "field_refs": [
         "record_id",
@@ -187,6 +199,12 @@
         "surface-collection",
         "surface-inspection"
       ],
+      "capability_refs": [
+        "local-storage"
+      ],
+      "behavior_refs": [
+        "behavior-persist-records"
+      ],
       "field_refs": [
         "record_id",
         "weight",
@@ -206,6 +224,12 @@
       "required": true,
       "source_type": "semantic_acceptance_rule",
       "source_ref": "ac-navigation",
+      "capability_refs": [
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-navigate-surfaces"
+      ],
       "evidence_pattern": "体重记录 App（只读详情）"
     },
     {
@@ -243,6 +267,16 @@
       "source_ref": "flow-inspect-record",
       "slot_refs": [
         "surface-collection"
+      ],
+      "capability_refs": [
+        "list",
+        "local-storage",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     }
   ],

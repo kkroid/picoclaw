@@ -452,6 +452,24 @@
     "contract_version": "0.1.0",
     "domain_model": {
       "domain_name": "习惯打卡 App（抽屉录入）",
+      "complexity_level": "L2-behavior-contract",
+      "capability_flags": [
+        "navigation",
+        "local-storage",
+        "theme",
+        "summary-card",
+        "derived-summary",
+        "list",
+        "form",
+        "create-record",
+        "edit-record",
+        "field-validation",
+        "detail",
+        "filter",
+        "status-filter",
+        "status-field",
+        "date-field"
+      ],
       "entities": [
         {
           "entity_id": "entity-habit-record",
@@ -525,6 +543,219 @@
       "summary_metrics": [
         "习惯概览摘要"
       ],
+      "behavior_rules": [
+        {
+          "rule_id": "behavior-overview-summary",
+          "kind": "summarize",
+          "description": "概览承载单元必须展示总记录数和完成状态分布。",
+          "capability_refs": [
+            "summary-card",
+            "derived-summary"
+          ],
+          "surface_refs": [
+            "surface-overview"
+          ],
+          "entity_refs": [
+            "entity-habit-summary"
+          ],
+          "field_refs": [
+            "total_count",
+            "pending_count",
+            "done_count"
+          ],
+          "acceptance_refs": [
+            "ac-overview"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-browse-records",
+          "kind": "browse",
+          "description": "集合浏览承载单元必须按时间展示最近习惯记录，支持查看完成状态，并允许进入结果检查入口。",
+          "capability_refs": [
+            "list"
+          ],
+          "surface_refs": [
+            "surface-collection"
+          ],
+          "entity_refs": [
+            "entity-habit-record"
+          ],
+          "field_refs": [
+            "habit_record_id",
+            "title",
+            "category",
+            "status",
+            "checked_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-list"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-create-record",
+          "kind": "create",
+          "description": "用户可以通过实体变更承载单元创建或编辑一条习惯记录并立即看到结果。",
+          "capability_refs": [
+            "form",
+            "create-record",
+            "field-validation",
+            "local-storage"
+          ],
+          "surface_refs": [
+            "surface-mutation"
+          ],
+          "entity_refs": [
+            "entity-habit-record"
+          ],
+          "field_refs": [
+            "title",
+            "category",
+            "status",
+            "checked_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-form",
+            "ac-persistence"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-update-record",
+          "kind": "update",
+          "description": "用户可以从结果检查入口进入实体变更承载单元，更新标题、分类、状态和备注。",
+          "capability_refs": [
+            "form",
+            "edit-record",
+            "field-validation",
+            "local-storage"
+          ],
+          "surface_refs": [
+            "surface-mutation",
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-habit-record"
+          ],
+          "field_refs": [
+            "title",
+            "category",
+            "status",
+            "checked_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-form"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-inspect-record",
+          "kind": "inspect",
+          "description": "能看到单条习惯记录的标题、状态、备注和打卡时间",
+          "capability_refs": [
+            "detail"
+          ],
+          "surface_refs": [
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-habit-record"
+          ],
+          "field_refs": [
+            "habit_record_id",
+            "title",
+            "category",
+            "status",
+            "checked_at",
+            "note"
+          ],
+          "acceptance_refs": [
+            "ac-detail"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-filter-records",
+          "kind": "filter",
+          "description": "列表立即收敛到对应完成状态的习惯记录",
+          "capability_refs": [
+            "filter",
+            "status-filter"
+          ],
+          "surface_refs": [
+            "surface-collection"
+          ],
+          "entity_refs": [
+            "entity-habit-record"
+          ],
+          "field_refs": [
+            "category",
+            "status"
+          ],
+          "acceptance_refs": [
+            "ac-list"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-persist-records",
+          "kind": "persist",
+          "description": "领域记录必须通过本地仓储持久化并可在应用重启后恢复。",
+          "capability_refs": [
+            "local-storage"
+          ],
+          "surface_refs": [
+            "surface-overview",
+            "surface-collection",
+            "surface-mutation",
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-habit-record"
+          ],
+          "acceptance_refs": [
+            "ac-persistence"
+          ],
+          "required": true
+        },
+        {
+          "rule_id": "behavior-navigate-surfaces",
+          "kind": "navigate",
+          "description": "当前需求声明的概览、集合浏览、实体变更和结果检查承载单元之间路径明确且可达。",
+          "capability_refs": [
+            "navigation"
+          ],
+          "surface_refs": [
+            "surface-overview",
+            "surface-collection",
+            "surface-mutation",
+            "surface-inspection"
+          ],
+          "entity_refs": [
+            "entity-habit-record",
+            "entity-habit-summary"
+          ],
+          "acceptance_refs": [
+            "ac-navigation"
+          ],
+          "required": true
+        }
+      ],
+      "persistence_contract": {
+        "mode": "local-hive",
+        "repository_path": "lib/repositories/record_repository.dart",
+        "entity_refs": [
+          "entity-habit-record"
+        ],
+        "capability_refs": [
+          "local-storage"
+        ],
+        "required": true
+      },
       "critical_flow_refs": [
         "flow-create-record",
         "flow-update-record",

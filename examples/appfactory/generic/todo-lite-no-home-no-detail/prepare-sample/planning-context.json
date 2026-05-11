@@ -3,7 +3,7 @@
   "job_id": "job-todo-lite-no-home-no-detail-sample-001",
   "prd_id": "prd-todo-lite-no-home-no-detail-sample-001",
   "template_id": "flutter-open-lite",
-  "prd_subject_version": "prd-todo-lite-no-home-no-detail-sample-001@0.1.0@sha256:53c267b24bc63490",
+  "prd_subject_version": "prd-todo-lite-no-home-no-detail-sample-001@0.1.0@sha256:1afc3823f8aea4c1",
   "template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47",
   "planning_policy_version": "phase1-boundary-v1",
   "planning_model_snapshot": {

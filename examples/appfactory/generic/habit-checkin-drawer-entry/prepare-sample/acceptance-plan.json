@@ -143,6 +143,13 @@
       "slot_refs": [
         "surface-overview"
       ],
+      "capability_refs": [
+        "summary-card",
+        "derived-summary"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary"
+      ],
       "field_refs": [
         "total_count",
         "pending_count",
@@ -164,6 +171,15 @@
       "slot_refs": [
         "surface-collection",
         "surface-inspection"
+      ],
+      "capability_refs": [
+        "list",
+        "filter",
+        "status-filter"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-filter-records"
       ],
       "field_refs": [
         "habit_record_id",
@@ -188,6 +204,17 @@
       "source_ref": "ac-form",
       "slot_refs": [
         "surface-mutation"
+      ],
+      "capability_refs": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record"
+      ],
+      "behavior_refs": [
+        "behavior-create-record",
+        "behavior-update-record"
       ],
       "field_refs": [
         "habit_record_id",
@@ -214,6 +241,12 @@
         "surface-collection",
         "surface-inspection"
       ],
+      "capability_refs": [
+        "detail"
+      ],
+      "behavior_refs": [
+        "behavior-inspect-record"
+      ],
       "field_refs": [
         "total_count",
         "pending_count",
@@ -236,6 +269,16 @@
         "surface-overview",
         "surface-collection",
         "surface-inspection"
+      ],
+      "capability_refs": [
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage"
+      ],
+      "behavior_refs": [
+        "behavior-create-record",
+        "behavior-persist-records"
       ],
       "field_refs": [
         "habit_record_id",
@@ -260,6 +303,12 @@
       "source_ref": "ac-navigation",
       "slot_refs": [
         "surface-overview"
+      ],
+      "capability_refs": [
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-navigate-surfaces"
       ],
       "field_refs": [
         "total_count",
@@ -317,6 +366,23 @@
       "slot_refs": [
         "surface-overview",
         "surface-mutation"
+      ],
+      "capability_refs": [
+        "summary-card",
+        "derived-summary",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     },
     {
@@ -330,6 +396,27 @@
         "surface-collection",
         "surface-mutation",
         "surface-inspection"
+      ],
+      "capability_refs": [
+        "list",
+        "form",
+        "create-record",
+        "field-validation",
+        "local-storage",
+        "edit-record",
+        "detail",
+        "filter",
+        "status-filter",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-browse-records",
+        "behavior-create-record",
+        "behavior-update-record",
+        "behavior-inspect-record",
+        "behavior-filter-records",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     },
     {
@@ -342,6 +429,22 @@
       "slot_refs": [
         "surface-overview",
         "surface-collection"
+      ],
+      "capability_refs": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "filter",
+        "status-filter",
+        "local-storage",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-filter-records",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     },
     {
@@ -354,6 +457,22 @@
       "slot_refs": [
         "surface-overview",
         "surface-collection"
+      ],
+      "capability_refs": [
+        "summary-card",
+        "derived-summary",
+        "list",
+        "filter",
+        "status-filter",
+        "local-storage",
+        "navigation"
+      ],
+      "behavior_refs": [
+        "behavior-overview-summary",
+        "behavior-browse-records",
+        "behavior-filter-records",
+        "behavior-persist-records",
+        "behavior-navigate-surfaces"
       ]
     }
   ],

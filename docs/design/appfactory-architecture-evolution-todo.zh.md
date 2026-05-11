@@ -5,7 +5,7 @@
 > 更新时间：2026-04-27
 >
 > 本文档只维护“当前仍未完成”的 generic open-lite `/jobs` 手测对齐修复与通用化重构待办，不再堆叠逐日补记。
-> M0-M6、L1-L3 与 Route B 主路径完成态，统一冻结到主设计文档 `appfactory-architecture-evolution.zh.md` §11.1，以及 `workspace/appfactory/jobs-ui-regression/runs/` 的归档证据中。
+> M0-M6、L1-L3 与统一确定性生成主路径完成态，统一冻结到主设计文档 `appfactory-architecture-evolution.zh.md` §11.1，以及 `workspace/appfactory/jobs-ui-regression/runs/` 的归档证据中。
 
 ## 文档维护约定
 
@@ -20,7 +20,7 @@
 
 ## 已完成并冻结
 
-- Route B / M0-M6 / L1-L3 已完成，不再在本文件维护勾选状态。
+- 统一确定性生成主路径 / M0-M6 / L1-L3 已完成，不再在本文件维护勾选状态。
 - `/jobs` latest 已区分 `job_status`、`script_status`、`manual_equivalence`、`probe_only`、真实生成路径与真实落盘路径。
 - `/jobs` latest 的 `frontier` 与 `auto_repair` 已改为优先依据终态前最近活跃 run 事件和 `events-response.json` 回填，不再把已越过的旧失败点误写成当前前线，也不再因为 `builder_output` 为空把 `auto_repair` 写成 `null`。
 - validation auto-repair 之后的 `run_patch_applied` 已改为使用真实 repair round/attempt 记账，不再错误继承外层 initial round input。
