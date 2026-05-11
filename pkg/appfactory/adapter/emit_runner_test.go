@@ -268,6 +268,7 @@ func TestTryDeterministicEmitProtocolClientSuccess(t *testing.T) {
 		"pubspec.yaml",
 		"android/app/build.gradle.kts",
 		"android/app/src/main/AndroidManifest.xml",
+		"android/app/src/main/kotlin/com/appfactory/onepilot/MainActivity.kt",
 		"lib/app.dart",
 		"lib/services/api_client.dart",
 		"lib/services/ws_client.dart",
@@ -292,6 +293,10 @@ func TestTryDeterministicEmitProtocolClientSuccess(t *testing.T) {
 	manifest := readEmitRunnerWorkspaceFile(t, workspace, "android/app/src/main/AndroidManifest.xml")
 	if !strings.Contains(manifest, "android.permission.INTERNET") || !strings.Contains(manifest, "android:usesCleartextTraffic=\"true\"") {
 		t.Fatalf("Android manifest missing protocol network config: %s", manifest)
+	}
+	mainActivity := readEmitRunnerWorkspaceFile(t, workspace, "android/app/src/main/kotlin/com/appfactory/onepilot/MainActivity.kt")
+	if !strings.Contains(mainActivity, "package com.appfactory.onepilot") || !strings.Contains(mainActivity, "FlutterActivity") {
+		t.Fatalf("MainActivity.kt missing matching package or FlutterActivity base: %s", mainActivity)
 	}
 	buildGradle := readEmitRunnerWorkspaceFile(t, workspace, "android/app/build.gradle.kts")
 	for _, marker := range []string{`com.appfactory.onepilot`, `abiFilters.add("arm64-v8a")`, `source = "../.."`} {

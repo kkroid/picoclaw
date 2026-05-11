@@ -73,7 +73,7 @@ func TestCompileProtocolClientOnePilotArtifacts(t *testing.T) {
 	if err := json.Unmarshal(bundle.Files[taskAllocationFileName], &allocation); err != nil {
 		t.Fatalf("unmarshal task-allocation.json error = %v", err)
 	}
-	if !taskAllocationTargets(allocation, "lib/services/api_client.dart") || !taskAllocationTargets(allocation, "lib/screens/conversations/detail_page.dart") || !taskAllocationTargets(allocation, "test/widget_test.dart") || !taskAllocationTargets(allocation, "android/app/build.gradle.kts") {
+	if !taskAllocationTargets(allocation, "lib/services/api_client.dart") || !taskAllocationTargets(allocation, "lib/screens/conversations/detail_page.dart") || !taskAllocationTargets(allocation, "test/widget_test.dart") || !taskAllocationTargets(allocation, "android/app/build.gradle.kts") || !taskAllocationTargets(allocation, "android/app/src/main/kotlin/com/appfactory/onepilot/MainActivity.kt") {
 		t.Fatalf("protocol task allocation missing required target paths: %#v", allocation.Units)
 	}
 
@@ -82,7 +82,7 @@ func TestCompileProtocolClientOnePilotArtifacts(t *testing.T) {
 			t.Fatalf("builder input missing acceptance check %s", checkID)
 		}
 	}
-	if !containsString(bundle.BuilderInput.AllowedPaths, "android/app/src/main/AndroidManifest.xml") {
+	if !containsString(bundle.BuilderInput.AllowedPaths, "android/app/src/main/AndroidManifest.xml") || !containsString(bundle.BuilderInput.AllowedPaths, "android/app/src/main/kotlin/com/appfactory/onepilot/MainActivity.kt") {
 		t.Fatalf("AllowedPaths = %v, want Android manifest writable for protocol network config", bundle.BuilderInput.AllowedPaths)
 	}
 }

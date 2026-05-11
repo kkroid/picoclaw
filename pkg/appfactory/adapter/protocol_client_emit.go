@@ -44,6 +44,7 @@ func sortedProtocolClientFilePaths(files map[string]string) []string {
 		"pubspec.yaml",
 		"android/app/build.gradle.kts",
 		"android/app/src/main/AndroidManifest.xml",
+		"android/app/src/main/kotlin/com/appfactory/onepilot/MainActivity.kt",
 		"android/app/src/main/res/values/strings.xml",
 		"lib/models/protocol_models.dart",
 		"lib/services/settings_store.dart",
@@ -107,32 +108,33 @@ func protocolClientLegacyOpenLitePaths() []string {
 
 func protocolClientFileContents() map[string]string {
 	return map[string]string{
-		"pubspec.yaml":                                protocolPubspec(),
-		"android/app/build.gradle.kts":                protocolAndroidBuildGradleKTS(),
-		"android/app/src/main/AndroidManifest.xml":    protocolAndroidManifest(),
-		"android/app/src/main/res/values/strings.xml": protocolAndroidStrings(),
-		"lib/main.dart":                               protocolMainDart(),
-		"lib/app.dart":                                protocolAppDart(),
-		"lib/models/protocol_models.dart":             protocolModelsDart(),
-		"lib/services/settings_store.dart":            protocolSettingsStoreDart(),
-		"lib/services/api_client.dart":                protocolApiClientDart(),
-		"lib/services/ws_client.dart":                 protocolWsClientDart(),
-		"lib/providers/connection_provider.dart":      protocolConnectionProviderDart(),
-		"lib/providers/project_provider.dart":         protocolProjectProviderDart(),
-		"lib/providers/conversation_provider.dart":    protocolConversationProviderDart(),
-		"lib/providers/file_provider.dart":            protocolFileProviderDart(),
-		"lib/screens/home.dart":                       protocolHomeDart(),
-		"lib/screens/settings/connection_page.dart":   protocolConnectionPageDart(),
-		"lib/screens/conversations/list_page.dart":    protocolConversationListPageDart(),
-		"lib/screens/conversations/detail_page.dart":  protocolConversationDetailPageDart(),
-		"lib/screens/files/browser_page.dart":         protocolFileBrowserPageDart(),
-		"lib/screens/files/file_preview_page.dart":    protocolFilePreviewPageDart(),
-		"lib/widgets/project_drawer.dart":             protocolProjectDrawerDart(),
-		"lib/widgets/chat_bubble.dart":                protocolChatBubbleDart(),
-		"lib/widgets/thinking_block.dart":             protocolThinkingBlockDart(),
-		"lib/widgets/connection_indicator.dart":       protocolConnectionIndicatorDart(),
-		"lib/widgets/file_tree_tile.dart":             protocolFileTreeTileDart(),
-		"test/widget_test.dart":                       protocolWidgetTestDart(),
+		"pubspec.yaml":                             protocolPubspec(),
+		"android/app/build.gradle.kts":             protocolAndroidBuildGradleKTS(),
+		"android/app/src/main/AndroidManifest.xml": protocolAndroidManifest(),
+		"android/app/src/main/kotlin/com/appfactory/onepilot/MainActivity.kt": protocolAndroidMainActivityKotlin(),
+		"android/app/src/main/res/values/strings.xml":                         protocolAndroidStrings(),
+		"lib/main.dart":                              protocolMainDart(),
+		"lib/app.dart":                               protocolAppDart(),
+		"lib/models/protocol_models.dart":            protocolModelsDart(),
+		"lib/services/settings_store.dart":           protocolSettingsStoreDart(),
+		"lib/services/api_client.dart":               protocolApiClientDart(),
+		"lib/services/ws_client.dart":                protocolWsClientDart(),
+		"lib/providers/connection_provider.dart":     protocolConnectionProviderDart(),
+		"lib/providers/project_provider.dart":        protocolProjectProviderDart(),
+		"lib/providers/conversation_provider.dart":   protocolConversationProviderDart(),
+		"lib/providers/file_provider.dart":           protocolFileProviderDart(),
+		"lib/screens/home.dart":                      protocolHomeDart(),
+		"lib/screens/settings/connection_page.dart":  protocolConnectionPageDart(),
+		"lib/screens/conversations/list_page.dart":   protocolConversationListPageDart(),
+		"lib/screens/conversations/detail_page.dart": protocolConversationDetailPageDart(),
+		"lib/screens/files/browser_page.dart":        protocolFileBrowserPageDart(),
+		"lib/screens/files/file_preview_page.dart":   protocolFilePreviewPageDart(),
+		"lib/widgets/project_drawer.dart":            protocolProjectDrawerDart(),
+		"lib/widgets/chat_bubble.dart":               protocolChatBubbleDart(),
+		"lib/widgets/thinking_block.dart":            protocolThinkingBlockDart(),
+		"lib/widgets/connection_indicator.dart":      protocolConnectionIndicatorDart(),
+		"lib/widgets/file_tree_tile.dart":            protocolFileTreeTileDart(),
+		"test/widget_test.dart":                      protocolWidgetTestDart(),
 	}
 }
 
@@ -164,6 +166,15 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+`
+}
+
+func protocolAndroidMainActivityKotlin() string {
+	return `package com.appfactory.onepilot
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()
 `
 }
 
