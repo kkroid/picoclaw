@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 func TestBuildTaskMetadataForBuilderRuntimeStep(t *testing.T) {
@@ -146,7 +146,7 @@ func TestDiagnoseExecutionStepFailurePrefersWorkspacePatchApplyFailureForTaskErr
 		Stage: appruns.StageThinPrepare,
 		Kind:  taskKindCapturedWorkspace,
 		Failure: taskFailureSpec{
-			Signature:         "runner_exit_nonzero",
+			Signature:          "runner_exit_nonzero",
 			RecoverySuggestion: "inspect captured workspace edit before rerun",
 		},
 	}, taskErrorKindExecution, errors.New("android/app/build.gradle.kts is protected"))

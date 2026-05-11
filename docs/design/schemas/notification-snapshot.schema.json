@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/notification-snapshot.schema.json",
-  "title": "PicoClaw Notification Snapshot",
+  "$id": "https://oneappfactory.local/docs/design/schemas/notification-snapshot.schema.json",
+  "title": "OneAppFactory Notification Snapshot",
   "description": "workspace/appfactory/notifications/index.json 的最小结构基线。",
   "type": "object",
   "additionalProperties": false,

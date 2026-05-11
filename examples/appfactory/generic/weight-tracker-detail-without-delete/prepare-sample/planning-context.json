@@ -113,7 +113,7 @@
       }
     ],
     "upgrade_policy": {
-      "source": "config/config.example.json:appfactory.builder_runtime.upgrade_threshold",
+      "source": "config/oneappfactory.example.json:appfactory.builder_runtime.upgrade_threshold",
       "max_attempts_before_upgrade": 2,
       "max_files_before_upgrade": 2,
       "max_schema_drift_before_upgrade": 1,

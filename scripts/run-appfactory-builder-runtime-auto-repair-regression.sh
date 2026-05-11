@@ -3,10 +3,10 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-output_root="${APPFACTORY_BUILDER_RUNTIME_AUTO_REPAIR_ROOT:-$repo_root/workspace/appfactory/builder-runtime-auto-repair}"
+output_root="${ONEAPPFACTORY_BUILDER_RUNTIME_AUTO_REPAIR_ROOT:-$repo_root/workspace/appfactory/builder-runtime-auto-repair}"
 go_bin="${GO_BIN:-go}"
-test_name="${APPFACTORY_BUILDER_RUNTIME_AUTO_REPAIR_TEST:-TestRunnerExecuteRunAutoRepairsFlutterAnalyzeFailure}"
-test_package="${APPFACTORY_BUILDER_RUNTIME_AUTO_REPAIR_PACKAGE:-./pkg/appfactory/adapter}"
+test_name="${ONEAPPFACTORY_BUILDER_RUNTIME_AUTO_REPAIR_TEST:-TestRunnerExecuteRunAutoRepairsFlutterAnalyzeFailure}"
+test_package="${ONEAPPFACTORY_BUILDER_RUNTIME_AUTO_REPAIR_PACKAGE:-./pkg/appfactory/adapter}"
 run_id="$(date -u +%Y%m%dT%H%M%SZ)"
 run_dir="$output_root/runs/$run_id"
 raw_log="$run_dir/go-test.jsonl"

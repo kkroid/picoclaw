@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/delivery-record.schema.json",
-  "title": "PicoClaw Delivery Record",
+  "$id": "https://oneappfactory.local/docs/design/schemas/delivery-record.schema.json",
+  "title": "OneAppFactory Delivery Record",
   "description": "jobs/{job_id}/reports/delivery-record.json 的结构基线。",
   "type": "object",
   "additionalProperties": false,

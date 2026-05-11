@@ -16,11 +16,11 @@ prd_id="${APPFACTORY_JOBS_PRD_ID:-}"
 template_id="${APPFACTORY_JOBS_TEMPLATE_ID:-}"
 goal_summary="${APPFACTORY_JOBS_GOAL_SUMMARY:-validate the current /jobs full-chain manual-equivalent path}"
 human_notes_json="${APPFACTORY_JOBS_HUMAN_NOTES_JSON:-}"
-builder_image="${APPFACTORY_JOBS_BUILDER_IMAGE:-picoclaw/appfactory-builder:local}"
+builder_image="${APPFACTORY_JOBS_BUILDER_IMAGE:-oneappfactory/builder:local}"
 timeout_seconds="${APPFACTORY_JOBS_TIMEOUT_SECONDS:-5400}"
 poll_interval="${APPFACTORY_JOBS_POLL_INTERVAL:-2}"
 output_root="${APPFACTORY_JOBS_REGRESSION_ROOT:-$repo_root/workspace/appfactory/jobs-ui-regression}"
-appfactory_root_candidates="${APPFACTORY_JOBS_APPFACTORY_ROOT_CANDIDATES:-$repo_root/workspace/appfactory:$HOME/.picoclaw/workspace/appfactory}"
+appfactory_root_candidates="${APPFACTORY_JOBS_APPFACTORY_ROOT_CANDIDATES:-$repo_root/workspace/appfactory:$HOME/.appfactory/workspace/appfactory}"
 require_manual_equivalent="${APPFACTORY_JOBS_REQUIRE_MANUAL_EQUIVALENCE:-1}"
 completion_probe_enabled="${APPFACTORY_JOBS_COMPLETION_PROBE_ENABLED:-1}"
 completion_probe_timeout_seconds="${APPFACTORY_JOBS_COMPLETION_PROBE_TIMEOUT_SECONDS:-20}"
@@ -28,7 +28,7 @@ completion_probe_max_tokens="${APPFACTORY_JOBS_COMPLETION_PROBE_MAX_TOKENS:-4}"
 completion_probe_prompt="${APPFACTORY_JOBS_COMPLETION_PROBE_PROMPT:-reply with ok}"
 patch_wait_failfast_enabled="${APPFACTORY_JOBS_PATCH_WAIT_FAILFAST_ENABLED:-1}"
 patch_wait_failfast_seconds="${APPFACTORY_JOBS_PATCH_WAIT_FAILFAST_SECONDS:-180}"
-probe_file_path="${APPFACTORY_JOBS_PROBE_FILE_PATH:-lib/picoclaw_executor_probe.dart}"
+probe_file_path="${APPFACTORY_JOBS_PROBE_FILE_PATH:-lib/oneappfactory_executor_probe.dart}"
 auto_resume_enabled="${APPFACTORY_JOBS_AUTO_RESUME_ENABLED:-1}"
 auto_resume_max_attempts="${APPFACTORY_JOBS_AUTO_RESUME_MAX_ATTEMPTS:-2}"
 auto_resume_target_failure_signature="${APPFACTORY_JOBS_AUTO_RESUME_FAILURE_SIGNATURE:-builder_runtime_model_request_failed}"
@@ -1528,7 +1528,7 @@ def extract_paths_from_file_facts(item, allowed_states):
 
 def build_manual_equivalence_summary(events, job_status):
     require_manual_equivalent = is_truthy_env("REQUIRE_MANUAL_EQUIVALENT", default=True)
-    probe_file = str(os.environ.get("PROBE_FILE_PATH") or "lib/picoclaw_executor_probe.dart").strip() or "lib/picoclaw_executor_probe.dart"
+    probe_file = str(os.environ.get("PROBE_FILE_PATH") or "lib/oneappfactory_executor_probe.dart").strip() or "lib/oneappfactory_executor_probe.dart"
     normalized_job_status = str(job_status or "").strip()
 
     generated_paths = []

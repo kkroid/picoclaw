@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/builder-metrics.schema.json",
-  "title": "PicoClaw Builder Metrics",
+  "$id": "https://oneappfactory.local/docs/design/schemas/builder-metrics.schema.json",
+  "title": "OneAppFactory Builder Metrics",
   "description": "Builder 输出包中的执行指标统计。",
   "type": "object",
   "additionalProperties": false,

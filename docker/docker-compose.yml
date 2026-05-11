@@ -1,52 +1,43 @@
 services:
-  # ─────────────────────────────────────────────
-  # PicoClaw Agent (one-shot query)
-  #   docker compose -f docker/docker-compose.yml run --rm picoclaw-agent -m "Hello"
-  # ─────────────────────────────────────────────
-  picoclaw-agent:
-    image: docker.io/sipeed/picoclaw:latest
-    container_name: picoclaw-agent
-    profiles:
-      - agent
-    # Uncomment to access host network; leave commented unless needed.
-    #extra_hosts:
-    #  - "host.docker.internal:host-gateway"
-    volumes:
-      - ./data:/root/.picoclaw
-    entrypoint: ["picoclaw", "agent"]
-    stdin_open: true
-    tty: true
-
-  # ─────────────────────────────────────────────
-  # PicoClaw Gateway (Long-running Bot)
-  #   docker compose -f docker/docker-compose.yml --profile gateway up
-  # ─────────────────────────────────────────────
-  picoclaw-gateway:
-    image: docker.io/sipeed/picoclaw:latest
-    container_name: picoclaw-gateway
-    restart: on-failure
-    profiles:
-      - gateway
-    # Uncomment to access host network; leave commented unless needed.
-    #extra_hosts:
-    #  - "host.docker.internal:host-gateway"
-    volumes:
-      - ./data:/root/.picoclaw
-
-  # ─────────────────────────────────────────────
-  # PicoClaw Launcher (Web Console + Gateway)
-  #   docker compose -f docker/docker-compose.yml --profile launcher up
-  # ─────────────────────────────────────────────
-  picoclaw-launcher:
-    image: docker.io/sipeed/picoclaw:launcher
-    container_name: picoclaw-launcher
-    restart: on-failure
-    profiles:
-      - launcher
+  oneappfactory:
+    image: oneappfactory/launcher:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+    container_name: oneappfactory
+    restart: unless-stopped
     environment:
-      - PICOCLAW_GATEWAY_HOST=0.0.0.0
+      ONEAPPFACTORY_HOME: /root/.appfactory
+      ONEAPPFACTORY_CONFIG: /root/.appfactory/config.json
+      ONEAPPFACTORY_BUILDER_IMAGE: oneappfactory/builder:local
     ports:
       - "127.0.0.1:18800:18800"
-      - "127.0.0.1:18790:18790"
     volumes:
-      - ./data:/root/.picoclaw
+      - oneappfactory-home:/root/.appfactory
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  oneappfactory-builder:
+    image: oneappfactory/builder:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.appfactory-builder
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        ALL_PROXY: ${ALL_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-127.0.0.1,localhost,host.docker.internal}
+    profiles:
+      - builder
+    command: ["doctor"]
+    volumes:
+      - oneappfactory-builder-workspace:/workspace
+      - oneappfactory-artifacts:/artifacts
+
+volumes:
+  oneappfactory-home:
+  oneappfactory-builder-workspace:
+  oneappfactory-artifacts:

@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
-	"github.com/sipeed/picoclaw/pkg/fileutil"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
+	"github.com/sipeed/oneappfactory/pkg/fileutil"
 )
 
 type publicJobExecutionRecord struct {

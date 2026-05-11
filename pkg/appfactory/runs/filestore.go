@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sipeed/picoclaw/pkg/fileutil"
+	"github.com/sipeed/oneappfactory/pkg/fileutil"
 )
 
 const (
@@ -111,36 +111,36 @@ func (store *FileStore) CreateRun(_ context.Context, builderID, workerID, leaseI
 		launchArgs = []string{runnerScriptPath}
 	}
 	record := RunRecord{
-		RunID:               runID,
-		JobID:               input.JobID,
-		BuilderID:           builderID,
-		WorkerID:            workerID,
-		LeaseID:             leaseID,
-		Status:              StatusRunning,
-		ExecutorImage:       input.ExecutorImage,
-		GoalSummary:         input.GoalSummary,
-		PlanningPolicy:      input.PlanningPolicy,
-		HumanNotes:          append(json.RawMessage(nil), input.HumanNotes...),
-		TaskBundle:          append([]TaskBundleItem(nil), input.TaskBundle...),
-		AcceptanceChecks:    append([]AcceptanceCheck(nil), input.AcceptanceChecks...),
-		AllowedPaths:        append([]string(nil), input.AllowedPaths...),
-		ProtectedPaths:      append([]string(nil), input.ProtectedPaths...),
-		KnowledgePack:       append([]ProfileSkill(nil), input.KnowledgePack...),
-		TemplateSourceDir:   filepath.ToSlash(templateDir),
+		RunID:                  runID,
+		JobID:                  input.JobID,
+		BuilderID:              builderID,
+		WorkerID:               workerID,
+		LeaseID:                leaseID,
+		Status:                 StatusRunning,
+		ExecutorImage:          input.ExecutorImage,
+		GoalSummary:            input.GoalSummary,
+		PlanningPolicy:         input.PlanningPolicy,
+		HumanNotes:             append(json.RawMessage(nil), input.HumanNotes...),
+		TaskBundle:             append([]TaskBundleItem(nil), input.TaskBundle...),
+		AcceptanceChecks:       append([]AcceptanceCheck(nil), input.AcceptanceChecks...),
+		AllowedPaths:           append([]string(nil), input.AllowedPaths...),
+		ProtectedPaths:         append([]string(nil), input.ProtectedPaths...),
+		KnowledgePack:          append([]ProfileSkill(nil), input.KnowledgePack...),
+		TemplateSourceDir:      filepath.ToSlash(templateDir),
 		TemplateReferenceFiles: templateReferences,
-		PreparedInputDigest: PreparedInputDigest(input, input.ContextSourceDir),
-		InputPath:           filepath.ToSlash(filepath.Join("jobs", input.JobID, "prepare", "builder-input.json")),
-		WorkspacePath:       filepath.ToSlash(workspacePath),
-		ArtifactDir:         filepath.ToSlash(artifactDir),
-		RunnerScriptPath:    relToRoot(store.root, runnerScriptPath),
-		LaunchCommand:       launchCommand,
-		LaunchArgs:          launchArgs,
-		LogPath:             relToRoot(store.root, logPath),
-		EventsPath:          filepath.ToSlash(filepath.Join("jobs", input.JobID, "runs", runID, "events.jsonl")),
-		RoundState:          cloneRoundState(input.InitialRoundState),
-		CreatedAt:           now,
-		UpdatedAt:           now,
-		StartedAt:           now,
+		PreparedInputDigest:    PreparedInputDigest(input, input.ContextSourceDir),
+		InputPath:              filepath.ToSlash(filepath.Join("jobs", input.JobID, "prepare", "builder-input.json")),
+		WorkspacePath:          filepath.ToSlash(workspacePath),
+		ArtifactDir:            filepath.ToSlash(artifactDir),
+		RunnerScriptPath:       relToRoot(store.root, runnerScriptPath),
+		LaunchCommand:          launchCommand,
+		LaunchArgs:             launchArgs,
+		LogPath:                relToRoot(store.root, logPath),
+		EventsPath:             filepath.ToSlash(filepath.Join("jobs", input.JobID, "runs", runID, "events.jsonl")),
+		RoundState:             cloneRoundState(input.InitialRoundState),
+		CreatedAt:              now,
+		UpdatedAt:              now,
+		StartedAt:              now,
 	}
 	if err := writeJSON(store.inputPath(input.JobID), input); err != nil {
 		return RunRecord{}, err
@@ -916,7 +916,7 @@ func buildRunnerScript(input BuildInput, workspacePath, artifactDir, logPath str
 
 func buildDefaultExecutorPhaseScript() string {
 	var builder strings.Builder
-	builder.WriteString("runtime=\"${APPFACTORY_BUILDER_RUNTIME:-executor}\"\n")
+	builder.WriteString("runtime=\"${ONEAPPFACTORY_BUILDER_RUNTIME:-executor}\"\n")
 	builder.WriteString("if [ \"$runtime\" != \"executor\" ]; then\n")
 	builder.WriteString("  echo \"unsupported builder runtime: $runtime\" >&2\n")
 	builder.WriteString("  exit 1\n")

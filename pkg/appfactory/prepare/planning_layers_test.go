@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 func TestAnalyzeRequirementLayerRoutesBookkeeping(t *testing.T) {

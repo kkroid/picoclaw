@@ -2,11 +2,18 @@ FROM alpine:3.21
 
 ARG TARGETPLATFORM
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates docker-cli tzdata
 
-COPY $TARGETPLATFORM/picoclaw /usr/local/bin/picoclaw
-COPY $TARGETPLATFORM/picoclaw-launcher /usr/local/bin/picoclaw-launcher
-COPY $TARGETPLATFORM/picoclaw-launcher-tui /usr/local/bin/picoclaw-launcher-tui
+ENV HOME=/root
+ENV ONEAPPFACTORY_HOME=/root/.appfactory
+ENV ONEAPPFACTORY_CONFIG=/root/.appfactory/config.json
 
-ENTRYPOINT ["picoclaw-launcher"]
-CMD ["-public", "-no-browser"]
+COPY $TARGETPLATFORM/oneappfactory /usr/local/bin/oneappfactory
+COPY $TARGETPLATFORM/oneappfactory-launcher /usr/local/bin/oneappfactory-launcher
+COPY docker/entrypoint.sh /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 18800
+
+ENTRYPOINT ["/entrypoint.sh"]

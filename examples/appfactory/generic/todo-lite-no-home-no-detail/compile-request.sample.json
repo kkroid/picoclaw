@@ -5,5 +5,5 @@
   "job_id": "job-todo-lite-no-home-no-detail-sample-001",
   "prd_id": "prd-todo-lite-no-home-no-detail-sample-001",
   "real_checks": true,
-  "executor_image": "picoclaw/appfactory-builder:local"
+  "executor_image": "oneappfactory/appfactory-builder:local"
 }

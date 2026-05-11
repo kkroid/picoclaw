@@ -10,8 +10,12 @@ import (
 	"testing"
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
+
+func appFactoryRepoPath(parts ...string) string {
+	return filepath.Join(append([]string{"..", "..", ".."}, parts...)...)
+}
 
 func TestCompileBookkeepingRequirement(t *testing.T) {
 	bundle, err := Compile(Request{
@@ -304,7 +308,7 @@ func TestCompileBookkeepingRequirement(t *testing.T) {
 	if len(planningContext.ExecutionRouteSnapshot.TaskRoutes) != 5 {
 		t.Fatalf("PlanningContext.TaskRoutes len = %d, want 5", len(planningContext.ExecutionRouteSnapshot.TaskRoutes))
 	}
-	if planningContext.ExecutionRouteSnapshot.UpgradePolicy.Source != "config/config.example.json:appfactory.builder_runtime.upgrade_threshold" {
+	if planningContext.ExecutionRouteSnapshot.UpgradePolicy.Source != "config/oneappfactory.example.json:appfactory.builder_runtime.upgrade_threshold" {
 		t.Fatalf("PlanningContext.UpgradePolicy.Source = %q, want config example baseline", planningContext.ExecutionRouteSnapshot.UpgradePolicy.Source)
 	}
 	if planningContext.ExecutionRouteSnapshot.UpgradePolicy.MaxAttemptsBeforeUpgrade != 2 {
@@ -691,8 +695,8 @@ func TestCompileBookkeepingRequirementWithRealBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compile() error = %v", err)
 	}
-	if bundle.BuilderInput.ExecutorImage != "picoclaw/appfactory-builder:local" {
-		t.Fatalf("ExecutorImage = %q, want picoclaw/appfactory-builder:local", bundle.BuilderInput.ExecutorImage)
+	if bundle.BuilderInput.ExecutorImage != "oneappfactory/builder:local" {
+		t.Fatalf("ExecutorImage = %q, want oneappfactory/builder:local", bundle.BuilderInput.ExecutorImage)
 	}
 	if len(bundle.BuilderInput.AcceptanceChecks) != 7 {
 		t.Fatalf("AcceptanceChecks len = %d, want 7", len(bundle.BuilderInput.AcceptanceChecks))
@@ -745,7 +749,7 @@ func TestCompileBookkeepingRequirementIncludesFlutterStructuralChecksByDefault(t
 	if len(bundle.BuilderInput.AcceptanceChecks) != 6 {
 		t.Fatalf("AcceptanceChecks len = %d, want 6", len(bundle.BuilderInput.AcceptanceChecks))
 	}
-	for index, checkID := range []string{"check-context-ready", "check-bookkeeping-scope", "check-plan-ready", "check-structural-template-files-ready", "check-legacy-thin-fallback-probe", "check-legacy-thin-fallback-metadata"} {
+	for index, checkID := range []string{"check-context-ready", "check-bookkeeping-scope", "check-plan-ready", "check-structural-template-files-ready", "check-oneappfactory-thin-fallback-probe", "check-oneappfactory-thin-fallback-metadata"} {
 		if bundle.BuilderInput.AcceptanceChecks[index].CheckID != checkID {
 			t.Fatalf("acceptance_check[%d] = %q, want %q", index, bundle.BuilderInput.AcceptanceChecks[index].CheckID, checkID)
 		}
@@ -829,7 +833,7 @@ func TestCompileGenericRequirementUsesRegistrySelection(t *testing.T) {
 func TestCompileGenericRequirementUsesOpenLiteRealBuildChecksWhenExecutorImageProvided(t *testing.T) {
 	bundle, err := Compile(Request{
 		RequirementText: "做一个待办事项 app，需要首页摘要、新建待办、任务列表和详情页，优先保证本地可用。",
-		ExecutorImage:   "picoclaw/appfactory-builder:local",
+		ExecutorImage:   "oneappfactory/builder:local",
 	})
 	if err != nil {
 		t.Fatalf("Compile() error = %v", err)
@@ -837,8 +841,8 @@ func TestCompileGenericRequirementUsesOpenLiteRealBuildChecksWhenExecutorImagePr
 	if bundle.BuilderInput.TemplateID != "flutter-open-lite" {
 		t.Fatalf("TemplateID = %q, want flutter-open-lite", bundle.BuilderInput.TemplateID)
 	}
-	if bundle.BuilderInput.ExecutorImage != "picoclaw/appfactory-builder:local" {
-		t.Fatalf("ExecutorImage = %q, want picoclaw/appfactory-builder:local", bundle.BuilderInput.ExecutorImage)
+	if bundle.BuilderInput.ExecutorImage != "oneappfactory/builder:local" {
+		t.Fatalf("ExecutorImage = %q, want oneappfactory/builder:local", bundle.BuilderInput.ExecutorImage)
 	}
 	if len(bundle.BuilderInput.AcceptanceChecks) != 9 {
 		t.Fatalf("AcceptanceChecks len = %d, want 9", len(bundle.BuilderInput.AcceptanceChecks))
@@ -859,21 +863,21 @@ func TestCompileGenericRequirementUsesOpenLiteRealBuildChecksWhenExecutorImagePr
 		t.Fatalf("ProtectedPaths = %v, want narrowed protected paths in real-build path", bundle.BuilderInput.ProtectedPaths)
 	}
 	for _, check := range bundle.BuilderInput.AcceptanceChecks {
-		if check.CheckID == "check-legacy-thin-fallback-probe" || check.CheckID == "check-legacy-thin-fallback-metadata" {
-			t.Fatalf("unexpected legacy fallback check in real-build path: %q", check.CheckID)
+		if check.CheckID == "check-oneappfactory-thin-fallback-probe" || check.CheckID == "check-oneappfactory-thin-fallback-metadata" {
+			t.Fatalf("unexpected OneAppFactory fallback check in real-build path: %q", check.CheckID)
 		}
 	}
 }
 
 func TestCompileWeightTrackerRealBuildChecksIncludeDomainSemanticGuards(t *testing.T) {
-	requirementData, err := os.ReadFile("/home/kkroid/github/picoclaw/examples/appfactory/generic/weight-tracker/requirement.md")
+	requirementData, err := os.ReadFile(appFactoryRepoPath("examples", "appfactory", "generic", "weight-tracker", "requirement.md"))
 	if err != nil {
 		t.Fatalf("ReadFile(weight-tracker requirement) error = %v", err)
 	}
 
 	bundle, err := Compile(Request{
 		RequirementText: string(requirementData),
-		ExecutorImage:   "picoclaw/appfactory-builder:local",
+		ExecutorImage:   "oneappfactory/builder:local",
 	})
 	if err != nil {
 		t.Fatalf("Compile() error = %v", err)
@@ -911,9 +915,9 @@ func TestCompileGenericExampleRequirementsPreserveDomainSemantics(t *testing.T) 
 		wantFormSummaryContains string
 		wantOverviewAcceptance  string
 	}{
-		{name: "todo-lite", reqPath: "/home/kkroid/github/picoclaw/examples/appfactory/generic/todo-lite/requirement.md", wantTitle: "待办事项 App", wantEntityID: "entity-todo-item", wantFieldNames: []string{"task_id", "title", "category", "status", "note"}, wantListSummaryContains: "待办", wantFormSummaryContains: "标题、分类、状态和备注", wantOverviewAcceptance: "待整理、进行中、已完成待办"},
-		{name: "habit-checkin", reqPath: "/home/kkroid/github/picoclaw/examples/appfactory/generic/habit-checkin/requirement.md", wantTitle: "习惯打卡 App", wantEntityID: "entity-habit-record", wantFieldNames: []string{"habit_record_id", "title", "category", "status", "checked_at", "note"}, wantListSummaryContains: "习惯记录", wantFormSummaryContains: "习惯记录", wantOverviewAcceptance: "总记录数和完成状态分布"},
-		{name: "weight-tracker", reqPath: "/home/kkroid/github/picoclaw/examples/appfactory/generic/weight-tracker/requirement.md", wantTitle: "体重记录 App", wantEntityID: "entity-weight-record", wantFieldNames: []string{"record_id", "weight", "recorded_at", "note"}, wantListSummaryContains: "体重记录", wantFormSummaryContains: "体重、日期和备注", wantOverviewAcceptance: "最新体重、记录数量和最近趋势"},
+		{name: "todo-lite", reqPath: appFactoryRepoPath("examples", "appfactory", "generic", "todo-lite", "requirement.md"), wantTitle: "待办事项 App", wantEntityID: "entity-todo-item", wantFieldNames: []string{"task_id", "title", "category", "status", "note"}, wantListSummaryContains: "待办", wantFormSummaryContains: "标题、分类、状态和备注", wantOverviewAcceptance: "待整理、进行中、已完成待办"},
+		{name: "habit-checkin", reqPath: appFactoryRepoPath("examples", "appfactory", "generic", "habit-checkin", "requirement.md"), wantTitle: "习惯打卡 App", wantEntityID: "entity-habit-record", wantFieldNames: []string{"habit_record_id", "title", "category", "status", "checked_at", "note"}, wantListSummaryContains: "习惯记录", wantFormSummaryContains: "习惯记录", wantOverviewAcceptance: "总记录数和完成状态分布"},
+		{name: "weight-tracker", reqPath: appFactoryRepoPath("examples", "appfactory", "generic", "weight-tracker", "requirement.md"), wantTitle: "体重记录 App", wantEntityID: "entity-weight-record", wantFieldNames: []string{"record_id", "weight", "recorded_at", "note"}, wantListSummaryContains: "体重记录", wantFormSummaryContains: "体重、日期和备注", wantOverviewAcceptance: "最新体重、记录数量和最近趋势"},
 	}
 
 	for _, testCase := range testCases {

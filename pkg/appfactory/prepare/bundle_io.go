@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sipeed/picoclaw/pkg/fileutil"
+	"github.com/sipeed/oneappfactory/pkg/fileutil"
 )
 
 func WriteBundle(outputDir string, bundle Bundle) error {

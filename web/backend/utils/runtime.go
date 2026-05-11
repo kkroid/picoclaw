@@ -7,40 +7,45 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-
-	"github.com/sipeed/picoclaw/pkg/config"
 )
 
-// GetPicoclawHome returns the picoclaw home directory.
-// Priority: $PICOCLAW_HOME > ~/.picoclaw
-func GetPicoclawHome() string {
-	if home := os.Getenv(config.EnvHome); home != "" {
+const (
+	EnvOneAppFactoryHome   = "ONEAPPFACTORY_HOME"
+	EnvOneAppFactoryConfig = "ONEAPPFACTORY_CONFIG"
+	EnvOneAppFactoryBinary = "ONEAPPFACTORY_BINARY"
+	DefaultHomeDir         = ".appfactory"
+)
+
+// GetOneAppFactoryHome returns the OneAppFactory home directory.
+// Priority: $ONEAPPFACTORY_HOME > ~/.appfactory.
+func GetOneAppFactoryHome() string {
+	if home := os.Getenv(EnvOneAppFactoryHome); home != "" {
 		return home
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".picoclaw")
+	return filepath.Join(home, DefaultHomeDir)
 }
 
-// GetDefaultConfigPath returns the default path to the picoclaw config file.
+// GetDefaultConfigPath returns the default path to the OneAppFactory config file.
 func GetDefaultConfigPath() string {
-	if configPath := os.Getenv(config.EnvConfig); configPath != "" {
+	if configPath := os.Getenv(EnvOneAppFactoryConfig); configPath != "" {
 		return configPath
 	}
-	return filepath.Join(GetPicoclawHome(), "config.json")
+	return filepath.Join(GetOneAppFactoryHome(), "config.json")
 }
 
-// FindPicoclawBinary locates the picoclaw executable.
+// FindOneAppFactoryBinary locates the oneappfactory executable.
 // Search order:
-//  1. PICOCLAW_BINARY environment variable (explicit override)
+//  1. ONEAPPFACTORY_BINARY environment variable (explicit override)
 //  2. Same directory as the current executable
-//  3. Falls back to "picoclaw" and relies on $PATH
-func FindPicoclawBinary() string {
-	binaryName := "picoclaw"
+//  3. Falls back to "oneappfactory" and relies on $PATH
+func FindOneAppFactoryBinary() string {
+	binaryName := "oneappfactory"
 	if runtime.GOOS == "windows" {
-		binaryName = "picoclaw.exe"
+		binaryName = "oneappfactory.exe"
 	}
 
-	if p := os.Getenv(config.EnvBinary); p != "" {
+	if p := os.Getenv(EnvOneAppFactoryBinary); p != "" {
 		if info, _ := os.Stat(p); info != nil && !info.IsDir() {
 			return p
 		}
@@ -53,7 +58,7 @@ func FindPicoclawBinary() string {
 		}
 	}
 
-	return "picoclaw"
+	return "oneappfactory"
 }
 
 // GetLocalIP returns the local IP address of the machine.

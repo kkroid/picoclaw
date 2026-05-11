@@ -1,4 +1,4 @@
-# PicoClaw AppFactory 架构演进方案：从 Runtime Compensation 到 Deterministic Emission
+# OneAppFactory AppFactory 架构演进方案：从 Runtime Compensation 到 Deterministic Emission
 
 > 状态：Active
 >
@@ -14,6 +14,7 @@
 | `demand-to-android-app-platform.zh.md` | 产品边界、模块职责、总体路线 | Frozen |
 | **本文档** | **规划层对象模型、分解流水线、执行边界演进** | **Active** |
 | `appfactory-architecture-evolution-todo.zh.md` | 细化实施任务与执行清单 | Active |
+| `appfactory-extraction-implementation-plan.zh.md` | OneAppFactory 断兼容重构与删除执行计划 | Decisioned |
 | `appfactory-generic-policy-contract.zh.md` | generic binding-surface 语义表、repair taxonomy、policy registry 契约 | Active |
 | `demand-to-android-app-platform-interfaces.zh.md` | 公共 API、内部接口、Schema | Frozen |
 
@@ -789,7 +790,7 @@ planning-engine 应按阶段运行，每阶段有明确输入输出。
 
 - 走完 public `/jobs` 的完整四跳：`compile -> create -> registerBuilder -> start`。
 - 当前 runtime mode 明确，不能把 thin fallback 误读成真实 builder-runtime 主链。
-- run 不能是 probe-only；如果事件里只生成或应用 `lib/picoclaw_executor_probe.dart`，即使 `job.status=completed`，也只能算归档样本，不能算网页手测等价通过。
+- run 不能是 probe-only；如果事件里只生成或应用 `lib/oneappfactory_executor_probe.dart`，即使 `job.status=completed`，也只能算归档样本，不能算网页手测等价通过。
 
 特别地，`flutter-finance-lite` 这类 seed 较强的样本可能在 thin fallback 下完成 analyze/test/build 并返回 completed，因此它们继续保留为架构归档证据，但不再作为 readiness 或“可以开始人工体验”的充分条件。
 

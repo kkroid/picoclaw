@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 func TestBuildPlanningContextLayerCapturesPolicyAndRoutes(t *testing.T) {
@@ -403,7 +403,7 @@ func TestSelectSurfaceTemplateBindingUsesBindingIDEvenWhenSlotKindPrivate(t *tes
 
 func TestFlutterOpenLiteSlotRegistryFixtureMatchesProjection(t *testing.T) {
 	spec, _ := newLayerTestFixture()
-	registryData, err := os.ReadFile("/home/kkroid/github/picoclaw/docs/design/template-registry/flutter-open-lite.json")
+	registryData, err := os.ReadFile(appFactoryRepoPath("docs", "design", "template-registry", "flutter-open-lite.json"))
 	if err != nil {
 		t.Fatalf("ReadFile(flutter-open-lite registry) error = %v", err)
 	}
@@ -448,7 +448,7 @@ func TestFlutterFinanceLiteSlotRegistryFixtureMatchesProjection(t *testing.T) {
 		Now:        func() time.Time { return time.Date(2026, 4, 10, 8, 30, 0, 0, time.UTC) },
 	}, "做一个简单记账 app，需要首页概览、记一笔和账单列表。")
 	spec.TemplatePinnedRef = "v0.1.0"
-	registryData, err := os.ReadFile("/home/kkroid/github/picoclaw/docs/design/template-registry/flutter-finance-lite.json")
+	registryData, err := os.ReadFile(appFactoryRepoPath("docs", "design", "template-registry", "flutter-finance-lite.json"))
 	if err != nil {
 		t.Fatalf("ReadFile(flutter-finance-lite registry) error = %v", err)
 	}

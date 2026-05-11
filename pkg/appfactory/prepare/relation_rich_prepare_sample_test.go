@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const updateRelationRichPrepareSamplesEnv = "PICOCLAW_UPDATE_RELATION_RICH_PREPARE_SAMPLES"
+const updateRelationRichPrepareSamplesEnv = "ONEAPPFACTORY_UPDATE_RELATION_RICH_PREPARE_SAMPLES"
 
 func TestRelationRichPrepareSampleMatchesExampleBundle(t *testing.T) {
 	t.Parallel()

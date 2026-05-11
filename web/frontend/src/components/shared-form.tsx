@@ -209,7 +209,7 @@ export function AdvancedSection({ children }: AdvancedSectionProps) {
         className="hover:bg-muted/40 flex w-full items-center justify-between rounded-lg px-4 py-3 transition-colors"
       >
         <span className="text-muted-foreground text-sm">
-          {t("models.advanced.toggle")}
+          {t("pages.config.advanced_toggle")}
         </span>
         <IconChevronDown
           className={[

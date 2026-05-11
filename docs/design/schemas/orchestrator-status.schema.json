@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/orchestrator-status.schema.json",
-  "title": "PicoClaw Orchestrator Status Snapshot",
+  "$id": "https://oneappfactory.local/docs/design/schemas/orchestrator-status.schema.json",
+  "title": "OneAppFactory Orchestrator Status Snapshot",
   "description": "workspace/appfactory/orchestrator/status.json 的最小结构基线。",
   "type": "object",
   "additionalProperties": false,

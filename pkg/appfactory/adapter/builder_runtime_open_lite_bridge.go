@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sipeed/picoclaw/pkg/appfactory/emitter"
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
+	"github.com/sipeed/oneappfactory/pkg/appfactory/emitter"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
 )
 
 func builderRuntimeNormalizeSourceForComparison(content string) string {

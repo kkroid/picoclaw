@@ -1,13 +1,13 @@
-# PicoClaw 需求采集与产品研发编排平台设计（面向可运行 Android App）
+# OneAppFactory 需求采集与产品研发编排平台设计（面向可运行 Android App）
 
 > 状态：Frozen
 >
-> 本文档用于收敛当前讨论结论，明确 PicoClaw 在该方案中的产品定位、系统边界、核心流程、模块拆分、细化任务，以及人工必须介入的节点。
+> 本文档用于收敛当前讨论结论，明确 OneAppFactory 在该方案中的产品定位、系统边界、核心流程、模块拆分、细化任务，以及人工必须介入的节点。
 
 ## 1. 文档目的
 
 - 把当前讨论从“方向判断”收敛为可执行的设计文档。
-- 明确 PicoClaw 在本方案中的定位不是“自动上架机器人”，而是“需求采集与产品研发编排平台”。
+- 明确 OneAppFactory 在本方案中的定位不是“自动上架机器人”，而是“需求采集与产品研发编排平台”。
 - 统一后续实现边界，避免目标再次发散到多平台、多技术栈、自动商业化闭环。
 - 为后续 PRD Schema、模板注册表、自动开发流水线、人工审核流程提供基线。
 
@@ -25,7 +25,7 @@
 
 ## 2. 产品定位
 
-PicoClaw 在本方案中的定位是：
+OneAppFactory 在本方案中的定位是：
 
 **需求采集与产品研发编排平台**。
 
@@ -167,7 +167,7 @@ PicoClaw 在本方案中的定位是：
 
 在这条路线下：
 
-- PicoClaw 继续作为控制平面。
+- OneAppFactory 继续作为控制平面。
 - skill 负责模板约束、PRD 编译、task bundle 生成和收口策略。
 - thin executor 内核负责在受控工作区里执行结构化编辑、命令链、日志采集和产物归档。
 - 技术栈相关能力通过 profile / adapter 下沉，不进入执行器核心状态机。
@@ -175,8 +175,8 @@ PicoClaw 在本方案中的定位是：
 
 #### 5.2.1 为什么改为 skill-first + thin executor
 
-- 当前平台真正要沉淀的是“需求如何被稳定编译成任务包”和“任务如何被稳定验证”，而不是继续依赖另一个完整系统替 PicoClaw 承担主执行逻辑。
-- skill 更适合承载模板约束、任务拆分规则、验收清单和低风险收口策略，这些内容本来就是 PicoClaw 的平台知识。
+- 当前平台真正要沉淀的是“需求如何被稳定编译成任务包”和“任务如何被稳定验证”，而不是继续依赖另一个完整系统替 OneAppFactory 承担主执行逻辑。
+- skill 更适合承载模板约束、任务拆分规则、验收清单和低风险收口策略，这些内容本来就是 OneAppFactory 的平台知识。
 - thin executor 内核只保留最小必要运行时能力，比重型外部 Builder 更容易与当前状态机、artifact、审批和治理模块对齐。
 - 如果执行器内核直接绑定 Flutter、Android 或某个外部 Builder，后续扩展到 Web、Go 服务或其他移动栈时就会再次把系统核心做窄，因此核心协议必须先与技术栈解耦。
 - 对当前阶段而言，先把 `PRD -> task bundle` 打稳，比继续追求一个更强但更重的外部执行器更符合投入产出比。
@@ -215,7 +215,7 @@ thin executor 内核 **不负责**以下事项：
 
 补充边界说明：
 
-- `lib/picoclaw_executor_probe.dart` 这类 probe 产物只用于默认 thin executor fallback 证明链，证明受控工作区、allowed paths 和最小 inspect/edit/validate 闭环仍可执行。
+- `lib/oneappfactory_executor_probe.dart` 这类 probe 产物只用于默认 thin executor fallback 证明链，证明受控工作区、allowed paths 和最小 inspect/edit/validate 闭环仍可执行。
 - 真实 builder-runtime 成功路径不应再以 probe 文件作为完成信号，而应以 `WorkspacePatch`、Flutter validate 结果、构建产物和交付报告为主证据。
 - `planning-engine` / `prepare` 输出的执行主语义已经切到 binding / surface-first：`binding_id`、`surface_ref`、`surface_refs`、`target_paths` 是运行时唯一有效契约；历史 `screen_list`、`screen_ref`、`screen_refs`、`legacy_screen_ref` 只允许在一次性归一化或历史产物迁移里被吸收，不再继续向 runtime 下游投影。
 - builder-runtime 的成功路径职责也应收口：已知 UI 表面知识应继续下沉到 deterministic emitter、stack profile 与后续 policy registry；`builder_runtime_open_lite_private.go` 一类 runtime private normalize / canonicalize 逻辑只允许作为 fallback repair 存在，不应继续扩张成 generic 主路径知识库。
@@ -271,7 +271,7 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 - 单文件修改、双文件接线、低风险 analyze/test repair、受限 closure repair 这类高频小任务，默认优先使用本地模型。
 - 纯投影、schema 归一化、文档渲染、输入包打包这类 deterministic 环节，默认不再调用自由生成模型，避免重新引入随机性。
 - 模型升级必须按失败信号触发，而不是按模块名称触发。至少要覆盖 parse fail、schema drift、无关改动率、多文件风险和语义冲突这类升级信号。
-- 任何本地模型验证都不改变现有平台主边界：PicoClaw 继续负责控制平面；skill 继续负责模板约束、任务编译和收口知识；builder-runtime 只在 `builder-input.json`、`task_bundle`、`WorkspacePatch` 和 acceptance checks 的受控边界内执行。
+- 任何本地模型验证都不改变现有平台主边界：OneAppFactory 继续负责控制平面；skill 继续负责模板约束、任务编译和收口知识；builder-runtime 只在 `builder-input.json`、`task_bundle`、`WorkspacePatch` 和 acceptance checks 的受控边界内执行。
 
 因此，当前推荐路线是：
 
@@ -334,7 +334,7 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 
 ## 7. 系统边界
 
-### 7.1 PicoClaw 平台负责的范围
+### 7.1 OneAppFactory 平台负责的范围
 
 - 需求采集。
 - 需求清洗、聚类、归一。
@@ -376,18 +376,18 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 
 | 模块 | 所属层 | 核心职责 | 主要输入 | 主要输出 | 建议实现形态 |
 |---|---|---|---|---|---|
-| `demand-ingest` | 控制平面 | 接收文本、链接、附件、聊天记录、会议纪要 | 外部需求源 | 原始需求包 | PicoClaw 内部模块 |
-| `demand-normalizer` | 控制平面 | 去重、聚类、抽取主题、识别约束与冲突 | 原始需求包 | 归一化需求集合 | PicoClaw Agent + skill |
-| `prd-engine` | 控制平面 | 生成 `PRD.md`、`PRD.json` 并做 schema 校验 | 归一化需求集合 | 结构化 PRD | PicoClaw Agent + skill + schema 校验器 |
-| `approval-gate` | 控制平面 | 管理人工审批、退回、版本切换、门禁状态 | PRD、模板建议、构建结果 | 审批记录与状态切换 | PicoClaw 内部状态模块 |
+| `demand-ingest` | 控制平面 | 接收文本、链接、附件、聊天记录、会议纪要 | 外部需求源 | 原始需求包 | OneAppFactory 内部模块 |
+| `demand-normalizer` | 控制平面 | 去重、聚类、抽取主题、识别约束与冲突 | 原始需求包 | 归一化需求集合 | OneAppFactory 控制平面 + 模板知识包 |
+| `prd-engine` | 控制平面 | 生成 `PRD.md`、`PRD.json` 并做 schema 校验 | 归一化需求集合 | 结构化 PRD | OneAppFactory 控制平面 + 模板知识包 + schema 校验器 |
+| `approval-gate` | 控制平面 | 管理人工审批、退回、版本切换、门禁状态 | PRD、模板建议、构建结果 | 审批记录与状态切换 | OneAppFactory 内部状态模块 |
 | `template-registry` | 资产与治理平面 | 管理模板元数据、固定版本、许可、健康状态、能力标签 | 模板仓库信息、构建证明 | 候选模板集合、模板适配输入 | 独立仓库或独立服务 |
-| `planning-engine` | 控制平面 | 把 PRD 和模板差距报告转成 surface-first 的实施计划、任务包与执行契约 | 已批准 PRD、模板适配报告 | `implementation-plan.md`、`task-allocation.json`、`acceptance-plan.json`、`builder-input.json` | PicoClaw Agent + skill + 打包逻辑 |
-| `job-orchestrator` | 控制平面 | 维护任务状态机、预算、重试、人工接管与恢复点 | 任务定义、审批结果、执行反馈 | Job 状态、调度动作 | PicoClaw 内部模块，不能只靠 skill |
-| `builder-adapter` | 控制平面与执行边界 | 调用 Builder、传递输入包、消费输出包、标准化返回结果 | Builder 输入包 | Builder 输出包、运行状态 | PicoClaw 内部模块，不能只靠 skill |
+| `planning-engine` | 控制平面 | 把 PRD 和模板差距报告转成 surface-first 的实施计划、任务包与执行契约 | 已批准 PRD、模板适配报告 | `implementation-plan.md`、`task-allocation.json`、`acceptance-plan.json`、`builder-input.json` | OneAppFactory 控制平面 + 模板知识包 + 打包逻辑 |
+| `job-orchestrator` | 控制平面 | 维护任务状态机、预算、重试、人工接管与恢复点 | 任务定义、审批结果、执行反馈 | Job 状态、调度动作 | OneAppFactory 内部模块，不能只靠 skill |
+| `builder-adapter` | 控制平面与执行边界 | 调用 Builder、传递输入包、消费输出包、标准化返回结果 | Builder 输入包 | Builder 输出包、运行状态 | OneAppFactory 内部模块，不能只靠 skill |
 | `worker-manager` | 执行平面 | 创建/销毁 worker、挂载工作区与缓存、应用网络与命令策略 | Job 配置、镜像配置 | 可执行 worker 实例 | 独立运行时模块 |
 | `builder-runtime` | 执行平面 | 在模板工程里按 binding / surface-first task bundle 执行 deterministic emit、结构化编辑、命令链和 fallback repair 收口 | Builder 输入包、源码工作区、stack profile | 代码改动、构建结果、失败摘要 | 技术栈无关 thin executor 内核 + stack profile |
 | `android-validation` | 执行平面 | 执行 analyze、test、build、install、launch、smoke、截图、日志采集 | 工作区、APK、命令策略 | `build-report.md`、`smoke-test-report.md`、验证产物 | Worker 内系统模块 + 脚本 |
-| `review-handoff` | 控制平面 | 汇总变更、风险、阻塞项、人工测试清单和交接清单 | Builder 输出包、验证产物 | 审核包、交接包 | PicoClaw Agent + skill |
+| `review-handoff` | 控制平面 | 汇总变更、风险、阻塞项、人工测试清单和交接清单 | Builder 输出包、验证产物 | 审核包、交接包 | OneAppFactory 控制平面 + 模板知识包 |
 | `governance-audit` | 资产与治理平面 | 许可证扫描、权限变化记录、敏感信息脱敏、审计链路、重放清单 | 模板信息、依赖信息、构建产物 | 合规报告、审计记录 | 系统模块 + 规则引擎 |
 | `artifact-state-store` | 资产与治理平面 | 保存 PRD、任务状态、日志、APK、截图、报告、审批记录 | 全流程中间结果与最终产物 | 可追溯记录、归档产物、恢复现场 | 存储模块，不能只靠 skill |
 
@@ -611,9 +611,9 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 - 真机验证建议。
 - 需要人工提供或确认的材料。
 
-## 10. 基于 PicoClaw 的角色拆分
+## 10. 基于 OneAppFactory 的角色拆分
 
-建议将平台内的职责拆分为多个 Agent 角色，由 PicoClaw 负责编排：
+建议将平台内的职责拆分为多个 Agent 角色，由 OneAppFactory 负责编排：
 
 | Agent 角色 | 主要职责 | 需要的能力 |
 |---|---|---|
@@ -628,11 +628,11 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 
 ### 10.1 执行组件落位
 
-在当前方案中，`builder` 更准确地说是一个由 PicoClaw 调度的执行组件集合，而不是长期固定绑定某个外部系统。
+在当前方案中，`builder` 更准确地说是一个由 OneAppFactory 调度的执行组件集合，而不是长期固定绑定某个外部系统。
 
 推荐落位方式如下：
 
-- PicoClaw 负责准备执行输入包、启动 worker、观察任务状态、接收结果。
+- OneAppFactory 负责准备执行输入包、启动 worker、观察任务状态、接收结果。
 - skill 层负责模板约束、任务编译、acceptance checks 和低风险收口规则。
 - thin executor 运行在独立 worker 中，负责按 task bundle 驱动结构化编辑、调用技术栈 profile、执行命令白名单、采集日志和归档产物。
 - 执行链围绕 `skill + executor + stack profile` 组织，外部 builder 不作为默认前提。
@@ -640,19 +640,19 @@ builder-runtime 的长期目标不是绑定单一模型或单一推理后端，�
 
 这意味着：
 
-- PicoClaw 关注“做什么、何时停、何时审批”。
+- OneAppFactory 关注“做什么、何时停、何时审批”。
 - skill 关注“怎么拆任务、怎么约束模板、怎么定义收口”。
 - thin executor 内核关注“如何在受控工作区把任务做完”。
 - 技术栈 profile 关注“某种工程应如何被识别、验证和收口”。
 - Worker 关注“在哪里执行、如何验证、如何归档”。
 
-### 10.2 PicoClaw + Skill + Thin Executor Core + Stack Profile + Worker 架构图
+### 10.2 OneAppFactory + Skill + Thin Executor Core + Stack Profile + Worker 架构图
 
 下图描述的是当前主线架构下控制平面、skill、通用执行器内核、技术栈 profile 和一次性 Worker 的最小闭环。
 
 ```mermaid
 flowchart LR
-	subgraph PicoClaw["PicoClaw 控制平面"]
+	subgraph OneAppFactory["OneAppFactory 控制平面"]
 		demand[需求与附件]
 		roles[collector / analyst / prd-compiler]
 		registry[template-registry]
@@ -785,11 +785,11 @@ flowchart LR
 
 ## 13. 推荐仓库与系统拆分
 
-建议不要把所有能力直接塞进 PicoClaw 主仓，而是拆成以下边界：
+建议不要把所有能力直接塞进 OneAppFactory 主仓，而是拆成以下边界：
 
 | 组件 | 角色 |
 |---|---|
-| `picoclaw` | 控制平面，负责需求采集、PRD 编排、任务调度、审核协同 |
+| `oneappfactory` | 控制平面，负责需求采集、PRD 编排、任务调度、审核协同 |
 | `template-registry` | 受控模板注册表，维护模板清单、标签、许可和健康状态 |
 | `appfactory-executor-worker` | 基于通用 thin executor 内核的隔离执行 Worker，按需加载 Flutter 等 stack profile，必要时挂历史兼容层，负责代码改造、构建、测试和失败收敛 |
 | `android-build-runner` | 预装 Flutter、Android SDK、JDK、ADB、模拟器的执行环境，可为本地或 CI 镜像 |
@@ -820,13 +820,13 @@ flowchart LR
 
 ## 16. 结论
 
-PicoClaw 在本方案中的定位是“需求采集与产品研发编排平台”，而不是“自动上架工厂”。
+OneAppFactory 在本方案中的定位是“需求采集与产品研发编排平台”，而不是“自动上架工厂”。
 
 该平台的目标收敛为：
 
 - 把需求转为结构化 PRD。
 - 基于受控开源模板自动生成 **Flutter** Android 工程。
-- 由 **PicoClaw + skill-first 编排 + 技术栈无关 thin executor 内核 + Flutter stack profile** 完成任务编译、代码改造、基础构建与验证。
+- 由 **OneAppFactory + skill-first 编排 + 技术栈无关 thin executor 内核 + Flutter stack profile** 完成任务编译、代码改造、基础构建与验证。
 - 输出可运行产物与人工交接包。
 
 只要坚持“PRD 优先、模板优先、单栈优先、人工门禁保留”这四条约束，这条路线是平滑且可落地的。

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/builder-output.schema.json",
-  "title": "PicoClaw Builder Output Package Manifest",
-  "description": "Builder/Worker 回传给 PicoClaw 的输出包主清单。",
+  "$id": "https://oneappfactory.local/docs/design/schemas/builder-output.schema.json",
+  "title": "OneAppFactory Builder Output Package Manifest",
+  "description": "Builder/Worker 回传给 OneAppFactory 的输出包主清单。",
   "type": "object",
   "additionalProperties": false,
   "required": [

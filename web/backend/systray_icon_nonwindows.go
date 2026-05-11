@@ -1,6 +1,6 @@
 //go:build !windows && ((!darwin && !freebsd) || cgo)
 
-package main
+package backend
 
 import _ "embed"
 

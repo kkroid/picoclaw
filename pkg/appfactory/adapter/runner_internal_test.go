@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
-	appconfig "github.com/sipeed/picoclaw/pkg/config"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
+	appconfig "github.com/sipeed/oneappfactory/pkg/config"
 )
 
 type countingBuilderRuntimePatchGenerator struct {
@@ -1624,7 +1624,7 @@ func TestNormalizeBuilderRuntimePatchRepairsEscapedQuotesOutsideStrings(t *testi
 func TestMarkedFailureSignatureFromLog(t *testing.T) {
 	logText := strings.Join([]string{
 		"adb failed",
-		"__picoclaw_failure_signature__:device_check_failed:app_runtime_crash",
+		"__oneappfactory_failure_signature__:device_check_failed:app_runtime_crash",
 	}, "\n")
 	if got := markedFailureSignatureFromLog(logText); got != "device_check_failed:app_runtime_crash" {
 		t.Fatalf("markedFailureSignatureFromLog() = %q, want device_check_failed:app_runtime_crash", got)
@@ -1639,7 +1639,7 @@ func TestDiagnoseExecutionStepFailureUsesMarkedDeviceFailureSignature(t *testing
 	if err := os.MkdirAll(filepath.Dir(resolvedLogPath), 0o755); err != nil {
 		t.Fatalf("MkdirAll(log dir) error = %v", err)
 	}
-	if err := os.WriteFile(resolvedLogPath, []byte("adb output\n__picoclaw_failure_signature__:device_check_failed:log_capture_failed\n"), 0o600); err != nil {
+	if err := os.WriteFile(resolvedLogPath, []byte("adb output\n__oneappfactory_failure_signature__:device_check_failed:log_capture_failed\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile(log) error = %v", err)
 	}
 	diagnosis := diagnoseExecutionStepFailure(ExecutionStep{

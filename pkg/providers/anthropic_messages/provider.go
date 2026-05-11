@@ -1,7 +1,7 @@
-// PicoClaw - Ultra-lightweight personal AI agent
+// OneAppFactory - Android app factory
 // License: MIT
 //
-// Copyright (c) 2026 PicoClaw contributors
+// Copyright (c) 2026 OneAppFactory contributors
 
 package anthropicmessages
 
@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg/providers/protocoltypes"
+	"github.com/sipeed/oneappfactory/pkg/providers/protocoltypes"
 )
 
 type (

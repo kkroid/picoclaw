@@ -1,0 +1,43 @@
+services:
+  oneappfactory:
+    image: oneappfactory/launcher:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
+    container_name: oneappfactory
+    restart: unless-stopped
+    environment:
+      ONEAPPFACTORY_HOME: /root/.appfactory
+      ONEAPPFACTORY_CONFIG: /root/.appfactory/config.json
+      ONEAPPFACTORY_BUILDER_IMAGE: oneappfactory/builder:local
+    ports:
+      - "127.0.0.1:18800:18800"
+    volumes:
+      - oneappfactory-home:/root/.appfactory
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  oneappfactory-builder:
+    image: oneappfactory/builder:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.appfactory-builder
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        ALL_PROXY: ${ALL_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-127.0.0.1,localhost,host.docker.internal}
+    profiles:
+      - builder
+    command: ["doctor"]
+    volumes:
+      - oneappfactory-builder-workspace:/workspace
+      - oneappfactory-artifacts:/artifacts
+
+volumes:
+  oneappfactory-home:
+  oneappfactory-builder-workspace:
+  oneappfactory-artifacts:

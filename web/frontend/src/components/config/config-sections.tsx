@@ -1,14 +1,11 @@
-import { useState } from "react"
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 
 import {
   type CoreConfigForm,
-  DM_SCOPE_OPTIONS,
   type LauncherForm,
 } from "@/components/config/form-model"
 import { Field, SwitchCardField } from "@/components/shared-form"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -17,13 +14,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
 type UpdateCoreField = <K extends keyof CoreConfigForm>(
@@ -60,19 +50,19 @@ function ConfigSectionCard({
   )
 }
 
-interface AgentDefaultsSectionProps {
+interface AppFactorySectionProps {
   form: CoreConfigForm
   onFieldChange: UpdateCoreField
 }
 
-export function AgentDefaultsSection({
+export function AppFactorySection({
   form,
   onFieldChange,
-}: AgentDefaultsSectionProps) {
+}: AppFactorySectionProps) {
   const { t } = useTranslation()
 
   return (
-    <ConfigSectionCard title={t("pages.config.sections.agent")}>
+    <ConfigSectionCard title={t("pages.config.sections.appfactory")}>
       <Field
         label={t("pages.config.workspace")}
         hint={t("pages.config.workspace_hint")}
@@ -81,426 +71,183 @@ export function AgentDefaultsSection({
         <Input
           value={form.workspace}
           onChange={(e) => onFieldChange("workspace", e.target.value)}
-          placeholder="~/.picoclaw/workspace"
+          placeholder="~/.appfactory/workspace"
         />
       </Field>
 
       <SwitchCardField
-        label={t("pages.config.restrict_workspace")}
-        hint={t("pages.config.restrict_workspace_hint")}
+        label={t("pages.config.builder_runtime_enabled")}
+        hint={t("pages.config.builder_runtime_enabled_hint")}
         layout="setting-row"
-        checked={form.restrictToWorkspace}
+        checked={form.builderRuntimeEnabled}
         onCheckedChange={(checked) =>
-          onFieldChange("restrictToWorkspace", checked)
+          onFieldChange("builderRuntimeEnabled", checked)
         }
       />
 
-      <SwitchCardField
-        label={t("pages.config.split_on_marker")}
-        hint={t("pages.config.split_on_marker_hint")}
-        layout="setting-row"
-        checked={form.splitOnMarker}
-        onCheckedChange={(checked) =>
-          onFieldChange("splitOnMarker", checked)
-        }
-      />
-
-      <SwitchCardField
-        label={t("pages.config.tool_feedback_enabled")}
-        hint={t("pages.config.tool_feedback_enabled_hint")}
-        layout="setting-row"
-        checked={form.toolFeedbackEnabled}
-        onCheckedChange={(checked) =>
-          onFieldChange("toolFeedbackEnabled", checked)
-        }
-      />
-
-      {form.toolFeedbackEnabled && (
-        <Field
-          label={t("pages.config.tool_feedback_max_args_length")}
-          hint={t("pages.config.tool_feedback_max_args_length_hint")}
-          layout="setting-row"
-        >
-          <Input
-            type="number"
-            min={0}
-            value={form.toolFeedbackMaxArgsLength}
-            onChange={(e) =>
-              onFieldChange("toolFeedbackMaxArgsLength", e.target.value)
-            }
-          />
-        </Field>
-      )}
-
-      <Field
-        label={t("pages.config.max_tokens")}
-        hint={t("pages.config.max_tokens_hint")}
-        layout="setting-row"
-      >
-        <Input
-          type="number"
-          min={1}
-          value={form.maxTokens}
-          onChange={(e) => onFieldChange("maxTokens", e.target.value)}
-        />
-      </Field>
-
-      <Field
-        label={t("pages.config.context_window")}
-        hint={t("pages.config.context_window_hint")}
-        layout="setting-row"
-      >
-        <Input
-          type="number"
-          min={1}
-          value={form.contextWindow}
-          onChange={(e) => onFieldChange("contextWindow", e.target.value)}
-          placeholder="131072"
-        />
-      </Field>
-
-      <Field
-        label={t("pages.config.max_tool_iterations")}
-        hint={t("pages.config.max_tool_iterations_hint")}
-        layout="setting-row"
-      >
-        <Input
-          type="number"
-          min={1}
-          value={form.maxToolIterations}
-          onChange={(e) => onFieldChange("maxToolIterations", e.target.value)}
-        />
-      </Field>
-
-      <Field
-        label={t("pages.config.summarize_threshold")}
-        hint={t("pages.config.summarize_threshold_hint")}
-        layout="setting-row"
-      >
-        <Input
-          type="number"
-          min={1}
-          value={form.summarizeMessageThreshold}
-          onChange={(e) =>
-            onFieldChange("summarizeMessageThreshold", e.target.value)
-          }
-        />
-      </Field>
-
-      <Field
-        label={t("pages.config.summarize_token_percent")}
-        hint={t("pages.config.summarize_token_percent_hint")}
-        layout="setting-row"
-      >
-        <Input
-          type="number"
-          min={1}
-          max={100}
-          value={form.summarizeTokenPercent}
-          onChange={(e) =>
-            onFieldChange("summarizeTokenPercent", e.target.value)
-          }
-        />
-      </Field>
-    </ConfigSectionCard>
-  )
-}
-
-interface ExecSectionProps {
-  form: CoreConfigForm
-  onFieldChange: UpdateCoreField
-}
-
-export function ExecSection({ form, onFieldChange }: ExecSectionProps) {
-  const { t } = useTranslation()
-  const [testCommand, setTestCommand] = useState("")
-  const [testResult, setTestResult] = useState<{
-    allowed: boolean
-    blocked: boolean
-    matchedWhitelist: string | null
-    matchedBlacklist: string | null
-  } | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-
-  const testPatterns = async () => {
-    if (!testCommand.trim()) {
-      setTestResult(null)
-      return
-    }
-
-    const allowPatterns = form.customAllowPatternsText
-      .split("\n")
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0)
-    const denyPatterns = form.enableDenyPatterns
-      ? form.customDenyPatternsText
-          .split("\n")
-          .map((p) => p.trim())
-          .filter((p) => p.length > 0)
-      : []
-
-    setIsLoading(true)
-    try {
-      const res = await fetch("/api/config/test-command-patterns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          allow_patterns: allowPatterns,
-          deny_patterns: denyPatterns,
-          command: testCommand,
-        }),
-      })
-      const data = await res.json()
-      setTestResult({
-        allowed: data.allowed,
-        blocked: data.blocked,
-        matchedWhitelist: data.matched_whitelist ?? null,
-        matchedBlacklist: data.matched_blacklist ?? null,
-      })
-    } catch {
-      setTestResult(null)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  return (
-    <ConfigSectionCard title={t("pages.config.sections.exec")}>
-      <SwitchCardField
-        label={t("pages.config.exec_enabled")}
-        hint={t("pages.config.exec_enabled_hint")}
-        layout="setting-row"
-        checked={form.execEnabled}
-        onCheckedChange={(checked) => onFieldChange("execEnabled", checked)}
-      />
-
-      {form.execEnabled && (
+      {form.builderRuntimeEnabled && (
         <>
-          <SwitchCardField
-            label={t("pages.config.allow_remote")}
-            hint={t("pages.config.allow_remote_hint")}
+          <Field
+            label={t("pages.config.default_model")}
+            hint={t("pages.config.default_model_hint")}
             layout="setting-row"
-            checked={form.allowRemote}
-            onCheckedChange={(checked) => onFieldChange("allowRemote", checked)}
-          />
-
-          <SwitchCardField
-            label={t("pages.config.enable_deny_patterns")}
-            hint={t("pages.config.enable_deny_patterns_hint")}
-            layout="setting-row"
-            checked={form.enableDenyPatterns}
-            onCheckedChange={(checked) =>
-              onFieldChange("enableDenyPatterns", checked)
-            }
-          />
-
-          {form.enableDenyPatterns && (
-            <Field
-              label={t("pages.config.custom_deny_patterns")}
-              hint={t("pages.config.custom_deny_patterns_hint")}
-              layout="setting-row"
-              controlClassName="md:max-w-md"
-            >
-              <Textarea
-                value={form.customDenyPatternsText}
-                placeholder={t("pages.config.custom_patterns_placeholder")}
-                className="min-h-[88px]"
-                onChange={(e) =>
-                  onFieldChange("customDenyPatternsText", e.target.value)
-                }
-              />
-            </Field>
-          )}
+          >
+            <Input
+              value={form.defaultModelPrimary}
+              onChange={(e) =>
+                onFieldChange("defaultModelPrimary", e.target.value)
+              }
+              placeholder="qwen2.5-coder-14b-local"
+            />
+          </Field>
 
           <Field
-            label={t("pages.config.custom_allow_patterns")}
-            hint={t("pages.config.custom_allow_patterns_hint")}
+            label={t("pages.config.default_model_fallbacks")}
+            hint={t("pages.config.model_fallbacks_hint")}
             layout="setting-row"
             controlClassName="md:max-w-md"
           >
             <Textarea
-              value={form.customAllowPatternsText}
-              placeholder={t("pages.config.custom_patterns_placeholder")}
+              value={form.defaultModelFallbacksText}
               className="min-h-[88px]"
               onChange={(e) =>
-                onFieldChange("customAllowPatternsText", e.target.value)
+                onFieldChange("defaultModelFallbacksText", e.target.value)
               }
             />
           </Field>
 
           <Field
-            label={t("pages.config.pattern_detector_title")}
-            hint={t("pages.config.pattern_detector_hint")}
+            label={t("pages.config.upgrade_model")}
+            hint={t("pages.config.upgrade_model_hint")}
             layout="setting-row"
-            controlClassName="md:max-w-md"
           >
-            <div className="flex w-full flex-col gap-2">
-              <div className="flex gap-2">
-                <Input
-                  value={testCommand}
-                  placeholder={t(
-                    "pages.config.pattern_detector_input_placeholder",
-                  )}
-                  onChange={(e) => setTestCommand(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      testPatterns()
-                    }
-                  }}
-                />
-                <Button onClick={testPatterns} disabled={isLoading}>
-                  {t("pages.config.pattern_detector_test_button")}
-                </Button>
-              </div>
-              {testResult && (
-                <div
-                  className={`rounded-md p-2 text-sm ${
-                    testResult.allowed
-                      ? "bg-green-500/10 text-green-600"
-                      : testResult.blocked
-                        ? "bg-red-500/10 text-red-600"
-                        : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {testResult.allowed
-                    ? `${t("pages.config.pattern_detector_result_allowed")}${testResult.matchedWhitelist ? ` (${testResult.matchedWhitelist})` : ""}`
-                    : testResult.blocked
-                      ? `${t("pages.config.pattern_detector_result_blocked")}${testResult.matchedBlacklist ? ` (${testResult.matchedBlacklist})` : ""}`
-                      : t("pages.config.pattern_detector_result_no_match")}
-                </div>
-              )}
-            </div>
+            <Input
+              value={form.upgradeModelPrimary}
+              onChange={(e) =>
+                onFieldChange("upgradeModelPrimary", e.target.value)
+              }
+              placeholder="qwen2.5-coder-32b-local"
+            />
           </Field>
 
           <Field
-            label={t("pages.config.exec_timeout_seconds")}
-            hint={t("pages.config.exec_timeout_seconds_hint")}
+            label={t("pages.config.upgrade_model_fallbacks")}
+            hint={t("pages.config.model_fallbacks_hint")}
+            layout="setting-row"
+            controlClassName="md:max-w-md"
+          >
+            <Textarea
+              value={form.upgradeModelFallbacksText}
+              className="min-h-[88px]"
+              onChange={(e) =>
+                onFieldChange("upgradeModelFallbacksText", e.target.value)
+              }
+            />
+          </Field>
+
+          <Field
+            label={t("pages.config.max_attempts_before_upgrade")}
+            hint={t("pages.config.max_attempts_before_upgrade_hint")}
             layout="setting-row"
           >
             <Input
               type="number"
               min={0}
-              value={form.execTimeoutSeconds}
+              value={form.maxAttemptsBeforeUpgrade}
               onChange={(e) =>
-                onFieldChange("execTimeoutSeconds", e.target.value)
+                onFieldChange("maxAttemptsBeforeUpgrade", e.target.value)
               }
             />
           </Field>
+
+          <Field
+            label={t("pages.config.max_files_before_upgrade")}
+            hint={t("pages.config.max_files_before_upgrade_hint")}
+            layout="setting-row"
+          >
+            <Input
+              type="number"
+              min={0}
+              value={form.maxFilesBeforeUpgrade}
+              onChange={(e) =>
+                onFieldChange("maxFilesBeforeUpgrade", e.target.value)
+              }
+            />
+          </Field>
+
+          <Field
+            label={t("pages.config.max_schema_drift_before_upgrade")}
+            hint={t("pages.config.max_schema_drift_before_upgrade_hint")}
+            layout="setting-row"
+          >
+            <Input
+              type="number"
+              min={0}
+              value={form.maxSchemaDriftBeforeUpgrade}
+              onChange={(e) =>
+                onFieldChange("maxSchemaDriftBeforeUpgrade", e.target.value)
+              }
+            />
+          </Field>
+
+          <Field
+            label={t("pages.config.max_unrelated_operation_rate")}
+            hint={t("pages.config.max_unrelated_operation_rate_hint")}
+            layout="setting-row"
+          >
+            <Input
+              type="number"
+              min={0}
+              max={1}
+              step="0.01"
+              value={form.maxUnrelatedOperationRate}
+              onChange={(e) =>
+                onFieldChange("maxUnrelatedOperationRate", e.target.value)
+              }
+            />
+          </Field>
+
+          <SwitchCardField
+            label={t("pages.config.upgrade_on_validation_fail")}
+            hint={t("pages.config.upgrade_on_validation_fail_hint")}
+            layout="setting-row"
+            checked={form.upgradeOnValidationFail}
+            onCheckedChange={(checked) =>
+              onFieldChange("upgradeOnValidationFail", checked)
+            }
+          />
+
+          <SwitchCardField
+            label={t("pages.config.upgrade_on_patch_parse_fail")}
+            hint={t("pages.config.upgrade_on_patch_parse_fail_hint")}
+            layout="setting-row"
+            checked={form.upgradeOnPatchParseFail}
+            onCheckedChange={(checked) =>
+              onFieldChange("upgradeOnPatchParseFail", checked)
+            }
+          />
+
+          <SwitchCardField
+            label={t("pages.config.upgrade_on_scope_violation")}
+            hint={t("pages.config.upgrade_on_scope_violation_hint")}
+            layout="setting-row"
+            checked={form.upgradeOnScopeViolation}
+            onCheckedChange={(checked) =>
+              onFieldChange("upgradeOnScopeViolation", checked)
+            }
+          />
+
+          <SwitchCardField
+            label={t("pages.config.upgrade_on_semantic_conflict")}
+            hint={t("pages.config.upgrade_on_semantic_conflict_hint")}
+            layout="setting-row"
+            checked={form.upgradeOnSemanticConflict}
+            onCheckedChange={(checked) =>
+              onFieldChange("upgradeOnSemanticConflict", checked)
+            }
+          />
         </>
       )}
-    </ConfigSectionCard>
-  )
-}
-
-interface RuntimeSectionProps {
-  form: CoreConfigForm
-  onFieldChange: UpdateCoreField
-}
-
-export function RuntimeSection({ form, onFieldChange }: RuntimeSectionProps) {
-  const { t } = useTranslation()
-  const selectedDmScopeOption = DM_SCOPE_OPTIONS.find(
-    (scope) => scope.value === form.dmScope,
-  )
-
-  return (
-    <ConfigSectionCard title={t("pages.config.sections.runtime")}>
-      <Field
-        label={t("pages.config.session_scope")}
-        hint={t("pages.config.session_scope_hint")}
-        layout="setting-row"
-      >
-        <Select
-          value={form.dmScope}
-          onValueChange={(value) => onFieldChange("dmScope", value)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue>
-              {selectedDmScopeOption
-                ? t(
-                    selectedDmScopeOption.labelKey,
-                    selectedDmScopeOption.labelDefault,
-                  )
-                : form.dmScope}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {DM_SCOPE_OPTIONS.map((scope) => (
-              <SelectItem key={scope.value} value={scope.value}>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">{t(scope.labelKey)}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {t(scope.descKey)}
-                  </span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-
-      <SwitchCardField
-        label={t("pages.config.heartbeat_enabled")}
-        hint={t("pages.config.heartbeat_enabled_hint")}
-        layout="setting-row"
-        checked={form.heartbeatEnabled}
-        onCheckedChange={(checked) =>
-          onFieldChange("heartbeatEnabled", checked)
-        }
-      />
-
-      {form.heartbeatEnabled && (
-        <Field
-          label={t("pages.config.heartbeat_interval")}
-          hint={t("pages.config.heartbeat_interval_hint")}
-          layout="setting-row"
-        >
-          <Input
-            type="number"
-            min={1}
-            value={form.heartbeatInterval}
-            onChange={(e) => onFieldChange("heartbeatInterval", e.target.value)}
-          />
-        </Field>
-      )}
-    </ConfigSectionCard>
-  )
-}
-
-interface CronSectionProps {
-  form: CoreConfigForm
-  onFieldChange: UpdateCoreField
-}
-
-export function CronSection({ form, onFieldChange }: CronSectionProps) {
-  const { t } = useTranslation()
-
-  return (
-    <ConfigSectionCard title={t("pages.config.sections.cron")}>
-      <SwitchCardField
-        label={t("pages.config.allow_shell_execution")}
-        hint={t("pages.config.allow_shell_execution_hint")}
-        layout="setting-row"
-        checked={form.allowCommand}
-        disabled={!form.execEnabled}
-        onCheckedChange={(checked) => onFieldChange("allowCommand", checked)}
-      />
-
-      <Field
-        label={t("pages.config.cron_exec_timeout")}
-        hint={t("pages.config.cron_exec_timeout_hint")}
-        layout="setting-row"
-      >
-        <Input
-          type="number"
-          min={0}
-          disabled={!form.execEnabled}
-          value={form.cronExecTimeoutMinutes}
-          onChange={(e) =>
-            onFieldChange("cronExecTimeoutMinutes", e.target.value)
-          }
-        />
-      </Field>
     </ConfigSectionCard>
   )
 }
@@ -509,12 +256,20 @@ interface LauncherSectionProps {
   launcherForm: LauncherForm
   onFieldChange: UpdateLauncherField
   disabled: boolean
+  autoStartEnabled: boolean
+  autoStartHint: string
+  autoStartDisabled: boolean
+  onAutoStartChange: (checked: boolean) => void
 }
 
 export function LauncherSection({
   launcherForm,
   onFieldChange,
   disabled,
+  autoStartEnabled,
+  autoStartHint,
+  autoStartDisabled,
+  onAutoStartChange,
 }: LauncherSectionProps) {
   const { t } = useTranslation()
 
@@ -558,46 +313,6 @@ export function LauncherSection({
           onChange={(e) => onFieldChange("allowedCIDRsText", e.target.value)}
         />
       </Field>
-    </ConfigSectionCard>
-  )
-}
-
-interface DevicesSectionProps {
-  form: CoreConfigForm
-  onFieldChange: UpdateCoreField
-  autoStartEnabled: boolean
-  autoStartHint: string
-  autoStartDisabled: boolean
-  onAutoStartChange: (checked: boolean) => void
-}
-
-export function DevicesSection({
-  form,
-  onFieldChange,
-  autoStartEnabled,
-  autoStartHint,
-  autoStartDisabled,
-  onAutoStartChange,
-}: DevicesSectionProps) {
-  const { t } = useTranslation()
-
-  return (
-    <ConfigSectionCard title={t("pages.config.sections.devices")}>
-      <SwitchCardField
-        label={t("pages.config.devices_enabled")}
-        hint={t("pages.config.devices_enabled_hint")}
-        layout="setting-row"
-        checked={form.devicesEnabled}
-        onCheckedChange={(checked) => onFieldChange("devicesEnabled", checked)}
-      />
-
-      <SwitchCardField
-        label={t("pages.config.monitor_usb")}
-        hint={t("pages.config.monitor_usb_hint")}
-        layout="setting-row"
-        checked={form.monitorUSB}
-        onCheckedChange={(checked) => onFieldChange("monitorUSB", checked)}
-      />
 
       <SwitchCardField
         label={t("pages.config.autostart_label")}

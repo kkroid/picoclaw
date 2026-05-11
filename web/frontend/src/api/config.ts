@@ -1,0 +1,47 @@
+export type AppConfig = Record<string, unknown>
+
+interface ConfigActionResponse {
+  status: string
+  errors?: string[]
+}
+
+const BASE_URL = ""
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, options)
+  if (!res.ok) {
+    let message = `API error: ${res.status} ${res.statusText}`
+    try {
+      const body = (await res.json()) as {
+        error?: string
+        errors?: string[]
+        status?: string
+      }
+      if (Array.isArray(body.errors) && body.errors.length > 0) {
+        message = body.errors.join("; ")
+      } else if (typeof body.error === "string" && body.error.trim() !== "") {
+        message = body.error
+      }
+    } catch {
+      // Keep default fallback message if response body is not JSON.
+    }
+    throw new Error(message)
+  }
+  return res.json() as Promise<T>
+}
+
+export async function getAppConfig(): Promise<AppConfig> {
+  return request<AppConfig>("/api/config")
+}
+
+export async function patchAppConfig(
+  patch: Record<string, unknown>,
+): Promise<ConfigActionResponse> {
+  return request<ConfigActionResponse>("/api/config", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  })
+}
+
+export type { ConfigActionResponse }

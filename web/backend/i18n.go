@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	"fmt"
@@ -46,26 +46,26 @@ var translations = map[Language]map[TranslationKey]string{
 	LanguageEnglish: {
 		AppTooltip:         "%s - Web Console",
 		MenuOpen:           "Open Console",
-		MenuOpenTooltip:    "Open PicoClaw console in browser",
+		MenuOpenTooltip:    "Open OneAppFactory console in browser",
 		MenuAbout:          "About",
-		MenuAboutTooltip:   "About PicoClaw",
+		MenuAboutTooltip:   "About OneAppFactory",
 		MenuVersion:        "Version: %s",
 		MenuVersionTooltip: "Current version number",
 		MenuGitHub:         "GitHub",
 		MenuDocs:           "Documentation",
 		MenuRestart:        "Restart Service",
-		MenuRestartTooltip: "Restart Gateway service",
+		MenuRestartTooltip: "Restart service",
 		MenuQuit:           "Quit",
-		MenuQuitTooltip:    "Exit PicoClaw",
-		Exiting:            "Exiting PicoClaw...",
-		DocUrl:             "https://docs.picoclaw.io/docs/",
+		MenuQuitTooltip:    "Exit OneAppFactory",
+		Exiting:            "Exiting OneAppFactory...",
+		DocUrl:             "https://github.com/sipeed/oneappfactory",
 	},
 	LanguageChinese: {
 		AppTooltip:         "%s - Web Console",
 		MenuOpen:           "打开控制台",
-		MenuOpenTooltip:    "在浏览器中打开 PicoClaw 控制台",
+		MenuOpenTooltip:    "在浏览器中打开 OneAppFactory 控制台",
 		MenuAbout:          "关于",
-		MenuAboutTooltip:   "关于 PicoClaw",
+		MenuAboutTooltip:   "关于 OneAppFactory",
 		MenuVersion:        "版本: %s",
 		MenuVersionTooltip: "当前版本号",
 		MenuGitHub:         "GitHub",
@@ -73,9 +73,9 @@ var translations = map[Language]map[TranslationKey]string{
 		MenuRestart:        "重启服务",
 		MenuRestartTooltip: "重启核心服务",
 		MenuQuit:           "退出",
-		MenuQuitTooltip:    "退出 PicoClaw",
-		Exiting:            "正在退出 PicoClaw...",
-		DocUrl:             "https://docs.picoclaw.io/zh-Hans/docs/",
+		MenuQuitTooltip:    "退出 OneAppFactory",
+		Exiting:            "正在退出 OneAppFactory...",
+		DocUrl:             "https://github.com/sipeed/oneappfactory",
 	},
 }
 

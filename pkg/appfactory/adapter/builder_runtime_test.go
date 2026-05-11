@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 func writeBuilderRuntimeWorkspaceFiles(t *testing.T, workspacePath string, files map[string]string) {
@@ -5698,7 +5698,7 @@ func TestValidateBuilderRuntimeTaskOutputsUsesDockerFormatterWhenExecutorImagePr
 	called := false
 	builderRuntimeDartFormatterCommandBuilder = func(ctx context.Context, run runRecord, relPath, absPath string) (*exec.Cmd, error) {
 		called = true
-		if run.ExecutorImage != "picoclaw/appfactory-builder:local" {
+		if run.ExecutorImage != "oneappfactory/builder:local" {
 			t.Fatalf("ExecutorImage = %q, want docker-backed formatter path", run.ExecutorImage)
 		}
 		if relPath != "lib/views/home_page.dart" {
@@ -5707,7 +5707,7 @@ func TestValidateBuilderRuntimeTaskOutputsUsesDockerFormatterWhenExecutorImagePr
 		return exec.CommandContext(ctx, "/bin/sh", "-lc", "true"), nil
 	}
 	if err := validateBuilderRuntimeTaskOutputs(runRecord{
-		ExecutorImage: "picoclaw/appfactory-builder:local",
+		ExecutorImage: "oneappfactory/builder:local",
 		WorkspacePath: workspacePath,
 		TaskBundle: []appruns.TaskBundleItem{{
 			TaskID:      "task-create-home-page",
@@ -13907,7 +13907,7 @@ func TestNormalizeBuilderRuntimePatchForWorkspaceRepairsAndroidBuildGradleFlutte
 		Type: "write_file",
 		Path: "android/app/build.gradle.kts",
 		Content: strings.Join([]string{
-			"val defaultOpenLiteApplicationId = \"com.picoclaw.appfactory.flutter_open_lite\"",
+			"val defaultOpenLiteApplicationId = \"com.appfactory.flutter_open_lite\"",
 			"",
 			"android {",
 			"    namespace = defaultOpenLiteApplication",

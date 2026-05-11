@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sipeed/picoclaw/pkg/fileutil"
+	"github.com/sipeed/oneappfactory/pkg/fileutil"
 )
 
 type workspacePatchState struct {

@@ -35,7 +35,7 @@
   },
   "prepared_prd_subject_version": "prd-weight-tracker-sample-001@0.1.0@sha256:517b32049d4506a4",
   "prepared_template_subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47",
-  "executor_image": "picoclaw/appfactory-builder:local",
+  "executor_image": "oneappfactory/appfactory-builder:local",
   "workspace_path": "/workspace/job-weight-tracker-sample-001",
   "artifact_dir": "/artifacts/job-weight-tracker-sample-001",
   "goal_summary": "将体重记录需求整理成基于 flutter-open-lite 的中性交互承载 Android MVP 输入包，围绕概览、历史集合、实体变更、结果检查和本地持久化保留体重领域文案。",

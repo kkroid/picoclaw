@@ -1,4 +1,4 @@
-val defaultOpenLiteApplicationId = "com.picoclaw.appfactory.flutter_open_lite"
+val defaultOpenLiteApplicationId = "com.appfactory.appfactory.flutter_open_lite"
 
 plugins {
     id("com.android.application")

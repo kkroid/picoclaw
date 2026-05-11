@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 type genericExampleExpectation struct {
@@ -337,7 +337,7 @@ func TestCompileGenericExamplesBuilderInputGolden(t *testing.T) {
 				t.Fatalf("normalizeBuildInputForGolden() error = %v", err)
 			}
 			goldenPath := filepath.Join("testdata", "generic_examples", name+".builder-input.golden.json")
-			if os.Getenv("PICOCLAW_UPDATE_GENERIC_GOLDENS") == "1" {
+			if os.Getenv("ONEAPPFACTORY_UPDATE_GENERIC_GOLDENS") == "1" {
 				if err := os.WriteFile(goldenPath, got, 0o644); err != nil {
 					t.Fatalf("WriteFile(%s) error = %v", goldenPath, err)
 				}

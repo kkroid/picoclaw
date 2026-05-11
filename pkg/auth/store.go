@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg"
-	"github.com/sipeed/picoclaw/pkg/config"
-	"github.com/sipeed/picoclaw/pkg/fileutil"
+	"github.com/sipeed/oneappfactory/pkg"
+	"github.com/sipeed/oneappfactory/pkg/config"
+	"github.com/sipeed/oneappfactory/pkg/fileutil"
 )
 
 type AuthCredential struct {
@@ -45,7 +45,7 @@ func authFilePath() string {
 		return filepath.Join(home, "auth.json")
 	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, pkg.DefaultPicoClawHome, "auth.json")
+	return filepath.Join(home, pkg.DefaultOneAppFactoryHome, "auth.json")
 }
 
 func LoadStore() (*AuthStore, error) {

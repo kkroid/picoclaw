@@ -5,7 +5,7 @@
   "status": "draft",
   "title": "轻量记账 App",
   "summary": "为个人用户提供一个只覆盖最小核心流程的 Android 记账应用，围绕收支概览、记账动作和账单集合浏览验证需求整理、PRD 生成、Builder 输入包生成和最小执行链路。",
-  "problem_statement": "当前实验阶段需要一条从自然语言需求到 Builder 输入包的最小闭环，用来验证 PicoClaw 能否把简单记账需求整理成结构化规格，并围绕中性交互承载驱动 Builder 执行最小任务链。",
+  "problem_statement": "当前实验阶段需要一条从自然语言需求到 Builder 输入包的最小闭环，用来验证 OneAppFactory 能否把简单记账需求整理成结构化规格，并围绕中性交互承载驱动 Builder 执行最小任务链。",
   "target_users": [
     {
       "user_id": "user-office-worker",
@@ -782,27 +782,27 @@
         ]
       },
       {
-        "matrix_id": "matrix-check-legacy-thin-fallback-probe",
-        "acceptance_ref": "check-legacy-thin-fallback-probe",
+        "matrix_id": "matrix-check-oneappfactory-thin-fallback-probe",
+        "acceptance_ref": "check-oneappfactory-thin-fallback-probe",
         "layer": "structure",
         "required": true,
         "source_refs": [
-          "check-legacy-thin-fallback-probe"
+          "check-oneappfactory-thin-fallback-probe"
         ],
         "check_refs": [
-          "check-legacy-thin-fallback-probe"
+          "check-oneappfactory-thin-fallback-probe"
         ]
       },
       {
-        "matrix_id": "matrix-check-legacy-thin-fallback-metadata",
-        "acceptance_ref": "check-legacy-thin-fallback-metadata",
+        "matrix_id": "matrix-check-oneappfactory-thin-fallback-metadata",
+        "acceptance_ref": "check-oneappfactory-thin-fallback-metadata",
         "layer": "structure",
         "required": true,
         "source_refs": [
-          "check-legacy-thin-fallback-metadata"
+          "check-oneappfactory-thin-fallback-metadata"
         ],
         "check_refs": [
-          "check-legacy-thin-fallback-metadata"
+          "check-oneappfactory-thin-fallback-metadata"
         ]
       },
       {

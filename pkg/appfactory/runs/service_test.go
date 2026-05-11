@@ -131,9 +131,9 @@ func TestCreateRunCarriesInitialRoundState(t *testing.T) {
 		ResumeAllowed:     true,
 		CurrentTaskID:     "task-create-form-controller",
 		TaskStatuses: map[string]BuilderRuntimeTaskStatus{
-			"task-create-record-model":   BuilderRuntimeTaskStatusValidated,
-			"task-create-summary-model":  BuilderRuntimeTaskStatusValidated,
-			"task-create-repository":     BuilderRuntimeTaskStatusValidated,
+			"task-create-record-model":    BuilderRuntimeTaskStatusValidated,
+			"task-create-summary-model":   BuilderRuntimeTaskStatusValidated,
+			"task-create-repository":      BuilderRuntimeTaskStatusValidated,
 			"task-create-home-controller": BuilderRuntimeTaskStatusValidated,
 		},
 	}
@@ -781,7 +781,7 @@ func TestFileStoreRunnerScriptDefaultsToSkillExecutorPhase(t *testing.T) {
 	}
 	script := string(data)
 	for _, snippet := range []string{
-		"runtime=\"${APPFACTORY_BUILDER_RUNTIME:-executor}\"",
+		"runtime=\"${ONEAPPFACTORY_BUILDER_RUNTIME:-executor}\"",
 		"if [ \"$runtime\" != \"executor\" ]; then",
 		"unsupported builder runtime: $runtime",
 		"== skill executor phase ==",

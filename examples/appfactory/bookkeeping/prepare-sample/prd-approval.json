@@ -4,7 +4,7 @@
   "approval_type": "prd",
   "job_id": "job-bookkeeping-prepare-sample",
   "prd_id": "prd-bookkeeping-prepare-sample",
-  "subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:2c848b3e1a88da10@sha256:030f5b268c39b7a1",
+  "subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:ea0f3f6cd527434d@sha256:d0028b2401618f5e",
   "status": "approved",
   "requested_by": {
     "actor_type": "system",

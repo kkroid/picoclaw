@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 
-	"github.com/sipeed/picoclaw/pkg/config"
-	"github.com/sipeed/picoclaw/pkg/logger"
+	"github.com/sipeed/oneappfactory/pkg/config"
+	"github.com/sipeed/oneappfactory/pkg/logger"
 )
 
 // registerConfigRoutes binds configuration management endpoints to the ServeMux.
@@ -17,7 +16,6 @@ func (h *Handler) registerConfigRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/config", h.handleGetConfig)
 	mux.HandleFunc("PUT /api/config", h.handleUpdateConfig)
 	mux.HandleFunc("PATCH /api/config", h.handlePatchConfig)
-	mux.HandleFunc("POST /api/config/test-command-patterns", h.handleTestCommandPatterns)
 }
 
 // handleGetConfig returns the complete system configuration.
@@ -52,12 +50,8 @@ func (h *Handler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
 		return
 	}
-	if execAllowRemoteOmitted(body) {
-		cfg.Tools.Exec.AllowRemote = config.DefaultConfig().Tools.Exec.AllowRemote
-	}
 
-	// Load existing config and copy security credentials before validation,
-	// so that security-managed fields (e.g. pico token) are available.
+	// Load existing config and copy model credentials before validation.
 	oldCfg, err := config.LoadConfig(h.configPath)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to load config: %v", err), http.StatusInternalServerError)
@@ -84,20 +78,6 @@ func (h *Handler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-}
-
-func execAllowRemoteOmitted(body []byte) bool {
-	var raw struct {
-		Tools *struct {
-			Exec *struct {
-				AllowRemote *bool `json:"allow_remote"`
-			} `json:"exec"`
-		} `json:"tools"`
-	}
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return false
-	}
-	return raw.Tools == nil || raw.Tools.Exec == nil || raw.Tools.Exec.AllowRemote == nil
 }
 
 // handlePatchConfig partially updates the system configuration using JSON Merge Patch (RFC 7396).
@@ -154,7 +134,7 @@ func (h *Handler) handlePatchConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Restore security fields (tokens/keys) from the loaded config before validation,
+	// Restore model credentials from the loaded config before validation,
 	// because private fields are lost during JSON round-trip.
 	newCfg.SecurityCopyFrom(cfg)
 	if err := newCfg.ApplySecurity(); err != nil {
@@ -181,70 +161,6 @@ func (h *Handler) handlePatchConfig(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-// handleTestCommandPatterns tests a command against whitelist and blacklist patterns.
-//
-//	POST /api/config/test-command-patterns
-func (h *Handler) handleTestCommandPatterns(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	var req struct {
-		AllowPatterns []string `json:"allow_patterns"`
-		DenyPatterns  []string `json:"deny_patterns"`
-		Command       string   `json:"command"`
-	}
-	if err := json.Unmarshal(body, &req); err != nil {
-		http.Error(w, fmt.Sprintf("Invalid JSON: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	lower := strings.ToLower(strings.TrimSpace(req.Command))
-
-	type result struct {
-		Allowed          bool    `json:"allowed"`
-		Blocked          bool    `json:"blocked"`
-		MatchedWhitelist *string `json:"matched_whitelist,omitempty"`
-		MatchedBlacklist *string `json:"matched_blacklist,omitempty"`
-	}
-
-	resp := result{Allowed: false, Blocked: false}
-
-	// Check whitelist first
-	for _, pattern := range req.AllowPatterns {
-		re, err := regexp.Compile(pattern)
-		if err != nil {
-			continue // skip invalid patterns
-		}
-		if re.MatchString(lower) {
-			resp.Allowed = true
-			resp.MatchedWhitelist = &pattern
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp)
-			return
-		}
-	}
-
-	// Check blacklist
-	for _, pattern := range req.DenyPatterns {
-		re, err := regexp.Compile(pattern)
-		if err != nil {
-			continue
-		}
-		if re.MatchString(lower) {
-			resp.Blocked = true
-			resp.MatchedBlacklist = &pattern
-			break
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
 // validateConfig checks the config for common errors before saving.
 // Returns a list of human-readable error strings; empty means valid.
 func validateConfig(cfg *config.Config) []string {
@@ -254,57 +170,10 @@ func validateConfig(cfg *config.Config) []string {
 	if err := cfg.ValidateModelList(); err != nil {
 		errs = append(errs, err.Error())
 	}
-
-	// Gateway port range
-	if cfg.Gateway.Port != 0 && (cfg.Gateway.Port < 1 || cfg.Gateway.Port > 65535) {
-		errs = append(errs, fmt.Sprintf("gateway.port %d is out of valid range (1-65535)", cfg.Gateway.Port))
+	if strings.TrimSpace(cfg.Workspace) == "" {
+		errs = append(errs, "workspace is required")
 	}
 
-	// Pico channel: token required when enabled
-	if cfg.Channels.Pico.Enabled && cfg.Channels.Pico.Token() == "" {
-		errs = append(errs, "channels.pico.token is required when pico channel is enabled")
-	}
-
-	// Telegram: token required when enabled
-	if cfg.Channels.Telegram.Enabled && cfg.Channels.Telegram.Token() == "" {
-		errs = append(errs, "channels.telegram.token is required when telegram channel is enabled")
-	}
-
-	// Discord: token required when enabled
-	if cfg.Channels.Discord.Enabled && cfg.Channels.Discord.Token() == "" {
-		errs = append(errs, "channels.discord.token is required when discord channel is enabled")
-	}
-
-	if cfg.Channels.WeCom.Enabled {
-		if cfg.Channels.WeCom.BotID == "" {
-			errs = append(errs, "channels.wecom.bot_id is required when wecom channel is enabled")
-		}
-		if cfg.Channels.WeCom.Secret() == "" {
-			errs = append(errs, "channels.wecom.secret is required when wecom channel is enabled")
-		}
-	}
-
-	if cfg.Tools.Exec.Enabled {
-		if cfg.Tools.Exec.EnableDenyPatterns {
-			errs = append(
-				errs,
-				validateRegexPatterns("tools.exec.custom_deny_patterns", cfg.Tools.Exec.CustomDenyPatterns)...)
-		}
-		errs = append(
-			errs,
-			validateRegexPatterns("tools.exec.custom_allow_patterns", cfg.Tools.Exec.CustomAllowPatterns)...)
-	}
-
-	return errs
-}
-
-func validateRegexPatterns(field string, patterns []string) []string {
-	var errs []string
-	for index, pattern := range patterns {
-		if _, err := regexp.Compile(pattern); err != nil {
-			errs = append(errs, fmt.Sprintf("%s[%d] is not a valid regular expression: %v", field, index, err))
-		}
-	}
 	return errs
 }
 

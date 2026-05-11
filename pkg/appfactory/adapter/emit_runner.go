@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/sipeed/picoclaw/pkg/appfactory/emitter"
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	"github.com/sipeed/oneappfactory/pkg/appfactory/emitter"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 // emitRunnerResult 是 tryDeterministicEmit 的返回结果。

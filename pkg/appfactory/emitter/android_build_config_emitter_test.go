@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
 )
 
 func TestEmitAndroidBuildConfigReturnsTemplateBaseline(t *testing.T) {
@@ -16,7 +16,7 @@ func TestEmitAndroidBuildConfigReturnsTemplateBaseline(t *testing.T) {
 		t.Fatalf("FilePath = %q, want android/app/build.gradle.kts", result.FilePath)
 	}
 	for _, marker := range []string{
-		`val defaultOpenLiteApplicationId = "com.picoclaw.appfactory.flutter_open_lite"`,
+		`val defaultOpenLiteApplicationId = "com.appfactory.flutter_open_lite"`,
 		`namespace = defaultOpenLiteApplicationId`,
 		`applicationId = defaultOpenLiteApplicationId`,
 		`id("dev.flutter.flutter-gradle-plugin")`,

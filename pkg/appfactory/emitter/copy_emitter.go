@@ -5,7 +5,7 @@ package emitter
 import (
 	"strings"
 
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
 )
 
 // CopyEmitResult 表示 CopyEmitter 的输出。

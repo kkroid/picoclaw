@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-import { getAppConfig } from "@/api/channels"
+import { getAppConfig } from "@/api/config"
 import {
   getJob,
   getJobArtifacts,

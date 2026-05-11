@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sipeed/picoclaw/pkg/fileutil"
+	"github.com/sipeed/oneappfactory/pkg/fileutil"
 )
 
 type FileRegistryStore struct {

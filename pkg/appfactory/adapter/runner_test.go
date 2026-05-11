@@ -13,15 +13,15 @@ import (
 	"strings"
 	"testing"
 
-	adapter "github.com/sipeed/picoclaw/pkg/appfactory/adapter"
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
-	"github.com/sipeed/picoclaw/pkg/config"
-	api "github.com/sipeed/picoclaw/web/backend/api"
+	adapter "github.com/sipeed/oneappfactory/pkg/appfactory/adapter"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
+	"github.com/sipeed/oneappfactory/pkg/config"
+	api "github.com/sipeed/oneappfactory/web/backend/api"
 )
 
 func TestRunnerExecuteRunCompletesAndReleasesBuilder(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -29,7 +29,7 @@ func TestRunnerExecuteRunCompletesAndReleasesBuilder(t *testing.T) {
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -97,7 +97,7 @@ func TestExecutionEnvUsesWorkspaceGradleUserHome(t *testing.T) {
 	run := adapter.RunRecord{
 		RunID:         "run-1",
 		JobID:         "job-1",
-		ExecutorImage: "picoclaw/appfactory-builder:local",
+		ExecutorImage: "oneappfactory/builder:local",
 		LaunchCommand: "/bin/sh",
 		LaunchArgs:    []string{"-lc", "true"},
 		WorkspacePath: filepath.Join(t.TempDir(), "workspace", "appfactory", "jobs", "job-1", "workspace"),
@@ -164,8 +164,8 @@ func containsString(items []string, want string) bool {
 }
 
 func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnParseFailure(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -173,7 +173,7 @@ func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnParseFailure(t *testing.T)
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -248,8 +248,8 @@ func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnParseFailure(t *testing.T)
 }
 
 func TestRunnerExecuteRunRepairsBuilderRuntimeSchemaAfterUpgradeParseFailure(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -257,7 +257,7 @@ func TestRunnerExecuteRunRepairsBuilderRuntimeSchemaAfterUpgradeParseFailure(t *
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -337,8 +337,8 @@ func TestRunnerExecuteRunRepairsBuilderRuntimeSchemaAfterUpgradeParseFailure(t *
 }
 
 func TestRunnerExecuteRunStopsOnTaskCreateLocalValidationFailure(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -346,7 +346,7 @@ func TestRunnerExecuteRunStopsOnTaskCreateLocalValidationFailure(t *testing.T) {
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -455,8 +455,8 @@ func TestRunnerExecuteRunStopsOnTaskCreateLocalValidationFailure(t *testing.T) {
 }
 
 func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnSchemaDriftThreshold(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -464,7 +464,7 @@ func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnSchemaDriftThreshold(t *te
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -532,8 +532,8 @@ func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnSchemaDriftThreshold(t *te
 }
 
 func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnUnrelatedOperationRate(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -541,7 +541,7 @@ func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnUnrelatedOperationRate(t *
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -610,8 +610,8 @@ func TestRunnerExecuteRunUpgradesBuilderRuntimeModelOnUnrelatedOperationRate(t *
 }
 
 func TestRunnerExecuteRunNormalizesBuilderRuntimeSchemaAndTracksUnrelatedEdits(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -619,7 +619,7 @@ func TestRunnerExecuteRunNormalizesBuilderRuntimeSchemaAndTracksUnrelatedEdits(t
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -684,8 +684,8 @@ func TestRunnerExecuteRunNormalizesBuilderRuntimeSchemaAndTracksUnrelatedEdits(t
 }
 
 func TestRunnerExecuteRunClassifiesWorkspacePatchApplyFailure(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -693,7 +693,7 @@ func TestRunnerExecuteRunClassifiesWorkspacePatchApplyFailure(t *testing.T) {
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -838,8 +838,8 @@ func TestRunnerExecuteRunClassifiesWorkspacePatchApplyFailure(t *testing.T) {
 }
 
 func TestRunnerExecuteRunWritesFlutterHandoffProbeOnDefaultExecutor(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -847,7 +847,7 @@ func TestRunnerExecuteRunWritesFlutterHandoffProbeOnDefaultExecutor(t *testing.T
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -913,14 +913,14 @@ func TestRunnerExecuteRunWritesFlutterHandoffProbeOnDefaultExecutor(t *testing.T
 		t.Fatalf("workspace_patch status = %#v, want applied or not_reported", workspacePatch["status"])
 	}
 	workspacePath, _ := run["workspace_path"].(string)
-	if !modifiedPaths["lib/picoclaw_executor_probe.dart"] {
+	if !modifiedPaths["lib/oneappfactory_executor_probe.dart"] {
 		t.Fatalf("modified_files = %v, want probe path", modifiedPaths)
 	}
-	probe, err := os.ReadFile(filepath.Join(filepath.FromSlash(workspacePath), "lib", "picoclaw_executor_probe.dart"))
+	probe, err := os.ReadFile(filepath.Join(filepath.FromSlash(workspacePath), "lib", "oneappfactory_executor_probe.dart"))
 	if err != nil {
-		t.Fatalf("ReadFile(lib/picoclaw_executor_probe.dart) error = %v", err)
+		t.Fatalf("ReadFile(lib/oneappfactory_executor_probe.dart) error = %v", err)
 	}
-	if !strings.Contains(string(probe), "Generated by PicoClaw thin executor.") || !strings.Contains(string(probe), "'goalSummary': 'deliver bookkeeping shell'") {
+	if !strings.Contains(string(probe), "Generated by OneAppFactory thin executor.") || !strings.Contains(string(probe), "'goalSummary': 'deliver bookkeeping shell'") {
 		t.Fatalf("probe = %q, want handoff metadata", string(probe))
 	}
 	if strings.Contains(string(probe), "BookkeepingApp") {
@@ -943,7 +943,7 @@ func TestRunnerExecuteRunWritesFlutterHandoffProbeOnDefaultExecutor(t *testing.T
 func TestRunnerExecuteRunSkipsNoopClassificationAfterAppliedChanges(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -997,8 +997,8 @@ func TestRunnerExecuteRunSkipsNoopClassificationAfterAppliedChanges(t *testing.T
 }
 
 func TestRunnerExecuteRunTreatsLegacyBuilderLogAsGenericFailureOnDefaultRuntime(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -1006,7 +1006,7 @@ func TestRunnerExecuteRunTreatsLegacyBuilderLogAsGenericFailureOnDefaultRuntime(
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1073,8 +1073,8 @@ func TestRunnerExecuteRunTreatsLegacyBuilderLogAsGenericFailureOnDefaultRuntime(
 }
 
 func TestRunnerExecuteRunClassifiesProfileStructuralCheckFailure(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -1082,7 +1082,7 @@ func TestRunnerExecuteRunClassifiesProfileStructuralCheckFailure(t *testing.T) {
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1155,8 +1155,8 @@ func TestRunnerExecuteRunClassifiesProfileStructuralCheckFailure(t *testing.T) {
 }
 
 func TestRunnerExecuteRunClassifiesEnvironmentClosureCheckFailure(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -1164,7 +1164,7 @@ func TestRunnerExecuteRunClassifiesEnvironmentClosureCheckFailure(t *testing.T) 
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1242,8 +1242,8 @@ func TestRunnerExecuteRunClassifiesEnvironmentClosureCheckFailure(t *testing.T) 
 }
 
 func TestRunnerExecuteRunAutoRepairsFlutterAnalyzeFailure(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -1251,7 +1251,7 @@ func TestRunnerExecuteRunAutoRepairsFlutterAnalyzeFailure(t *testing.T) {
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1371,8 +1371,8 @@ func TestRunnerExecuteRunAutoRepairsFlutterAnalyzeFailure(t *testing.T) {
 }
 
 func TestRunnerExecuteRunUpgradesValidationRepairAfterAnalyzeStillFails(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -1380,7 +1380,7 @@ func TestRunnerExecuteRunUpgradesValidationRepairAfterAnalyzeStillFails(t *testi
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1467,8 +1467,8 @@ func TestRunnerExecuteRunUpgradesValidationRepairAfterAnalyzeStillFails(t *testi
 }
 
 func TestRunnerExecuteRunRepeatsValidationRepairWithLatestAnalyzeFailureContext(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -1476,7 +1476,7 @@ func TestRunnerExecuteRunRepeatsValidationRepairWithLatestAnalyzeFailureContext(
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1578,8 +1578,8 @@ func TestRunnerExecuteRunRepeatsValidationRepairWithLatestAnalyzeFailureContext(
 }
 
 func TestRunnerExecuteRunAllowsFourthValidationRepairRoundWithLatestAnalyzeFailureContext(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -1587,7 +1587,7 @@ func TestRunnerExecuteRunAllowsFourthValidationRepairRoundWithLatestAnalyzeFailu
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1699,8 +1699,8 @@ func TestRunnerExecuteRunAllowsFourthValidationRepairRoundWithLatestAnalyzeFailu
 }
 
 func TestRunnerExecuteRunAnalyzeRepairCarriesFailureSliceIntoCoverageRepair(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -1708,7 +1708,7 @@ func TestRunnerExecuteRunAnalyzeRepairCarriesFailureSliceIntoCoverageRepair(t *t
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1879,8 +1879,8 @@ func TestRunnerExecuteRunAnalyzeRepairCarriesFailureSliceIntoCoverageRepair(t *t
 }
 
 func TestRunnerExecuteRunFlutterTestRepairUsesLastFailureBlockAndCoverageRetry(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -1888,7 +1888,7 @@ func TestRunnerExecuteRunFlutterTestRepairUsesLastFailureBlockAndCoverageRetry(t
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2063,8 +2063,8 @@ func TestRunnerExecuteRunFlutterTestRepairUsesLastFailureBlockAndCoverageRetry(t
 }
 
 func TestRunnerExecuteRunUpgradesSemanticConflictRepair(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -2072,7 +2072,7 @@ func TestRunnerExecuteRunUpgradesSemanticConflictRepair(t *testing.T) {
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2159,8 +2159,8 @@ func TestRunnerExecuteRunUpgradesSemanticConflictRepair(t *testing.T) {
 }
 
 func TestRunnerExecuteRunPassesGenericSemanticChecksFromCompileBundle(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -2168,7 +2168,7 @@ func TestRunnerExecuteRunPassesGenericSemanticChecksFromCompileBundle(t *testing
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2277,8 +2277,8 @@ func TestRunnerExecuteRunPassesGenericSemanticChecksFromCompileBundle(t *testing
 }
 
 func TestRunnerExecuteRunClassifiesDeviceVerificationCheckFailure(t *testing.T) {
-	t.Setenv("APPFACTORY_BUILDER_RUNTIME", "")
-	t.Setenv("APPFACTORY_BUILDER_DOCKER_NETWORK", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_RUNTIME", "")
+	t.Setenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK", "")
 	t.Setenv("HTTP_PROXY", "")
 	t.Setenv("HTTPS_PROXY", "")
 	t.Setenv("ALL_PROXY", "")
@@ -2286,7 +2286,7 @@ func TestRunnerExecuteRunClassifiesDeviceVerificationCheckFailure(t *testing.T) 
 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2625,7 +2625,7 @@ func sampleFlutterFallbackBuildRunInput() map[string]any {
 				"task_id":             "screen-main",
 				"title":               "Write fallback probe",
 				"category":            "screen",
-				"objective":           "write a Flutter workspace fallback probe for legacy thin executor verification",
+				"objective":           "write a Flutter workspace fallback probe for OneAppFactory thin executor verification",
 				"target_paths":        []string{"lib/main.dart", "lib/views/home_page.dart"},
 				"completion_criteria": []string{"fallback probe exists"},
 			},
@@ -2633,7 +2633,7 @@ func sampleFlutterFallbackBuildRunInput() map[string]any {
 				"task_id":             "flow-entry",
 				"title":               "Preserve template boundary",
 				"category":            "flow",
-				"objective":           "preserve seed workspace for legacy thin fallback verification",
+				"objective":           "preserve seed workspace for OneAppFactory thin fallback verification",
 				"target_paths":        []string{"lib/views/entry_form_page.dart", "lib/repositories/entry_repository.dart"},
 				"completion_criteria": []string{"seed workspace remains intact"},
 			},
@@ -2647,18 +2647,18 @@ func sampleFlutterFallbackBuildRunInput() map[string]any {
 				"commands": []string{"grep -q . pubspec.yaml lib/main.dart test/widget_test.dart"},
 			},
 			{
-				"check_id": "check-legacy-thin-fallback-probe",
-				"label":    "legacy thin fallback probe",
+				"check_id": "check-oneappfactory-thin-fallback-probe",
+				"label":    "OneAppFactory thin fallback probe",
 				"stage":    "cheap",
 				"required": true,
-				"commands": []string{"grep -E \"Generated by PicoClaw thin executor.|'goalSummary':\" lib/picoclaw_executor_probe.dart >/dev/null 2>&1"},
+				"commands": []string{"grep -E \"Generated by OneAppFactory thin executor.|'goalSummary':\" lib/oneappfactory_executor_probe.dart >/dev/null 2>&1"},
 			},
 			{
-				"check_id": "check-legacy-thin-fallback-metadata",
-				"label":    "legacy thin fallback metadata",
+				"check_id": "check-oneappfactory-thin-fallback-metadata",
+				"label":    "OneAppFactory thin fallback metadata",
 				"stage":    "cheap",
 				"required": true,
-				"commands": []string{"grep -E \"'taskCount': [0-9]+,|'acceptanceCheckCount': [0-9]+,\" lib/picoclaw_executor_probe.dart >/dev/null 2>&1"},
+				"commands": []string{"grep -E \"'taskCount': [0-9]+,|'acceptanceCheckCount': [0-9]+,\" lib/oneappfactory_executor_probe.dart >/dev/null 2>&1"},
 			},
 		},
 		"allowed_paths":   []string{"lib/**", "test/**", "pubspec.yaml"},
@@ -2701,9 +2701,9 @@ type stubThinExecutor struct {
 type semanticSuccessExecutor struct{}
 
 func (semanticSuccessExecutor) Prepare(ctx context.Context, run adapter.RunRecord) (adapter.RoundPlan, error) {
-	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", "mkdir -p lib && cat <<'EOF' > lib/picoclaw_executor_probe.dart\n// Generated by PicoClaw thin executor.\nconst probe = {\n  'goalSummary': 'semantic regression',\n  'taskCount': 7,\n  'acceptanceCheckCount': 16,\n};\nEOF")
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", "mkdir -p lib && cat <<'EOF' > lib/oneappfactory_executor_probe.dart\n// Generated by OneAppFactory thin executor.\nconst probe = {\n  'goalSummary': 'semantic regression',\n  'taskCount': 7,\n  'acceptanceCheckCount': 16,\n};\nEOF")
 	cmd.Dir = run.WorkspacePath
-	cmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=semantic-success")
+	cmd.Env = append(os.Environ(), "ONEAPPFACTORY_STUB_EXECUTOR=semantic-success")
 	validationSteps := make([]adapter.ExecutionStep, 0, len(run.AcceptanceChecks))
 	acceptanceChecks := make([]adapter.CheckExecutionPreview, 0, len(run.AcceptanceChecks))
 	for _, check := range run.AcceptanceChecks {
@@ -2722,10 +2722,10 @@ func (semanticSuccessExecutor) Prepare(ctx context.Context, run adapter.RunRecor
 		validationCmd := exec.CommandContext(ctx, "/bin/sh", "-lc", strings.Join(check.Commands, "\n"))
 		validationCmd.Dir = run.WorkspacePath
 		validationCmd.Env = append(os.Environ(),
-			"PICOCLAW_STUB_EXECUTOR=semantic-success",
-			"PICOCLAW_EXECUTION_STEP="+check.CheckID,
-			"PICOCLAW_EXECUTION_STAGE="+string(check.Stage),
-			"PICOCLAW_ACCEPTANCE_CHECK_ID="+check.CheckID,
+			"ONEAPPFACTORY_STUB_EXECUTOR=semantic-success",
+			"ONEAPPFACTORY_EXECUTION_STEP="+check.CheckID,
+			"ONEAPPFACTORY_EXECUTION_STAGE="+string(check.Stage),
+			"ONEAPPFACTORY_ACCEPTANCE_CHECK_ID="+check.CheckID,
 		)
 		validationSteps = append(validationSteps, adapter.ExecutionStep{
 			StepID:  check.CheckID,
@@ -2803,7 +2803,7 @@ func (executor *stubThinExecutor) Prepare(ctx context.Context, run adapter.RunRe
 	executor.lastCheckCount = len(run.AcceptanceChecks)
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", "true")
 	cmd.Dir = executor.workspace
-	cmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=1")
+	cmd.Env = append(os.Environ(), "ONEAPPFACTORY_STUB_EXECUTOR=1")
 	executor.lastDir = cmd.Dir
 	executor.lastEnv = append([]string(nil), cmd.Env...)
 	return adapter.RoundPlan{
@@ -2823,7 +2823,7 @@ type patchWritingExecutor struct{}
 func (patchWritingExecutor) Prepare(ctx context.Context, run adapter.RunRecord) (adapter.RoundPlan, error) {
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", "mkdir -p lib && printf 'const generated = true;\\n' > lib/generated.dart")
 	cmd.Dir = run.WorkspacePath
-	cmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=patch-write")
+	cmd.Env = append(os.Environ(), "ONEAPPFACTORY_STUB_EXECUTOR=patch-write")
 	return adapter.RoundPlan{
 		Summary:    "patch writing executor",
 		RoundInput: adapter.BuildRoundInputForTest(run),
@@ -2841,7 +2841,7 @@ type patchProtectedPathExecutor struct{}
 func (patchProtectedPathExecutor) Prepare(ctx context.Context, run adapter.RunRecord) (adapter.RoundPlan, error) {
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", "mkdir -p android/app && printf 'protected-path\n' > android/app/build.gradle.kts && echo protected-path-attempted")
 	cmd.Dir = run.WorkspacePath
-	cmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=patch-protected-path")
+	cmd.Env = append(os.Environ(), "ONEAPPFACTORY_STUB_EXECUTOR=patch-protected-path")
 	return adapter.RoundPlan{
 		Summary:    "patch protected path executor",
 		RoundInput: adapter.BuildRoundInputForTest(run),
@@ -2861,7 +2861,7 @@ type failingLogExecutor struct {
 func (executor failingLogExecutor) Prepare(ctx context.Context, run adapter.RunRecord) (adapter.RoundPlan, error) {
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", executor.script)
 	cmd.Dir = run.WorkspacePath
-	cmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=failure-log")
+	cmd.Env = append(os.Environ(), "ONEAPPFACTORY_STUB_EXECUTOR=failure-log")
 	return adapter.RoundPlan{
 		Summary:    "failing log executor",
 		RoundInput: adapter.BuildRoundInputForTest(run),
@@ -2907,10 +2907,10 @@ func (generator *stubBuilderRuntimePatchGenerator) GeneratePatch(ctx context.Con
 func (executor failingValidationExecutor) Prepare(ctx context.Context, run adapter.RunRecord) (adapter.RoundPlan, error) {
 	editCmd := exec.CommandContext(ctx, "/bin/sh", "-lc", "true")
 	editCmd.Dir = run.WorkspacePath
-	editCmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=validation-edit")
+	editCmd.Env = append(os.Environ(), "ONEAPPFACTORY_STUB_EXECUTOR=validation-edit")
 	validationCmd := exec.CommandContext(ctx, "/bin/sh", "-lc", executor.script)
 	validationCmd.Dir = run.WorkspacePath
-	validationCmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=validation-fail")
+	validationCmd.Env = append(os.Environ(), "ONEAPPFACTORY_STUB_EXECUTOR=validation-fail")
 	return adapter.RoundPlan{
 		Summary:    "failing validation executor",
 		RoundInput: adapter.BuildRoundInputForTest(run),

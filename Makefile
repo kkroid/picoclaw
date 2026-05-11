@@ -1,7 +1,7 @@
 .PHONY: all build install uninstall clean help test build-appfactory-builder verify-appfactory-builder verify-appfactory-template verify-appfactory-template-fast check-appfactory-template-governance refresh-appfactory-notifications check-appfactory-notification-governance apply-appfactory-notification-auto-ack verify-appfactory-public-job verify-appfactory-public-job-fast verify-appfactory-public-job-device verify-appfactory-public-job-device-fast verify-appfactory-public-job-device-summary check-appfactory-public-job-device-alerts run-appfactory-public-job-device-regression run-appfactory-public-job-device-regression-fast run-appfactory-public-job-device-regression-pool-fast update-appfactory-public-job-device-regression-index update-appfactory-public-job-device-pool-status verify-appfactory-product-flow verify-appfactory-product-flow-summary check-appfactory-product-flow-alerts run-appfactory-product-flow-regression verify-appfactory-jobs-regression run-appfactory-jobs-regression verify-appfactory-jobs-auto-repair verify-appfactory-jobs-live-auto-repair-probe verify-appfactory-platform-regression-summary check-appfactory-platform-regression-alerts check-appfactory-internal-trial-freshness verify-appfactory-internal-trial-status run-appfactory-platform-regression validate-builder-runtime-ollama validate-builder-runtime-ollama-samples validate-builder-runtime-ollama-sandbox validate-builder-runtime-ollama-real verify-appfactory-builder-runtime-auto-repair summarize-builder-runtime-validation
 
 # Build variables
-BINARY_NAME=picoclaw
+BINARY_NAME=oneappfactory
 BUILD_DIR=build
 CMD_DIR=cmd/$(BINARY_NAME)
 MAIN_GO=$(CMD_DIR)/main.go
@@ -11,7 +11,7 @@ VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT=$(shell git rev-parse --short=8 HEAD 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date +%FT%T%z)
 GO_VERSION=$(shell $(GO) version | awk '{print $$3}')
-CONFIG_PKG=github.com/sipeed/picoclaw/pkg/config
+CONFIG_PKG=github.com/sipeed/oneappfactory/pkg/config
 LDFLAGS=-X $(CONFIG_PKG).Version=$(VERSION) -X $(CONFIG_PKG).GitCommit=$(GIT_COMMIT) -X $(CONFIG_PKG).BuildTime=$(BUILD_TIME) -X $(CONFIG_PKG).GoVersion=$(GO_VERSION) -s -w
 
 # Go variables
@@ -25,11 +25,11 @@ empty:=
 space:=$(empty) $(empty)
 GO_BUILD_TAGS_NO_GOOLM:=$(subst $(space),$(comma),$(strip $(filter-out goolm,$(subst $(comma),$(space),$(GO_BUILD_TAGS)))))
 GOFLAGS_NO_GOOLM?=-v -tags $(GO_BUILD_TAGS_NO_GOOLM)
-APPFACTORY_BUILDER_PROXY?=
-APPFACTORY_BUILDER_ADD_HOST?=--add-host=host.docker.internal:host-gateway
-APPFACTORY_BUILDER_IMAGE?=picoclaw/appfactory-builder:local
-APPFACTORY_BUILDER_BUILD_ARGS=$(APPFACTORY_BUILDER_ADD_HOST) $(if $(strip $(APPFACTORY_BUILDER_PROXY)),--build-arg HTTP_PROXY=$(APPFACTORY_BUILDER_PROXY) --build-arg HTTPS_PROXY=$(APPFACTORY_BUILDER_PROXY) --build-arg ALL_PROXY=$(APPFACTORY_BUILDER_PROXY),) --build-arg NO_PROXY=127.0.0.1,localhost,host.docker.internal
-APPFACTORY_BUILDER_DOCKER_NETWORK?=
+ONEAPPFACTORY_BUILDER_PROXY?=
+ONEAPPFACTORY_BUILDER_ADD_HOST?=--add-host=host.docker.internal:host-gateway
+ONEAPPFACTORY_BUILDER_IMAGE?=oneappfactory/builder:local
+ONEAPPFACTORY_BUILDER_BUILD_ARGS=$(ONEAPPFACTORY_BUILDER_ADD_HOST) $(if $(strip $(ONEAPPFACTORY_BUILDER_PROXY)),--build-arg HTTP_PROXY=$(ONEAPPFACTORY_BUILDER_PROXY) --build-arg HTTPS_PROXY=$(ONEAPPFACTORY_BUILDER_PROXY) --build-arg ALL_PROXY=$(ONEAPPFACTORY_BUILDER_PROXY),) --build-arg NO_PROXY=127.0.0.1,localhost,host.docker.internal
+ONEAPPFACTORY_BUILDER_DOCKER_NETWORK?=
 
 # Patch MIPS LE ELF e_flags (offset 36) for NaN2008-only kernels (e.g. Ingenic X2600).
 #
@@ -69,11 +69,9 @@ INSTALL_BIN_DIR=$(INSTALL_PREFIX)/bin
 INSTALL_MAN_DIR=$(INSTALL_PREFIX)/share/man/man1
 INSTALL_TMP_SUFFIX=.new
 
-# Workspace and Skills
-PICOCLAW_HOME?=$(HOME)/.picoclaw
-WORKSPACE_DIR?=$(PICOCLAW_HOME)/workspace
-WORKSPACE_SKILLS_DIR=$(WORKSPACE_DIR)/skills
-BUILTIN_SKILLS_DIR=$(CURDIR)/skills
+# Workspace
+ONEAPPFACTORY_HOME?=$(HOME)/.appfactory
+WORKSPACE_DIR?=$(ONEAPPFACTORY_HOME)/workspace
 
 # OS detection
 UNAME_S:=$(shell uname -s)
@@ -117,49 +115,33 @@ BINARY_PATH=$(BUILD_DIR)/$(BINARY_NAME)-$(PLATFORM)-$(ARCH)
 # Default target
 all: build
 
-## generate: Run generate
-generate:
-	@echo "Run generate..."
-	@rm -r ./$(CMD_DIR)/workspace 2>/dev/null || true
-	@$(GO) generate ./cmd/picoclaw/internal/onboard
-	@echo "Run generate complete"
-
-## build: Build the picoclaw binary for current platform
-build: generate
+## build: Build the oneappfactory binary for current platform
+build:
 	@echo "Building $(BINARY_NAME) for $(PLATFORM)/$(ARCH)..."
 	@mkdir -p $(BUILD_DIR)
 	@$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BINARY_PATH) ./$(CMD_DIR)
 	@echo "Build complete: $(BINARY_PATH)"
 	@ln -sf $(BINARY_NAME)-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/$(BINARY_NAME)
 
-## build-launcher: Build the picoclaw-launcher (web console) binary
+## build-launcher: Build the oneappfactory-launcher (web console) binary
 build-launcher:
-	@echo "Building picoclaw-launcher for $(PLATFORM)/$(ARCH)..."
+	@echo "Building oneappfactory-launcher for $(PLATFORM)/$(ARCH)..."
 	@mkdir -p $(BUILD_DIR)
 	@echo "Building embedded frontend assets..."
 	@cd web/frontend && pnpm install && pnpm build:backend
-	@$(WEB_GO) build $(GOFLAGS) -o $(BUILD_DIR)/picoclaw-launcher-$(PLATFORM)-$(ARCH) ./web/backend
-	@ln -sf picoclaw-launcher-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/picoclaw-launcher
-	@echo "Build complete: $(BUILD_DIR)/picoclaw-launcher"
-
-## build-launcher-tui: Build the picoclaw-launcher TUI binary
-build-launcher-tui:
-	@echo "Building picoclaw-launcher-tui for $(PLATFORM)/$(ARCH)..."
-	@mkdir -p $(BUILD_DIR)
-	@$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/picoclaw-launcher-tui-$(PLATFORM)-$(ARCH) ./cmd/picoclaw-launcher-tui
-	@ln -sf picoclaw-launcher-tui-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/picoclaw-launcher-tui
-	@echo "Build complete: $(BUILD_DIR)/picoclaw-launcher-tui"
-
+	@$(WEB_GO) build $(GOFLAGS) -o $(BUILD_DIR)/oneappfactory-launcher-$(PLATFORM)-$(ARCH) ./cmd/oneappfactory-launcher
+	@ln -sf oneappfactory-launcher-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/oneappfactory-launcher
+	@echo "Build complete: $(BUILD_DIR)/oneappfactory-launcher"
 ## build-appfactory-builder: Build the Flutter/Android builder image used for appfactory validation
 build-appfactory-builder:
 	@echo "Building appfactory builder image..."
-	@docker build $(APPFACTORY_BUILDER_BUILD_ARGS) -f docker/Dockerfile.appfactory-builder -t $(APPFACTORY_BUILDER_IMAGE) .
-	@echo "Build complete: $(APPFACTORY_BUILDER_IMAGE)"
+	@docker build $(ONEAPPFACTORY_BUILDER_BUILD_ARGS) -f docker/Dockerfile.appfactory-builder -t $(ONEAPPFACTORY_BUILDER_IMAGE) .
+	@echo "Build complete: $(ONEAPPFACTORY_BUILDER_IMAGE)"
 
 ## verify-appfactory-builder: Run Flutter and Android toolchain checks inside the builder image
 verify-appfactory-builder: build-appfactory-builder
 	@echo "Running appfactory builder smoke checks..."
-	@docker run --rm $(APPFACTORY_BUILDER_IMAGE) smoke
+	@docker run --rm $(ONEAPPFACTORY_BUILDER_IMAGE) smoke
 
 ## verify-appfactory-template: Run Flutter analyze/test/build against the template seed inside the builder image
 verify-appfactory-template: build-appfactory-builder
@@ -341,40 +323,22 @@ run-appfactory-platform-regression:
 	@echo "Running appfactory platform regression spine..."
 	@bash scripts/run-appfactory-platform-regression.sh
 
-## build-whatsapp-native: Build with WhatsApp native (whatsmeow) support; larger binary
-build-whatsapp-native: generate
-## @echo "Building $(BINARY_NAME) with WhatsApp native for $(PLATFORM)/$(ARCH)..."
-	@echo "Building for multiple platforms..."
-	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GO) build -tags $(GO_BUILD_TAGS),whatsapp_native -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
-	GOOS=linux GOARCH=arm GOARM=7 $(GO) build -tags $(GO_BUILD_TAGS),whatsapp_native -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm ./$(CMD_DIR)
-	GOOS=linux GOARCH=arm64 $(GO) build -tags $(GO_BUILD_TAGS),whatsapp_native -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./$(CMD_DIR)
-	GOOS=linux GOARCH=loong64 $(GO) build -tags $(GO_BUILD_TAGS),whatsapp_native -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-loong64 ./$(CMD_DIR)
-	GOOS=linux GOARCH=riscv64 $(GO) build -tags $(GO_BUILD_TAGS),whatsapp_native -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-riscv64 ./$(CMD_DIR)
-	GOOS=linux GOARCH=mipsle GOMIPS=softfloat $(GO) build -tags $(GO_BUILD_TAGS_NO_GOOLM),whatsapp_native -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-mipsle ./$(CMD_DIR)
-	$(call PATCH_MIPS_FLAGS,$(BUILD_DIR)/$(BINARY_NAME)-linux-mipsle)
-	GOOS=darwin GOARCH=arm64 $(GO) build -tags $(GO_BUILD_TAGS),whatsapp_native -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
-	GOOS=windows GOARCH=amd64 $(GO) build -tags $(GO_BUILD_TAGS),whatsapp_native -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
-## @$(GO) build $(GOFLAGS) -tags whatsapp_native -ldflags "$(LDFLAGS)" -o $(BINARY_PATH) ./$(CMD_DIR)
-	@echo "Build complete"
-##	@ln -sf $(BINARY_NAME)-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/$(BINARY_NAME)
-
 ## build-linux-arm: Build for Linux ARMv7 (e.g. Raspberry Pi Zero 2 W 32-bit)
-build-linux-arm: generate
+build-linux-arm:
 	@echo "Building for linux/arm (GOARM=7)..."
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux GOARCH=arm GOARM=7 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm ./$(CMD_DIR)
 	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)-linux-arm"
 
 ## build-linux-arm64: Build for Linux ARM64 (e.g. Raspberry Pi Zero 2 W 64-bit)
-build-linux-arm64: generate
+build-linux-arm64:
 	@echo "Building for linux/arm64..."
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./$(CMD_DIR)
 	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64"
 
 ## build-linux-mipsle: Build for Linux MIPS32 LE
-build-linux-mipsle: generate
+build-linux-mipsle:
 	@echo "Building for linux/mipsle (softfloat)..."
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux GOARCH=mipsle GOMIPS=softfloat $(GO) build $(GOFLAGS_NO_GOOLM) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-mipsle ./$(CMD_DIR)
@@ -385,8 +349,8 @@ build-linux-mipsle: generate
 build-pi-zero: build-linux-arm build-linux-arm64
 	@echo "Pi Zero 2 W builds: $(BUILD_DIR)/$(BINARY_NAME)-linux-arm (32-bit), $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 (64-bit)"
 
-## build-all: Build picoclaw for all platforms
-build-all: generate
+## build-all: Build oneappfactory for all platforms
+build-all:
 	@echo "Building for multiple platforms..."
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./$(CMD_DIR)
@@ -404,7 +368,7 @@ build-all: generate
 	GOOS=netbsd GOARCH=arm64 $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME)-netbsd-arm64 ./$(CMD_DIR)
 	@echo "All builds complete"
 
-## install: Install picoclaw to system and copy builtin skills
+## install: Install oneappfactory to system
 install: build
 	@echo "Installing $(BINARY_NAME)..."
 	@mkdir -p $(INSTALL_BIN_DIR)
@@ -415,7 +379,7 @@ install: build
 	@echo "Installed binary to $(INSTALL_BIN_DIR)/$(BINARY_NAME)"
 	@echo "Installation complete!"
 
-## uninstall: Remove picoclaw from system
+## uninstall: Remove oneappfactory from system
 uninstall:
 	@echo "Uninstalling $(BINARY_NAME)..."
 	@rm -f $(INSTALL_BIN_DIR)/$(BINARY_NAME)
@@ -423,11 +387,11 @@ uninstall:
 	@echo "Note: Only the executable file has been deleted."
 	@echo "If you need to delete all configurations (config.json, workspace, etc.), run 'make uninstall-all'"
 
-## uninstall-all: Remove picoclaw and all data
+## uninstall-all: Remove oneappfactory and all data
 uninstall-all:
 	@echo "Removing workspace and skills..."
-	@rm -rf $(PICOCLAW_HOME)
-	@echo "Removed workspace: $(PICOCLAW_HOME)"
+	@rm -rf $(ONEAPPFACTORY_HOME)
+	@echo "Removed workspace: $(ONEAPPFACTORY_HOME)"
 	@echo "Complete uninstallation done!"
 
 ## clean: Remove build artifacts
@@ -437,12 +401,12 @@ clean:
 	@echo "Clean complete"
 
 ## vet: Run go vet for static analysis
-vet: generate
+vet:
 	@$(GO) vet $(GOFLAGS) $(GO_SOURCE_PACKAGES)
 	@cd web/backend && $(WEB_GO) vet ./...
 
 ## test: Test Go code
-test: generate
+test:
 	@$(GO) test $(GOFLAGS) $(GO_SOURCE_PACKAGES)
 	@cd web && make test
 
@@ -471,50 +435,34 @@ update-deps:
 ## check: Run vet, fmt, and verify dependencies
 check: deps fmt vet test
 
-## run: Build and run picoclaw
+## run: Build and run oneappfactory
 run: build
 	@$(BUILD_DIR)/$(BINARY_NAME) $(ARGS)
 
-## docker-build: Build Docker image (minimal Alpine-based)
+## docker-build: Build OneAppFactory launcher and builder Docker images
 docker-build:
-	@echo "Building minimal Docker image (Alpine-based)..."
-	docker compose -f docker/docker-compose.yml build picoclaw-agent picoclaw-gateway
+	@echo "Building OneAppFactory Docker images..."
+	docker compose -f docker/docker-compose.appfactory.yml build oneappfactory oneappfactory-builder
 
-## docker-build-full: Build Docker image with full MCP support (Node.js 24)
-docker-build-full:
-	@echo "Building full-featured Docker image (Node.js 24)..."
-	docker compose -f docker/docker-compose.full.yml build picoclaw-agent picoclaw-gateway
+## docker-config: Validate OneAppFactory Docker Compose configuration
+docker-config:
+	docker compose -f docker/docker-compose.appfactory.yml config
 
-## docker-test: Test MCP tools in Docker container
-docker-test:
-	@echo "Testing MCP tools in Docker..."
-	@chmod +x scripts/test-docker-mcp.sh
-	@./scripts/test-docker-mcp.sh
-
-## docker-run: Run picoclaw gateway in Docker (Alpine-based)
+## docker-run: Run OneAppFactory launcher in Docker
 docker-run:
-	docker compose -f docker/docker-compose.yml --profile gateway up
+	docker compose -f docker/docker-compose.appfactory.yml up oneappfactory
 
-## docker-run-full: Run picoclaw gateway in Docker (full-featured)
-docker-run-full:
-	docker compose -f docker/docker-compose.full.yml --profile gateway up
-
-## docker-run-agent: Run picoclaw agent in Docker (interactive, Alpine-based)
-docker-run-agent:
-	docker compose -f docker/docker-compose.yml run --rm picoclaw-agent
-
-## docker-run-agent-full: Run picoclaw agent in Docker (interactive, full-featured)
-docker-run-agent-full:
-	docker compose -f docker/docker-compose.full.yml run --rm picoclaw-agent
+## docker-builder-shell: Open a shell in the OneAppFactory builder image
+docker-builder-shell:
+	docker compose -f docker/docker-compose.appfactory.yml run --rm oneappfactory-builder shell
 
 ## docker-clean: Clean Docker images and volumes
 docker-clean:
-	docker compose -f docker/docker-compose.yml down -v
-	docker compose -f docker/docker-compose.full.yml down -v
-	docker rmi picoclaw:latest picoclaw:full 2>/dev/null || true
+	docker compose -f docker/docker-compose.appfactory.yml down -v
+	docker rmi oneappfactory/launcher:local oneappfactory/builder:local 2>/dev/null || true
 
 
-## build-macos-app: Build PicoClaw macOS .app bundle (no terminal window)
+## build-macos-app: Build OneAppFactory macOS .app bundle (no terminal window)
 build-macos-app:
 	@echo "Building macOS .app bundle..."
 	@if [ "$(UNAME_S)" != "Darwin" ]; then \
@@ -523,11 +471,11 @@ build-macos-app:
 	fi
 	@cd web && $(MAKE) build && cd ..
 	@./scripts/build-macos-app.sh $(BINARY_NAME)-$(PLATFORM)-$(ARCH)
-	@echo "macOS .app bundle created: $(BUILD_DIR)/PicoClaw.app"
+	@echo "macOS .app bundle created: $(BUILD_DIR)/OneAppFactory Launcher.app"
 
 ## help: Show this help message
 help:
-	@echo "picoclaw Makefile"
+	@echo "oneappfactory Makefile"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make [target]"
@@ -539,13 +487,12 @@ help:
 	@echo "  make build              # Build for current platform"
 	@echo "  make install            # Install to ~/.local/bin"
 	@echo "  make uninstall          # Remove from /usr/local/bin"
-	@echo "  make install-skills     # Install skills to workspace"
-	@echo "  make docker-build       # Build minimal Docker image"
-	@echo "  make docker-test        # Test MCP tools in Docker"
+	@echo "  make build-launcher     # Build web launcher"
+	@echo "  make build-appfactory-builder # Build Android builder image"
 	@echo ""
 	@echo "Environment Variables:"
 	@echo "  INSTALL_PREFIX          # Installation prefix (default: ~/.local)"
-	@echo "  WORKSPACE_DIR           # Workspace directory (default: ~/.picoclaw/workspace)"
+	@echo "  WORKSPACE_DIR           # Workspace directory (default: ~/.appfactory/workspace)"
 	@echo "  VERSION                 # Version string (default: git describe)"
 	@echo ""
 	@echo "Current Configuration:"

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const updateGenericPrepareSamplesEnv = "PICOCLAW_UPDATE_PREPARE_SAMPLES"
+const updateGenericPrepareSamplesEnv = "ONEAPPFACTORY_UPDATE_PREPARE_SAMPLES"
 
 type genericPrepareSampleExpectation struct {
 	Name     string

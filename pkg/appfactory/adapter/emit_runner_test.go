@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 const (

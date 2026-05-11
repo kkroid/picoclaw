@@ -6,15 +6,15 @@ import (
 	"strings"
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 type taskKind string
 
 const (
-	taskKindBuilderRuntimeEdit  taskKind = "builder_runtime_edit"
-	taskKindCapturedWorkspace   taskKind = "captured_workspace_edit"
-	taskKindValidationCheck     taskKind = "validation_check"
+	taskKindBuilderRuntimeEdit taskKind = "builder_runtime_edit"
+	taskKindCapturedWorkspace  taskKind = "captured_workspace_edit"
+	taskKindValidationCheck    taskKind = "validation_check"
 )
 
 type taskTimeoutSpec struct {
@@ -24,12 +24,12 @@ type taskTimeoutSpec struct {
 }
 
 type taskFailureSpec struct {
-	Signature          string
-	RecoverySuggestion string
-	PreserveWorkspace  bool
-	ResumeAllowed      bool
+	Signature           string
+	RecoverySuggestion  string
+	PreserveWorkspace   bool
+	ResumeAllowed       bool
 	RequiresHumanReview bool
-	Policy             repairFailurePolicy
+	Policy              repairFailurePolicy
 }
 
 type taskMetadata struct {

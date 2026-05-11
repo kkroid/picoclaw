@@ -1,6 +1,6 @@
 //go:build (darwin || freebsd) && !cgo
 
-package main
+package backend
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg/logger"
+	"github.com/sipeed/oneappfactory/pkg/logger"
 )
 
 // runTray falls back to a headless mode on platforms where systray requires cgo.

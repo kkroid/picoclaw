@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/review-bundle-metadata.schema.json",
-  "title": "PicoClaw Review Bundle Metadata",
+  "$id": "https://oneappfactory.local/docs/design/schemas/review-bundle-metadata.schema.json",
+  "title": "OneAppFactory Review Bundle Metadata",
   "description": "jobs/{job_id}/reports/review-bundle.metadata.json 的结构基线。",
   "type": "object",
   "additionalProperties": false,

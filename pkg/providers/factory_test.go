@@ -3,13 +3,12 @@ package providers
 import (
 	"testing"
 
-	"github.com/sipeed/picoclaw/pkg/auth"
-	"github.com/sipeed/picoclaw/pkg/config"
+	"github.com/sipeed/oneappfactory/pkg/auth"
+	"github.com/sipeed/oneappfactory/pkg/config"
 )
 
 func TestCreateProviderReturnsHTTPProviderForOpenRouter(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.ModelName = "test-openrouter"
 	modelCfg := &config.ModelConfig{
 		ModelName: "test-openrouter",
 		Model:     "openrouter/auto",
@@ -30,7 +29,6 @@ func TestCreateProviderReturnsHTTPProviderForOpenRouter(t *testing.T) {
 
 func TestCreateProviderReturnsCodexCliProviderForCodexCode(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.ModelName = "test-codex"
 	cfg.ModelList = []*config.ModelConfig{
 		{
 			ModelName: "test-codex",
@@ -51,7 +49,6 @@ func TestCreateProviderReturnsCodexCliProviderForCodexCode(t *testing.T) {
 
 func TestCreateProviderReturnsClaudeCliProviderForClaudeCli(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.ModelName = "test-claude-cli"
 	cfg.ModelList = []*config.ModelConfig{
 		{
 			ModelName: "test-claude-cli",
@@ -84,7 +81,6 @@ func TestCreateProviderReturnsClaudeProviderForAnthropicOAuth(t *testing.T) {
 	}
 
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.ModelName = "test-claude-oauth"
 	cfg.ModelList = []*config.ModelConfig{
 		{
 			ModelName:  "test-claude-oauth",

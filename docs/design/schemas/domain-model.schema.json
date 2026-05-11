@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/domain-model.schema.json",
-  "title": "PicoClaw Domain Model",
+  "$id": "https://oneappfactory.local/docs/design/schemas/domain-model.schema.json",
+  "title": "OneAppFactory Domain Model",
   "description": "planning-engine 产出的领域语义模型快照。",
   "type": "object",
   "additionalProperties": false,

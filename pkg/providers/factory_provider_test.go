@@ -1,7 +1,7 @@
-// PicoClaw - Ultra-lightweight personal AI agent
+// OneAppFactory - Android app factory
 // License: MIT
 //
-// Copyright (c) 2026 PicoClaw contributors
+// Copyright (c) 2026 OneAppFactory contributors
 
 package providers
 
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg/config"
+	"github.com/sipeed/oneappfactory/pkg/config"
 )
 
 func TestExtractProtocol(t *testing.T) {

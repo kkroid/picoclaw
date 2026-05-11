@@ -1,7 +1,7 @@
-// PicoClaw - Ultra-lightweight personal AI agent
+// OneAppFactory - Android app factory
 // License: MIT
 //
-// Copyright (c) 2026 PicoClaw contributors
+// Copyright (c) 2026 OneAppFactory contributors
 
 package config
 
@@ -20,9 +20,6 @@ func TestSecurityConfig(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, sec)
 		assert.Empty(t, sec.ModelList)
-		assert.NotNil(t, sec.Channels)
-		assert.NotNil(t, sec.Web)
-		assert.NotNil(t, sec.Skills)
 	})
 }
 
@@ -34,8 +31,8 @@ func TestSecurityPath(t *testing.T) {
 	}{
 		{
 			name:      "standard path",
-			configDir: "/home/user/.picoclaw/config.json",
-			want:      "/home/user/.picoclaw/.security.yml",
+			configDir: "/home/user/.appfactory/config.json",
+			want:      "/home/user/.appfactory/.security.yml",
 		},
 		{
 			name:      "nested path",
@@ -62,16 +59,6 @@ func TestSaveAndLoadSecurityConfig(t *testing.T) {
 				APIKeys: []string{"key1", "key2"},
 			},
 		},
-		Channels: &ChannelsSecurity{
-			Telegram: &TelegramSecurity{
-				Token: "telegram-token",
-			},
-		},
-		Web: &WebToolsSecurity{
-			Brave: &BraveSecurity{
-				APIKeys: []string{"brave-api-key"},
-			},
-		},
 	}
 
 	// Save
@@ -88,6 +75,4 @@ func TestSaveAndLoadSecurityConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, original.ModelList, loaded.ModelList)
-	assert.Equal(t, original.Channels.Telegram.Token, loaded.Channels.Telegram.Token)
-	assert.EqualValues(t, original.Web.Brave.APIKeys, loaded.Web.Brave.APIKeys)
 }

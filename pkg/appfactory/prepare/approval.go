@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 func buildPRDApprovalRecord(spec domainSpec, prd PRD, prdMarkdown, requirement string, now time.Time) appruns.ApprovalRecord {

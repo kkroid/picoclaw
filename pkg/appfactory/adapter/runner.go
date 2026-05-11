@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
-	appconfig "github.com/sipeed/picoclaw/pkg/config"
-	"github.com/sipeed/picoclaw/pkg/fileutil"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
+	appconfig "github.com/sipeed/oneappfactory/pkg/config"
+	"github.com/sipeed/oneappfactory/pkg/fileutil"
 )
 
 type Runner struct {
@@ -2489,7 +2489,7 @@ func deviceFailureSignatureForCheck(checkID string) string {
 	}
 }
 
-const failureSignatureMarker = "__picoclaw_failure_signature__:"
+const failureSignatureMarker = "__oneappfactory_failure_signature__:"
 
 type repairFailurePolicy struct {
 	PreserveWorkspace   bool
@@ -3287,14 +3287,20 @@ func dockerPrepareCommand(ctx context.Context, run runRecord) (*exec.Cmd, error)
 }
 
 func dockerCommand(ctx context.Context, run runRecord, argv []string, extraEnv []string) (*exec.Cmd, error) {
+	return dockerCommandWithOwnershipPrepare(ctx, run, argv, extraEnv, true)
+}
+
+func dockerCommandWithOwnershipPrepare(ctx context.Context, run runRecord, argv []string, extraEnv []string, prepareOwnership bool) (*exec.Cmd, error) {
 	root := appFactoryRootFromWorkspace(run.WorkspacePath)
-	if err := ensureDockerWritablePaths(ctx, root, run); err != nil {
-		return nil, err
+	if prepareOwnership {
+		if err := ensureDockerWritablePaths(ctx, root, run); err != nil {
+			return nil, err
+		}
 	}
 	gradleUserHome := resolveBuilderGradleUserHome(root)
 	builderHome := resolveBuilderHome(root)
 	builderTempDir := resolveBuilderTempDir(root)
-	useHostNetwork := strings.EqualFold(strings.TrimSpace(os.Getenv("APPFACTORY_BUILDER_DOCKER_NETWORK")), "host")
+	useHostNetwork := strings.EqualFold(strings.TrimSpace(os.Getenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK")), "host")
 	args := []string{
 		"run", "--rm",
 		"--user", strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid()),
@@ -3328,8 +3334,8 @@ func dockerCommand(ctx context.Context, run runRecord, argv []string, extraEnv [
 	args = append(args, "-e", "TMPDIR="+builderTempDir)
 	args = append(args, "-e", "XDG_CACHE_HOME="+resolveBuilderXDGCacheHome(root))
 	args = append(args, dockerEnvArgs(
-		"APPFACTORY_BUILDER_DOCKER_NETWORK",
-		"APPFACTORY_BUILDER_RUNTIME",
+		"ONEAPPFACTORY_BUILDER_DOCKER_NETWORK",
+		"ONEAPPFACTORY_BUILDER_RUNTIME",
 		"APPFACTORY_DEVICE_VERIFICATION_ENABLED",
 		"APPFACTORY_DEVICE_SERIAL",
 		"APPFACTORY_ANDROID_APP_ID",

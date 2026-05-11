@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/approval-record.schema.json",
-  "title": "PicoClaw Approval Record",
+  "$id": "https://oneappfactory.local/docs/design/schemas/approval-record.schema.json",
+  "title": "OneAppFactory Approval Record",
   "description": "人工审批与门禁记录。",
   "type": "object",
   "additionalProperties": false,

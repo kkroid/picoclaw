@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/task-allocation.schema.json",
-  "title": "PicoClaw Task Allocation",
+  "$id": "https://oneappfactory.local/docs/design/schemas/task-allocation.schema.json",
+  "title": "OneAppFactory Task Allocation",
   "description": "planning-engine 产出的任务分配与文件归属快照。",
   "type": "object",
   "additionalProperties": false,

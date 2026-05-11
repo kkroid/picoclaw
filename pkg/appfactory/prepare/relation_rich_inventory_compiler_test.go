@@ -169,13 +169,13 @@ func TestCompileInventorySheetLineItemRequirement(t *testing.T) {
 func TestCompileInventorySheetLineItemRequirementUsesRealBuildChecksWhenExecutorImageProvided(t *testing.T) {
 	bundle, err := Compile(Request{
 		RequirementText: "做一个库存单协同 app，需要库存看板、库存单列表、库存单编辑和库存单详情，支持在库存单里维护多个明细项，并按仓库和低库存状态筛选。",
-		ExecutorImage:   "picoclaw/appfactory-builder:local",
+		ExecutorImage:   "oneappfactory/builder:local",
 	})
 	if err != nil {
 		t.Fatalf("Compile() error = %v", err)
 	}
-	if bundle.BuilderInput.ExecutorImage != "picoclaw/appfactory-builder:local" {
-		t.Fatalf("ExecutorImage = %q, want picoclaw/appfactory-builder:local", bundle.BuilderInput.ExecutorImage)
+	if bundle.BuilderInput.ExecutorImage != "oneappfactory/builder:local" {
+		t.Fatalf("ExecutorImage = %q, want oneappfactory/builder:local", bundle.BuilderInput.ExecutorImage)
 	}
 	if len(bundle.BuilderInput.AcceptanceChecks) != 7 {
 		t.Fatalf("AcceptanceChecks len = %d, want 7", len(bundle.BuilderInput.AcceptanceChecks))
@@ -192,8 +192,8 @@ func TestCompileInventorySheetLineItemRequirementUsesRealBuildChecksWhenExecutor
 		t.Fatalf("ProtectedPaths = %v, want narrowed protected paths in inventory relation-rich real-build path", bundle.BuilderInput.ProtectedPaths)
 	}
 	for _, check := range bundle.BuilderInput.AcceptanceChecks {
-		if check.CheckID == "check-legacy-thin-fallback-probe" || check.CheckID == "check-legacy-thin-fallback-metadata" {
-			t.Fatalf("unexpected legacy fallback check in inventory relation-rich real-build path: %q", check.CheckID)
+		if check.CheckID == "check-oneappfactory-thin-fallback-probe" || check.CheckID == "check-oneappfactory-thin-fallback-metadata" {
+			t.Fatalf("unexpected OneAppFactory fallback check in inventory relation-rich real-build path: %q", check.CheckID)
 		}
 	}
 }

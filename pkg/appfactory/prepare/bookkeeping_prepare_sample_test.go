@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-const updateBookkeepingPrepareSamplesEnv = "PICOCLAW_UPDATE_BOOKKEEPING_PREPARE_SAMPLES"
-const updateBookkeepingGoldensEnv = "PICOCLAW_UPDATE_BOOKKEEPING_GOLDENS"
+const updateBookkeepingPrepareSamplesEnv = "ONEAPPFACTORY_UPDATE_BOOKKEEPING_PREPARE_SAMPLES"
+const updateBookkeepingGoldensEnv = "ONEAPPFACTORY_UPDATE_BOOKKEEPING_GOLDENS"
 
 func TestCompileBookkeepingBuilderInputGolden(t *testing.T) {
 	t.Parallel()

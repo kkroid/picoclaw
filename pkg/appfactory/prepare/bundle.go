@@ -3,7 +3,7 @@ package prepare
 import (
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 func buildBundle(spec domainSpec, prd PRD, now time.Time) (Bundle, error) {

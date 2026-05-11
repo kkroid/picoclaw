@@ -198,13 +198,13 @@ func TestCompileRelationRichRequirement(t *testing.T) {
 func TestCompileRelationRichRequirementUsesRealBuildChecksWhenExecutorImageProvided(t *testing.T) {
 	bundle, err := Compile(Request{
 		RequirementText: "做一个项目任务协同 app，需要项目看板、任务列表、任务编辑和标签绑定，支持按项目和标签筛选任务。",
-		ExecutorImage:   "picoclaw/appfactory-builder:local",
+		ExecutorImage:   "oneappfactory/builder:local",
 	})
 	if err != nil {
 		t.Fatalf("Compile() error = %v", err)
 	}
-	if bundle.BuilderInput.ExecutorImage != "picoclaw/appfactory-builder:local" {
-		t.Fatalf("ExecutorImage = %q, want picoclaw/appfactory-builder:local", bundle.BuilderInput.ExecutorImage)
+	if bundle.BuilderInput.ExecutorImage != "oneappfactory/builder:local" {
+		t.Fatalf("ExecutorImage = %q, want oneappfactory/builder:local", bundle.BuilderInput.ExecutorImage)
 	}
 	if len(bundle.BuilderInput.AcceptanceChecks) != 7 {
 		t.Fatalf("AcceptanceChecks len = %d, want 7", len(bundle.BuilderInput.AcceptanceChecks))
@@ -221,8 +221,8 @@ func TestCompileRelationRichRequirementUsesRealBuildChecksWhenExecutorImageProvi
 		t.Fatalf("ProtectedPaths = %v, want narrowed protected paths in relation-rich real-build path", bundle.BuilderInput.ProtectedPaths)
 	}
 	for _, check := range bundle.BuilderInput.AcceptanceChecks {
-		if check.CheckID == "check-legacy-thin-fallback-probe" || check.CheckID == "check-legacy-thin-fallback-metadata" {
-			t.Fatalf("unexpected legacy fallback check in relation-rich real-build path: %q", check.CheckID)
+		if check.CheckID == "check-oneappfactory-thin-fallback-probe" || check.CheckID == "check-oneappfactory-thin-fallback-metadata" {
+			t.Fatalf("unexpected OneAppFactory fallback check in relation-rich real-build path: %q", check.CheckID)
 		}
 	}
 }

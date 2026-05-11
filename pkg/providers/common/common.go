@@ -1,7 +1,7 @@
-// PicoClaw - Ultra-lightweight personal AI agent
+// OneAppFactory - Android app factory
 // License: MIT
 //
-// Copyright (c) 2026 PicoClaw contributors
+// Copyright (c) 2026 OneAppFactory contributors
 
 // Package common provides shared utilities used by multiple LLM provider
 // implementations (openai_compat, azure, etc.).
@@ -18,8 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg/httpx"
-	"github.com/sipeed/picoclaw/pkg/providers/protocoltypes"
+	"github.com/sipeed/oneappfactory/pkg/httpx"
+	"github.com/sipeed/oneappfactory/pkg/providers/protocoltypes"
 )
 
 // Re-export protocol types used across providers.

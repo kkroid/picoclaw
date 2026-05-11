@@ -2,28 +2,19 @@ export type JsonRecord = Record<string, unknown>
 
 export interface CoreConfigForm {
   workspace: string
-  restrictToWorkspace: boolean
-  splitOnMarker: boolean
-  toolFeedbackEnabled: boolean
-  toolFeedbackMaxArgsLength: string
-  execEnabled: boolean
-  allowRemote: boolean
-  enableDenyPatterns: boolean
-  customDenyPatternsText: string
-  customAllowPatternsText: string
-  execTimeoutSeconds: string
-  allowCommand: boolean
-  cronExecTimeoutMinutes: string
-  maxTokens: string
-  contextWindow: string
-  maxToolIterations: string
-  summarizeMessageThreshold: string
-  summarizeTokenPercent: string
-  dmScope: string
-  heartbeatEnabled: boolean
-  heartbeatInterval: string
-  devicesEnabled: boolean
-  monitorUSB: boolean
+  builderRuntimeEnabled: boolean
+  defaultModelPrimary: string
+  defaultModelFallbacksText: string
+  upgradeModelPrimary: string
+  upgradeModelFallbacksText: string
+  maxAttemptsBeforeUpgrade: string
+  maxFilesBeforeUpgrade: string
+  maxSchemaDriftBeforeUpgrade: string
+  maxUnrelatedOperationRate: string
+  upgradeOnValidationFail: boolean
+  upgradeOnPatchParseFail: boolean
+  upgradeOnScopeViolation: boolean
+  upgradeOnSemanticConflict: boolean
 }
 
 export interface LauncherForm {
@@ -32,61 +23,21 @@ export interface LauncherForm {
   allowedCIDRsText: string
 }
 
-export const DM_SCOPE_OPTIONS = [
-  {
-    value: "per-channel-peer",
-    labelKey: "pages.config.session_scope_per_channel_peer",
-    labelDefault: "Per Channel + Peer",
-    descKey: "pages.config.session_scope_per_channel_peer_desc",
-    descDefault: "Separate context for each user in each channel.",
-  },
-  {
-    value: "per-channel",
-    labelKey: "pages.config.session_scope_per_channel",
-    labelDefault: "Per Channel",
-    descKey: "pages.config.session_scope_per_channel_desc",
-    descDefault: "One shared context per channel.",
-  },
-  {
-    value: "per-peer",
-    labelKey: "pages.config.session_scope_per_peer",
-    labelDefault: "Per Peer",
-    descKey: "pages.config.session_scope_per_peer_desc",
-    descDefault: "One context per user across channels.",
-  },
-  {
-    value: "global",
-    labelKey: "pages.config.session_scope_global",
-    labelDefault: "Global",
-    descKey: "pages.config.session_scope_global_desc",
-    descDefault: "All messages share one global context.",
-  },
-] as const
-
 export const EMPTY_FORM: CoreConfigForm = {
   workspace: "",
-  restrictToWorkspace: true,
-  splitOnMarker: false,
-  toolFeedbackEnabled: false,
-  toolFeedbackMaxArgsLength: "300",
-  execEnabled: true,
-  allowRemote: true,
-  enableDenyPatterns: true,
-  customDenyPatternsText: "",
-  customAllowPatternsText: "",
-  execTimeoutSeconds: "0",
-  allowCommand: true,
-  cronExecTimeoutMinutes: "5",
-  maxTokens: "32768",
-  contextWindow: "",
-  maxToolIterations: "50",
-  summarizeMessageThreshold: "20",
-  summarizeTokenPercent: "75",
-  dmScope: "per-channel-peer",
-  heartbeatEnabled: true,
-  heartbeatInterval: "30",
-  devicesEnabled: false,
-  monitorUSB: true,
+  builderRuntimeEnabled: false,
+  defaultModelPrimary: "",
+  defaultModelFallbacksText: "",
+  upgradeModelPrimary: "",
+  upgradeModelFallbacksText: "",
+  maxAttemptsBeforeUpgrade: "2",
+  maxFilesBeforeUpgrade: "2",
+  maxSchemaDriftBeforeUpgrade: "0",
+  maxUnrelatedOperationRate: "0",
+  upgradeOnValidationFail: true,
+  upgradeOnPatchParseFail: true,
+  upgradeOnScopeViolation: true,
+  upgradeOnSemanticConflict: false,
 }
 
 export const EMPTY_LAUNCHER_FORM: LauncherForm = {
@@ -120,104 +71,71 @@ function asNumberString(value: unknown, fallback: string): string {
   return fallback
 }
 
+function modelPrimary(value: unknown): string {
+  if (typeof value === "string") {
+    return value
+  }
+  return asString(asRecord(value).primary)
+}
+
+function modelFallbacksText(value: unknown): string {
+  if (typeof value === "string") {
+    return ""
+  }
+  const fallbacks = asRecord(value).fallbacks
+  return Array.isArray(fallbacks)
+    ? fallbacks.filter((item): item is string => typeof item === "string").join("\n")
+    : ""
+}
+
 export function buildFormFromConfig(config: unknown): CoreConfigForm {
   const root = asRecord(config)
-  const agents = asRecord(root.agents)
-  const defaults = asRecord(agents.defaults)
-  const session = asRecord(root.session)
-  const heartbeat = asRecord(root.heartbeat)
-  const devices = asRecord(root.devices)
-  const tools = asRecord(root.tools)
-  const cron = asRecord(tools.cron)
-  const exec = asRecord(tools.exec)
-  const toolFeedback = asRecord(defaults.tool_feedback)
+  const appfactory = asRecord(root.appfactory)
+  const builderRuntime = asRecord(appfactory.builder_runtime)
+  const threshold = asRecord(builderRuntime.upgrade_threshold)
 
   return {
-    workspace: asString(defaults.workspace) || EMPTY_FORM.workspace,
-    restrictToWorkspace:
-      defaults.restrict_to_workspace === undefined
-        ? EMPTY_FORM.restrictToWorkspace
-        : asBool(defaults.restrict_to_workspace),
-    splitOnMarker:
-      defaults.split_on_marker === undefined
-        ? EMPTY_FORM.splitOnMarker
-        : asBool(defaults.split_on_marker),
-    toolFeedbackEnabled:
-      toolFeedback.enabled === undefined
-        ? EMPTY_FORM.toolFeedbackEnabled
-        : asBool(toolFeedback.enabled),
-    toolFeedbackMaxArgsLength: asNumberString(
-      toolFeedback.max_args_length,
-      EMPTY_FORM.toolFeedbackMaxArgsLength,
+    workspace: asString(root.workspace) || EMPTY_FORM.workspace,
+    builderRuntimeEnabled:
+      builderRuntime.enabled === undefined
+        ? EMPTY_FORM.builderRuntimeEnabled
+        : asBool(builderRuntime.enabled),
+    defaultModelPrimary: modelPrimary(builderRuntime.default_model),
+    defaultModelFallbacksText: modelFallbacksText(builderRuntime.default_model),
+    upgradeModelPrimary: modelPrimary(builderRuntime.upgrade_model),
+    upgradeModelFallbacksText: modelFallbacksText(builderRuntime.upgrade_model),
+    maxAttemptsBeforeUpgrade: asNumberString(
+      threshold.max_attempts_before_upgrade,
+      EMPTY_FORM.maxAttemptsBeforeUpgrade,
     ),
-    execEnabled:
-      exec.enabled === undefined
-        ? EMPTY_FORM.execEnabled
-        : asBool(exec.enabled),
-    allowRemote:
-      exec.allow_remote === undefined
-        ? EMPTY_FORM.allowRemote
-        : asBool(exec.allow_remote),
-    enableDenyPatterns:
-      exec.enable_deny_patterns === undefined
-        ? EMPTY_FORM.enableDenyPatterns
-        : asBool(exec.enable_deny_patterns),
-    customDenyPatternsText: Array.isArray(exec.custom_deny_patterns)
-      ? exec.custom_deny_patterns
-          .filter((value): value is string => typeof value === "string")
-          .join("\n")
-      : EMPTY_FORM.customDenyPatternsText,
-    customAllowPatternsText: Array.isArray(exec.custom_allow_patterns)
-      ? exec.custom_allow_patterns
-          .filter((value): value is string => typeof value === "string")
-          .join("\n")
-      : EMPTY_FORM.customAllowPatternsText,
-    execTimeoutSeconds: asNumberString(
-      exec.timeout_seconds,
-      EMPTY_FORM.execTimeoutSeconds,
+    maxFilesBeforeUpgrade: asNumberString(
+      threshold.max_files_before_upgrade,
+      EMPTY_FORM.maxFilesBeforeUpgrade,
     ),
-    allowCommand:
-      cron.allow_command === undefined
-        ? EMPTY_FORM.allowCommand
-        : asBool(cron.allow_command),
-    cronExecTimeoutMinutes: asNumberString(
-      cron.exec_timeout_minutes,
-      EMPTY_FORM.cronExecTimeoutMinutes,
+    maxSchemaDriftBeforeUpgrade: asNumberString(
+      threshold.max_schema_drift_before_upgrade,
+      EMPTY_FORM.maxSchemaDriftBeforeUpgrade,
     ),
-    maxTokens: asNumberString(defaults.max_tokens, EMPTY_FORM.maxTokens),
-    contextWindow: asNumberString(
-      defaults.context_window,
-      EMPTY_FORM.contextWindow,
+    maxUnrelatedOperationRate: asNumberString(
+      threshold.max_unrelated_operation_rate,
+      EMPTY_FORM.maxUnrelatedOperationRate,
     ),
-    maxToolIterations: asNumberString(
-      defaults.max_tool_iterations,
-      EMPTY_FORM.maxToolIterations,
-    ),
-    summarizeMessageThreshold: asNumberString(
-      defaults.summarize_message_threshold,
-      EMPTY_FORM.summarizeMessageThreshold,
-    ),
-    summarizeTokenPercent: asNumberString(
-      defaults.summarize_token_percent,
-      EMPTY_FORM.summarizeTokenPercent,
-    ),
-    dmScope: asString(session.dm_scope) || EMPTY_FORM.dmScope,
-    heartbeatEnabled:
-      heartbeat.enabled === undefined
-        ? EMPTY_FORM.heartbeatEnabled
-        : asBool(heartbeat.enabled),
-    heartbeatInterval: asNumberString(
-      heartbeat.interval,
-      EMPTY_FORM.heartbeatInterval,
-    ),
-    devicesEnabled:
-      devices.enabled === undefined
-        ? EMPTY_FORM.devicesEnabled
-        : asBool(devices.enabled),
-    monitorUSB:
-      devices.monitor_usb === undefined
-        ? EMPTY_FORM.monitorUSB
-        : asBool(devices.monitor_usb),
+    upgradeOnValidationFail:
+      threshold.upgrade_on_validation_fail === undefined
+        ? EMPTY_FORM.upgradeOnValidationFail
+        : asBool(threshold.upgrade_on_validation_fail),
+    upgradeOnPatchParseFail:
+      threshold.upgrade_on_patch_parse_fail === undefined
+        ? EMPTY_FORM.upgradeOnPatchParseFail
+        : asBool(threshold.upgrade_on_patch_parse_fail),
+    upgradeOnScopeViolation:
+      threshold.upgrade_on_scope_violation === undefined
+        ? EMPTY_FORM.upgradeOnScopeViolation
+        : asBool(threshold.upgrade_on_scope_violation),
+    upgradeOnSemanticConflict:
+      threshold.upgrade_on_semantic_conflict === undefined
+        ? EMPTY_FORM.upgradeOnSemanticConflict
+        : asBool(threshold.upgrade_on_semantic_conflict),
   }
 }
 
@@ -229,6 +147,24 @@ export function parseIntField(
   const value = Number(rawValue)
   if (!Number.isInteger(value)) {
     throw new Error(`${label} must be an integer.`)
+  }
+  if (options.min !== undefined && value < options.min) {
+    throw new Error(`${label} must be >= ${options.min}.`)
+  }
+  if (options.max !== undefined && value > options.max) {
+    throw new Error(`${label} must be <= ${options.max}.`)
+  }
+  return value
+}
+
+export function parseFloatField(
+  rawValue: string,
+  label: string,
+  options: { min?: number; max?: number } = {},
+): number {
+  const value = Number(rawValue)
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} must be a number.`)
   }
   if (options.min !== undefined && value < options.min) {
     throw new Error(`${label} must be >= ${options.min}.`)

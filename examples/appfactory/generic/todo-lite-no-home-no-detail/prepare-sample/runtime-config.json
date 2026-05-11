@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1.0",
-  "executor_image": "picoclaw/appfactory-builder:local",
+  "executor_image": "oneappfactory/appfactory-builder:local",
   "workspace_path": "/workspace/job-todo-lite-no-home-no-detail-sample-001",
   "artifact_dir": "/artifacts/job-todo-lite-no-home-no-detail-sample-001",
   "goal_summary": "将待办事项需求整理成基于 flutter-open-lite 的中性交互承载 Android MVP 输入包，围绕集合浏览、实体变更和本地持久化形成当前最小闭环。",

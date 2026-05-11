@@ -3,7 +3,7 @@
   "job_id": "job-bookkeeping-lite-real",
   "prd_id": "prd-bookkeeping-lite",
   "template_id": "flutter-finance-lite",
-  "executor_image": "picoclaw/appfactory-builder:local",
+  "executor_image": "oneappfactory/appfactory-builder:local",
   "workspace_path": "/workspace/job-bookkeeping-lite-real",
   "artifact_dir": "/artifacts/job-bookkeeping-lite-real",
   "goal_summary": "使用真实 Flutter Builder 镜像验证记账模板的 analyze、test 和 debug APK 构建链路。",

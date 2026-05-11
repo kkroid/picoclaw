@@ -381,11 +381,11 @@ func TestConfigureFromEnv(t *testing.T) {
 		t.Skip("HOME not set")
 	}
 
-	tmpFile := "/tmp/picoclaw_test_log_" + fmt.Sprintf("%d", time.Now().UnixNano())
+	tmpFile := "/tmp/oneappfactory_test_log_" + fmt.Sprintf("%d", time.Now().UnixNano())
 	defer os.Remove(tmpFile)
 
-	os.Setenv("PICOCLAW_LOG_FILE", tmpFile)
-	defer os.Unsetenv("PICOCLAW_LOG_FILE")
+	os.Setenv("ONEAPPFACTORY_LOG_FILE", tmpFile)
+	defer os.Unsetenv("ONEAPPFACTORY_LOG_FILE")
 
 	ConfigureFromEnv()
 
@@ -395,7 +395,7 @@ func TestConfigureFromEnv(t *testing.T) {
 
 	Info("test message")
 
-	os.Setenv("PICOCLAW_LOG_FILE", "~/test_log")
+	os.Setenv("ONEAPPFACTORY_LOG_FILE", "~/test_log")
 	ConfigureFromEnv()
 
 	expanded := filepath.Join(home, "test_log")
@@ -403,6 +403,6 @@ func TestConfigureFromEnv(t *testing.T) {
 }
 
 func TestConfigureFromEnvNoEnv(t *testing.T) {
-	os.Unsetenv("PICOCLAW_LOG_FILE")
+	os.Unsetenv("ONEAPPFACTORY_LOG_FILE")
 	ConfigureFromEnv()
 }

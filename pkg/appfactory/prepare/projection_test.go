@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 func TestProjectBuildInputMatchesDirectCompile(t *testing.T) {
 	t.Parallel()
 
 	samples := []struct {
-		name       string
-		sampleDir  string
-		buildFunc  func(t *testing.T) Bundle
+		name      string
+		sampleDir string
+		buildFunc func(t *testing.T) Bundle
 	}{
 		{
 			name:      "relation-rich/project-task-tag",

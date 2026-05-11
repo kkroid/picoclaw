@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/template-slot-map.schema.json",
-  "title": "PicoClaw Template Slot Map",
+  "$id": "https://oneappfactory.local/docs/design/schemas/template-slot-map.schema.json",
+  "title": "OneAppFactory Template Slot Map",
   "description": "模板稳定覆盖点与验收影响的注册表草案。",
   "type": "object",
   "additionalProperties": false,

@@ -7,7 +7,7 @@ governance_root="${APPFACTORY_TEMPLATE_GOVERNANCE_ROOT:-${2:-workspace/appfactor
 latest_json_path="${APPFACTORY_TEMPLATE_GOVERNANCE_LATEST_JSON:-${governance_root}/latest.json}"
 latest_markdown_path="${APPFACTORY_TEMPLATE_GOVERNANCE_LATEST_MARKDOWN:-${governance_root}/latest.md}"
 cache_root="${APPFACTORY_TEMPLATE_GOVERNANCE_CACHE_ROOT:-workspace/appfactory/builder-cache/template-verify}"
-builder_image="${APPFACTORY_BUILDER_IMAGE:-picoclaw/appfactory-builder:local}"
+builder_image="${ONEAPPFACTORY_BUILDER_IMAGE:-oneappfactory/builder:local}"
 governance_source_mode="${APPFACTORY_TEMPLATE_GOVERNANCE_SOURCE:-image}"
 template_root_in_image="${APPFACTORY_TEMPLATE_ROOT_IN_IMAGE:-/opt/appfactory/templates}"
 repo_root_in_image="${APPFACTORY_REPO_ROOT_IN_IMAGE:-/opt/appfactory}"
@@ -565,7 +565,7 @@ fi
 
 if ! docker image inspect "$builder_image" >/dev/null 2>&1; then
   echo "builder image not found: $builder_image" >&2
-  echo "run 'make build-appfactory-builder' first or set APPFACTORY_BUILDER_IMAGE to an existing image" >&2
+  echo "run 'make build-appfactory-builder' first or set ONEAPPFACTORY_BUILDER_IMAGE to an existing image" >&2
   exit 1
 fi
 

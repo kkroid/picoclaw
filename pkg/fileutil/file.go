@@ -1,8 +1,8 @@
-// PicoClaw - Ultra-lightweight personal AI agent
+// OneAppFactory - Android app factory
 // Inspired by and based on nanobot: https://github.com/HKUDS/nanobot
 // License: MIT
 //
-// Copyright (c) 2026 PicoClaw contributors
+// Copyright (c) 2026 OneAppFactory contributors
 
 // Package fileutil provides file manipulation utilities.
 package fileutil

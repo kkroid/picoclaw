@@ -2,7 +2,7 @@
 
 ## 产品定位
 
-基于 UE5 数字人（MetaHuman + OneLive 音频表情）+ picoclaw AI 引擎，构建面向个人的 AI 管家产品。
+基于 UE5 数字人（MetaHuman + OneLive 音频表情）+ oneappfactory AI 引擎，构建面向个人的 AI 管家产品。
 
 **双模态交互**：
 - 语音（数字人界面）：实时对话、口语问答、指令下达
@@ -77,13 +77,13 @@ Ollama 是 llama.cpp 的包装层，All-in-One DLL 终态需要去掉这层包�
 
 ### 多模型路由（后期备忘，当前不实现）
 
-当出现质量瓶颈时，按 channel 切分：语音 → 本地 4B（延迟优先），消息 → 云端（质量优先）。云端候选：DeepSeek V3（国内直连，极低价格），通义 qwen-plus（有免费额度）。切换时 picoclaw per-agent 配置，handler 一行判断，无需架构改动。
+当出现质量瓶颈时，按 channel 切分：语音 → 本地 4B（延迟优先），消息 → 云端（质量优先）。云端候选：DeepSeek V3（国内直连，极低价格），通义 qwen-plus（有免费额度）。切换时 oneappfactory per-agent 配置，handler 一行判断，无需架构改动。
 
 ---
 
 ## 消息渠道选型
 
-picoclaw 原生支持 17 个渠道，无需额外开发。选型原则：国内可用 + 免费 + API 完整。
+oneappfactory 原生支持 17 个渠道，无需额外开发。选型原则：国内可用 + 免费 + API 完整。
 
 | 渠道 | 需代理 | 个人注册 | 文件/图片 | 结论 |
 |---|---|---|---|---|
@@ -92,7 +92,7 @@ picoclaw 原生支持 17 个渠道，无需额外开发。选型原则：国内�
 | 企微 | 否 | 需企业认证 | 支持 | — |
 | OneBot/QQ | 否 | 需第三方客户端 | 支持 | 有封号风险，不推荐 |
 
-**结论**：飞书（生产）+ Telegram（开发）双配置并行，picoclaw 切换零成本。
+**结论**：飞书（生产）+ Telegram（开发）双配置并行，oneappfactory 切换零成本。
 
 飞书配置：创建自建应用 → 获取 App ID/Secret → 填入 `channels.feishu`。
 
@@ -106,11 +106,11 @@ picoclaw 原生支持 17 个渠道，无需额外开发。选型原则：国内�
 Windows 主机
 ├── Ollama（GPU 推理，OLLAMA_HOST=0.0.0.0，模型 qwen3:4b）
 └── WSL2 (ubuntu2404)
-    └── picoclaw
+    └── oneappfactory
         ├── gateway + xiaozhi channel   api_base: http://10.255.255.254:11434/v1
         └── channels.feishu / telegram  api_base: http://10.255.255.254:11434/v1
 
-JarvisCore（UE5，Windows）→ WSL picoclaw `/xiaozhi/v1/`
+JarvisCore（UE5，Windows）→ WSL oneappfactory `/xiaozhi/v1/`
 ```
 
 > 阶段六前期替换为 llama-server（llama.cpp 内置，OpenAI 兼容），只改 `api_base` 端口，业务代码零改动。
@@ -120,7 +120,7 @@ JarvisCore（UE5，Windows）→ WSL picoclaw `/xiaozhi/v1/`
 ```
 Linux 服务器（有 GPU）
 ├── ollama 容器        GPU 推理，挂载模型目录
-├── picoclaw 容器
+├── oneappfactory 容器
 │   ├── gateway + xiaozhi channel
 │   ├── 飞书 / Telegram / MCP / Cron
 │   └── 连接 ollama
@@ -136,7 +136,7 @@ Windows / Linux（有 GPU）
         ├── mm_vad.dll        VAD / NS / AEC / AGC
         ├── libonelive.dll    面部表情音频驱动
         └── jarvis_ai.dll     Go c-shared，AI 管家全量
-            ├── picoclaw Agent  记忆 / 工具 / MCP / 消息渠道
+            ├── oneappfactory Agent  记忆 / 工具 / MCP / 消息渠道
             ├── ASR             豆包流式
             ├── TTS             豆包流式
             └── llama.cpp (CGo) in-process，无独立进程
@@ -146,7 +146,7 @@ Windows / Linux（有 GPU）
 
 ## 仓库信息
 
-- Fork 地址：`git@github.com:kkroid/picoclaw.git`
+- Fork 地址：`git@github.com:kkroid/oneappfactory.git`
 - 工作分支：`feature/jarvis`
 
 ---
@@ -173,7 +173,7 @@ Windows / Linux（有 GPU）
 ```
 [JarvisCore] UE5 C++ 数字人客户端（端侧 VAD，xiaozhi WebSocket 协议）
     ↕
-[picoclaw gateway] 主进程（Go）
+[oneappfactory gateway] 主进程（Go）
     ├── pkg/channels/xiaozhi
     │   ├── owner / device / session 解析
     │   ├── ASR provider（doubao / funasr）
@@ -188,17 +188,17 @@ Windows / Linux（有 GPU）
     ├── qwen3:4b    语音对话（延迟优先）
     └── qwen3.5:27b 分析摘要（质量优先）
 
-[picoclaw-web] 管理 UI（React，端口 18800）
+[oneappfactory-web] 管理 UI（React，端口 18800）
     └── 可视化编辑 config.json（LLM 凭证 / 模型 / 渠道 / 日志）
 ```
 
-> 当前主线已经没有独立 `jarvis-voice` 或 `picoclaw-voice` 进程，语音入口就是 picoclaw 主 gateway 内置的 xiaozhi channel。All-in-One 目标（阶段六）仍是将上述逻辑进一步收入 `jarvis_ai.dll`。
+> 当前主线已经没有独立 `jarvis-voice` 或 `oneappfactory-voice` 进程，语音入口就是 oneappfactory 主 gateway 内置的 xiaozhi channel。All-in-One 目标（阶段六）仍是将上述逻辑进一步收入 `jarvis_ai.dll`。
 
 ---
 
-## PicoClaw 侵入性分析
+## OneAppFactory 侵入性分析
 
-PicoClaw 仍在快速迭代，但当前语音能力已经从“外挂语音网关”演进为“主进程内嵌 channel”。因此这里不再强调早期的 **"只增不改"**，而改为以下实际原则：
+OneAppFactory 仍在快速迭代，但当前语音能力已经从“外挂语音网关”演进为“主进程内嵌 channel”。因此这里不再强调早期的 **"只增不改"**，而改为以下实际原则：
 
 1. **能放子包就放子包**：xiaozhi 相关实现集中在 `pkg/channels/xiaozhi/`
 2. **必须改核心时只改编排层**：仅在 `manager` / `gateway` / `config` / `agent` / `tools` 等接缝层打孔
@@ -212,13 +212,13 @@ PicoClaw 仍在快速迭代，但当前语音能力已经从“外挂语音网�
 | 新增 | `pkg/channels/xiaozhi/*` | xiaozhi 协议、owner/device/session、文本/语音流水线 |
 | 新增 | `pkg/memory/voice_pending.go` | 渠道结果转语音待播摘要 |
 | 新增 | `pkg/agent/stream.go` / 测试 | 流式 AgentLoop 与 owner memory 双键 |
-| 修改 | `cmd/picoclaw/internal/gateway/helpers.go` | 注册 xiaozhi、注入 AgentLoop、接入待播写入器 |
+| 修改 | `cmd/oneappfactory/internal/gateway/helpers.go` | 注册 xiaozhi、注入 AgentLoop、接入待播写入器 |
 | 修改 | `pkg/channels/manager.go` | 初始化 xiaozhi channel |
 | 修改 | `pkg/config/config.go` | 新增 `channels.xiaozhi` 与 `session.identity_links` |
 | 修改 | `pkg/bus/bus.go` | 出站钩子机制（OnOutbound / ClearOutboundHooks），集中处理渠道输出镜像 |
 | 修改 | `pkg/agent/loop.go` / `pkg/tools/message.go` | 语音待播与渠道输出接缝（pendingWriter 已移至 bus 钩子） |
 | 修改 | ~~`pkg/devices/service.go`~~ / ~~`pkg/heartbeat/service.go`~~ / ~~`pkg/tools/cron.go`~~ | 已移除散射 pendingWriter 注入，全部收归 bus 出站钩子 |
-| 移除 | `cmd/picoclaw-voice/*` / `docker/docker-compose.voice.yml` / `pkg/tts/ogg.go` | 废弃独立语音网关与旧解包路径 |
+| 移除 | `cmd/oneappfactory-voice/*` / `docker/docker-compose.voice.yml` / `pkg/tts/ogg.go` | 废弃独立语音网关与旧解包路径 |
 
 ### 当前架构的核心判断
 
@@ -233,7 +233,7 @@ PicoClaw 仍在快速迭代，但当前语音能力已经从“外挂语音网�
 
 ### 当前改动边界
 
-当前主线只保留一个 `picoclaw` 主程序：
+当前主线只保留一个 `oneappfactory` 主程序：
 
 - xiaozhi 语音能力在 `pkg/channels/xiaozhi/` 内聚实现
 - gateway 只负责注册 channel、注入 AgentLoop 和共享服务
@@ -294,10 +294,10 @@ ChatStream(..., onChunk func(delta string))
 ## 目录结构
 
 ```
-picoclaw/              (fork 根目录)
+oneappfactory/              (fork 根目录)
 ├── cmd/
-│   ├── picoclaw/      (主 gateway / CLI)
-│   └── picoclaw-launcher-tui/
+│   ├── oneappfactory/      (主 gateway / CLI)
+│   └── oneappfactory-launcher-tui/
 ├── pkg/
 │   ├── agent/         (流式 agent loop + owner memory 双键)
 │   ├── asr/           (doubao / funasr)
@@ -318,7 +318,7 @@ picoclaw/              (fork 根目录)
 
 ### Sprint 1.1 — 仓库 + 流式 LLM（4 天）*关键路径* ✅
 
-1. Fork PicoClaw，建 `feature/jarvis` 分支，新增目录骨架
+1. Fork OneAppFactory，建 `feature/jarvis` 分支，新增目录骨架
 2. `pkg/providers/types.go`：新增 `StreamingProvider` 接口，不破坏现有 `Chat()`
 
    ```go
@@ -351,7 +351,7 @@ picoclaw/              (fork 根目录)
    - tool_call 到达时：暂停 token 流 → 执行 MCP → 注入 result → 继续流
    - 完成后调 `Sessions.AppendMessage()` 写记忆
 
-6. `cmd/picoclaw/` 新增路由（`lang` 由 Agent 配置决定，不在请求体里传）：
+6. `cmd/oneappfactory/` 新增路由（`lang` 由 Agent 配置决定，不在请求体里传）：
    ```
    POST /voice/stream
    Content-Type: application/json
@@ -431,7 +431,7 @@ picoclaw/              (fork 根目录)
 | device_id 未传到服务端 | `CreateHelloMessage` 未将 device_id 写入 JSON | `message_handler.cpp`：hello JSON 加 `device_id` 字段 |
 
 **阶段一交付物**：
-- `picoclaw` binary（主 gateway + 内置 xiaozhi channel）✅
+- `oneappfactory` binary（主 gateway + 内置 xiaozhi channel）✅
 - `config.yaml` / `config.json` 配置文件
 - 语音对话完整跑通 ✅，全链路 ASR+LLM+TTS 端到端验证通过
 
@@ -439,7 +439,7 @@ picoclaw/              (fork 根目录)
 
 **背景**：MVP 阶段 ASR 是在 `listen end`（VAD stop）后一次性把整段 PCM 发给服务端，造成识别延迟与服务端重复片段日志。重构为 `listen start` 时立即建 WebSocket 连接、音频帧逐帧推送。
 
-**服务端 (picoclaw)**：
+**服务端 (oneappfactory)**：
 
 - `pkg/asr/provider.go` 扩展为四层接口：
   ```go
@@ -487,9 +487,9 @@ picoclaw/              (fork 根目录)
 ### Sprint 2.1 — 渠道配置与验证（1 天）
 
 27. 飞书自建应用申请，获取 App ID / Secret / Verification Token
-28. `~/.picoclaw/config.json` 配置 `channels.feishu`
+28. `~/.appfactory/config.json` 配置 `channels.feishu`
 29. Telegram bot 同步配置（开发调试用）
-30. **跨渠道记忆统一**：picoclaw config 设置全局 `owner_id`（如 "kkroid"），所有渠道 agent 调用强制使用同一 session_id，语音端同步改为 owner_id（不再用 device_id），确保语音和消息渠道共享同一记忆
+30. **跨渠道记忆统一**：oneappfactory config 设置全局 `owner_id`（如 "kkroid"），所有渠道 agent 调用强制使用同一 session_id，语音端同步改为 owner_id（不再用 device_id），确保语音和消息渠道共享同一记忆
 31. 验证：渠道发消息 → AI 回复（含历史记忆）
 
 ### Sprint 2.2 — 工具维度输出路由（2 天）
@@ -525,7 +525,7 @@ picoclaw/              (fork 根目录)
 
 ### Sprint 3.1 — 工具层（3 天）
 
-34. 开启 picoclaw 内置工具：
+34. 开启 oneappfactory 内置工具：
     - `tools.web.duckduckgo.enabled = true`（免费，无需 API key）
     - `tools.web.brave` 可选（更准确，需 API key）
 35. 接入 akshare MCP server（Python，提供 A 股 / 港股 / 美股数据）：
@@ -571,11 +571,11 @@ picoclaw/              (fork 根目录)
 **目标**：`docker-compose up` 一键在 Linux 服务器启动全套服务。
 **工期估算：3 天**
 
-46. 多阶段 Dockerfile（picoclaw 单服务）：
-    - builder stage：主构建只编译 `picoclaw`
+46. 多阶段 Dockerfile（oneappfactory 单服务）：
+    - builder stage：主构建只编译 `oneappfactory`
     - runtime stage：distroless 极简镜像
-47. `docker-compose.yml`：ollama + picoclaw + nginx 三服务，共享 workspace volume
-48. 环境变量支持：`OLLAMA_BASE_URL`、`PICOCLAW_CHANNELS_XIAOZHI_*`、`FEISHU_APP_ID` 等
+47. `docker-compose.yml`：ollama + oneappfactory + nginx 三服务，共享 workspace volume
+48. 环境变量支持：`OLLAMA_BASE_URL`、`ONEAPPFACTORY_CHANNELS_XIAOZHI_*`、`FEISHU_APP_ID` 等
 49. 健康检查 endpoint（`/healthz`）+ 自动重启（`restart: unless-stopped`）
 50. 部署文档：含 GPU 直通配置（`nvidia-container-toolkit`）
 
@@ -585,7 +585,7 @@ picoclaw/              (fork 根目录)
 
 ## 阶段六：All-in-One DLL 封装
 
-**目标**：消除所有独立进程，picoclaw 编译为 `jarvis_ai.dll` 直接嵌入 UE5 插件。最终形态：UE 启动即可与 Jarvis 对话，零外部服务依赖，与 `libonelive.dll`、`mm_vad.dll` 同等地位。
+**目标**：消除所有独立进程，oneappfactory 编译为 `jarvis_ai.dll` 直接嵌入 UE5 插件。最终形态：UE 启动即可与 Jarvis 对话，零外部服务依赖，与 `libonelive.dll`、`mm_vad.dll` 同等地位。
 **工期估算：2 周**
 
 ### Sprint 6.1 — 可行性验证（3 天）
@@ -718,7 +718,7 @@ type Provider interface {
 
 - [x] xiaozhi 协议消息格式 — 已按当前主线实现并更新文档
 - [x] JarvisCore 重连退避策略 — 线性 1~10s，已完成
-- [x] 语音链路内嵌化 — 独立 `jarvis-voice` / `picoclaw-voice` 已淘汰
+- [x] 语音链路内嵌化 — 独立 `jarvis-voice` / `oneappfactory-voice` 已淘汰
 - [x] owner / device / session / 待播摘要模型 — 已落到 workspace 状态文件
 - [ ] **飞书渠道权限**：个人版飞书 webhook 是否支持机器人主动推送，需实测
 - [ ] **owner 映射验收**：`session.identity_links` 在真实语音 + 飞书 + Telegram 环境下继续压测

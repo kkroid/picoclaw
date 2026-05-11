@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg/logger"
-	"github.com/sipeed/picoclaw/web/backend/utils"
+	"github.com/sipeed/oneappfactory/pkg/logger"
+	"github.com/sipeed/oneappfactory/web/backend/utils"
 )
 
 const (

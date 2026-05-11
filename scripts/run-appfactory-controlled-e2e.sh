@@ -12,7 +12,7 @@ prd_id=""
 template_id="flutter-finance-lite"
 builder_id="local-builder-01"
 display_name="Local Builder 01"
-builder_image="picoclaw/appfactory-builder:local"
+builder_image="oneappfactory/builder:local"
 timeout_seconds=2400
 poll_interval=2
 output_dir=""
@@ -28,7 +28,7 @@ Usage:
     [--template-id flutter-finance-lite] \
     [--builder-id local-builder-01] \
     [--display-name "Local Builder 01"] \
-    [--builder-image picoclaw/appfactory-builder:local] \
+    [--builder-image oneappfactory/builder:local] \
     [--timeout-seconds 2400] \
     [--poll-interval 2] \
     [--output-dir /tmp/appfactory-e2e]

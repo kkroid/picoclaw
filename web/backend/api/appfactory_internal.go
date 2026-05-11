@@ -17,13 +17,13 @@ import (
 	"strings"
 	"time"
 
-	appadapter "github.com/sipeed/picoclaw/pkg/appfactory/adapter"
-	appbuilders "github.com/sipeed/picoclaw/pkg/appfactory/builders"
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
-	"github.com/sipeed/picoclaw/pkg/config"
-	"github.com/sipeed/picoclaw/pkg/envfile"
-	"github.com/sipeed/picoclaw/pkg/fileutil"
+	appadapter "github.com/sipeed/oneappfactory/pkg/appfactory/adapter"
+	appbuilders "github.com/sipeed/oneappfactory/pkg/appfactory/builders"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
+	"github.com/sipeed/oneappfactory/pkg/config"
+	"github.com/sipeed/oneappfactory/pkg/envfile"
+	"github.com/sipeed/oneappfactory/pkg/fileutil"
 )
 
 type builderService interface {
@@ -5274,7 +5274,7 @@ func (h *Handler) executePreparedRequirementRun(parent context.Context, input ap
 		builderImage = strings.TrimSpace(input.ExecutorImage)
 	}
 	if builderImage == "" {
-		builderImage = "picoclaw/appfactory-builder:local"
+		builderImage = "oneappfactory/builder:local"
 	}
 	if _, err := builderSvc.Register(parent, appbuilders.RegisterRequest{
 		BuilderID:      req.BuilderID,
@@ -6634,16 +6634,16 @@ func dockerLaunchRunCommand(ctx context.Context, run appruns.RunRecord) *exec.Cm
 
 func dockerRunCommand(ctx context.Context, run appruns.RunRecord, argv []string) *exec.Cmd {
 	root := filepath.Clean(filepath.Join(run.WorkspacePath, "..", "..", ".."))
-	useHostNetwork := strings.EqualFold(strings.TrimSpace(os.Getenv("APPFACTORY_BUILDER_DOCKER_NETWORK")), "host")
+	useHostNetwork := strings.EqualFold(strings.TrimSpace(os.Getenv("ONEAPPFACTORY_BUILDER_DOCKER_NETWORK")), "host")
 	gradleUserHome := resolveBuilderGradleUserHome(run.WorkspacePath)
 	args := []string{
 		"run", "--rm",
 		"--user", strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid()),
 		"-v", root + ":" + root,
 		"-w", run.WorkspacePath,
-		"-e", "PICOCLAW_RUN_ID=" + run.RunID,
-		"-e", "PICOCLAW_JOB_ID=" + run.JobID,
-		"-e", "PICOCLAW_ARTIFACT_DIR=" + run.ArtifactDir,
+		"-e", "ONEAPPFACTORY_RUN_ID=" + run.RunID,
+		"-e", "ONEAPPFACTORY_JOB_ID=" + run.JobID,
+		"-e", "ONEAPPFACTORY_ARTIFACT_DIR=" + run.ArtifactDir,
 	}
 	for _, item := range executionDeadlineEnv(ctx) {
 		args = append(args, "-e", item)
@@ -6659,8 +6659,8 @@ func dockerRunCommand(ctx context.Context, run appruns.RunRecord, argv []string)
 	args = append(args, "-e", "PUB_CACHE="+pubCacheDir)
 	args = append(args, "-e", "GRADLE_USER_HOME="+gradleUserHome)
 	args = append(args, dockerEnvArgs(
-		"APPFACTORY_BUILDER_DOCKER_NETWORK",
-		"APPFACTORY_BUILDER_RUNTIME",
+		"ONEAPPFACTORY_BUILDER_DOCKER_NETWORK",
+		"ONEAPPFACTORY_BUILDER_RUNTIME",
 		"HTTP_PROXY",
 		"HTTPS_PROXY",
 		"ALL_PROXY",
@@ -6673,9 +6673,9 @@ func dockerRunCommand(ctx context.Context, run appruns.RunRecord, argv []string)
 
 func localLaunchExecutionEnv(run appruns.RunRecord) ([]string, error) {
 	env := []string{
-		"PICOCLAW_RUN_ID=" + run.RunID,
-		"PICOCLAW_JOB_ID=" + run.JobID,
-		"PICOCLAW_ARTIFACT_DIR=" + run.ArtifactDir,
+		"ONEAPPFACTORY_RUN_ID=" + run.RunID,
+		"ONEAPPFACTORY_JOB_ID=" + run.JobID,
+		"ONEAPPFACTORY_ARTIFACT_DIR=" + run.ArtifactDir,
 	}
 	root := filepath.Clean(filepath.Join(run.WorkspacePath, "..", "..", ".."))
 	pubCacheDir := resolveBuilderPubCache(root)
@@ -6696,7 +6696,7 @@ func executionDeadlineEnv(ctx context.Context) []string {
 	if !ok {
 		return nil
 	}
-	return []string{"PICOCLAW_EXECUTION_DEADLINE_UNIX=" + strconv.FormatInt(deadline.UTC().Unix(), 10)}
+	return []string{"ONEAPPFACTORY_EXECUTION_DEADLINE_UNIX=" + strconv.FormatInt(deadline.UTC().Unix(), 10)}
 }
 
 func dockerEnvArgs(names ...string) []string {
@@ -6764,4 +6764,8 @@ func buildChownCommand(paths []string) string {
 		commands = append(commands, "mkdir -p "+quoted+" && chown -R "+uidgid+" "+quoted)
 	}
 	return strings.Join(commands, " && ")
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }

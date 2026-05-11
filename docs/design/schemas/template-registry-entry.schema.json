@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/template-registry-entry.schema.json",
-  "title": "PicoClaw Template Registry Entry",
+  "$id": "https://oneappfactory.local/docs/design/schemas/template-registry-entry.schema.json",
+  "title": "OneAppFactory Template Registry Entry",
   "description": "模板注册表中的单条模板记录。",
   "type": "object",
   "additionalProperties": false,

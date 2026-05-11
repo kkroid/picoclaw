@@ -185,10 +185,10 @@ func TestFlutterDeviceCommandsEmitFailureSignatureMarkers(t *testing.T) {
 	profile := NewFlutterAndroidProfile()
 	checks := profile.AcceptanceChecks()
 	markers := map[string]string{
-		"check-adb-device-ready":              "__picoclaw_failure_signature__:device_check_failed:adb_device_unavailable",
-		"check-install-debug-apk":             "__picoclaw_failure_signature__:device_check_failed:apk_install_failed",
-		"check-launch-app-and-capture-logcat": "__picoclaw_failure_signature__:device_check_failed:app_runtime_crash",
-		"check-device-ui-semantic":            "__picoclaw_failure_signature__:device_check_failed:ui_semantic_mismatch",
+		"check-adb-device-ready":              "__oneappfactory_failure_signature__:device_check_failed:adb_device_unavailable",
+		"check-install-debug-apk":             "__oneappfactory_failure_signature__:device_check_failed:apk_install_failed",
+		"check-launch-app-and-capture-logcat": "__oneappfactory_failure_signature__:device_check_failed:app_runtime_crash",
+		"check-device-ui-semantic":            "__oneappfactory_failure_signature__:device_check_failed:ui_semantic_mismatch",
 	}
 	for _, check := range checks {
 		want, ok := markers[check.CheckID]
@@ -208,8 +208,8 @@ func TestFlutterDeviceUISemanticCommandCapturesHierarchyAndSupportsExpectedText(
 		"device-ui.xml",
 		"APPFACTORY_DEVICE_REQUIRED_UI_TEXT",
 		"Open Lite Seed|open_lite_seed",
-		"__picoclaw_failure_signature__:device_check_failed:ui_dump_failed",
-		"__picoclaw_failure_signature__:device_check_failed:ui_expected_text_missing",
+		"__oneappfactory_failure_signature__:device_check_failed:ui_dump_failed",
+		"__oneappfactory_failure_signature__:device_check_failed:ui_expected_text_missing",
 	} {
 		if !strings.Contains(command, expected) {
 			t.Fatalf("command = %q, want contain %q", command, expected)

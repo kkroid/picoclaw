@@ -1,6 +1,6 @@
 package emitter
 
-import appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
+import appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
 
 // AndroidBuildConfigEmitResult 表示 android/app/build.gradle.kts 的确定性输出。
 type AndroidBuildConfigEmitResult struct {
@@ -18,7 +18,7 @@ func EmitAndroidBuildConfig(dm appprepare.DomainModel) (AndroidBuildConfigEmitRe
 }
 
 func renderAndroidBuildGradleKTS() string {
-	return `val defaultOpenLiteApplicationId = "com.picoclaw.appfactory.flutter_open_lite"
+	return `val defaultOpenLiteApplicationId = "com.appfactory.flutter_open_lite"
 
 plugins {
 	id("com.android.application")

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/builder-input.schema.json",
-  "title": "PicoClaw Builder Input Package Manifest",
-  "description": "PicoClaw 下发给 Builder/Worker 的输入包主清单。",
+  "$id": "https://oneappfactory.local/docs/design/schemas/builder-input.schema.json",
+  "title": "OneAppFactory Builder Input Package Manifest",
+  "description": "OneAppFactory 下发给 Builder/Worker 的输入包主清单。",
   "type": "object",
   "additionalProperties": false,
   "required": [

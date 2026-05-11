@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=OneAppFactory Launcher
+Comment=Web-based configuration and management UI for OneAppFactory
+Exec=oneappfactory-launcher
+Icon=oneappfactory-launcher
+Terminal=true
+Type=Application
+Categories=Utility;Network;
+Keywords=oneappfactory;appfactory;android;builder;

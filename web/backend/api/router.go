@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	appadapter "github.com/sipeed/picoclaw/pkg/appfactory/adapter"
-	"github.com/sipeed/picoclaw/web/backend/launcherconfig"
+	appadapter "github.com/sipeed/oneappfactory/pkg/appfactory/adapter"
+	"github.com/sipeed/oneappfactory/web/backend/launcherconfig"
 )
 
 type appFactoryRuntime struct {
@@ -30,13 +30,6 @@ type Handler struct {
 	serverCIDRs             []string
 	startupOrchestrator     bool
 	appFactory              appFactoryRuntime
-	oauthMu                 sync.Mutex
-	oauthFlows              map[string]*oauthFlow
-	oauthState              map[string]string
-	weixinMu                sync.Mutex
-	weixinFlows             map[string]*weixinFlow
-	wecomMu                 sync.Mutex
-	wecomFlows              map[string]*wecomFlow
 	orchestratorPassMu      sync.Mutex
 	orchestratorWatchMu     sync.Mutex
 	orchestratorMu          sync.Mutex
@@ -61,10 +54,6 @@ func NewHandler(configPath string) *Handler {
 	return &Handler{
 		configPath:             configPath,
 		serverPort:             launcherconfig.DefaultPort,
-		oauthFlows:             make(map[string]*oauthFlow),
-		oauthState:             make(map[string]string),
-		weixinFlows:            make(map[string]*weixinFlow),
-		wecomFlows:             make(map[string]*wecomFlow),
 		orchestratorActive:     make(map[string]bool),
 		executionCancels:       make(map[string]context.CancelFunc),
 		orchestratorInstanceID: newOrchestratorInstanceID(),
@@ -85,56 +74,19 @@ func (h *Handler) SetServerOptions(port int, public bool, publicExplicit bool, a
 
 // RegisterRoutes binds all API endpoint handlers to the ServeMux.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	// Config CRUD
 	h.registerConfigRoutes(mux)
-
-	// Pico Channel (WebSocket chat)
-	h.registerPicoRoutes(mux)
-
-	// Gateway process lifecycle
-	h.registerGatewayRoutes(mux)
-
-	// Session history
-	h.registerSessionRoutes(mux)
-
-	// App Factory internal endpoints
 	h.registerAppFactoryInternalRoutes(mux)
-
-	// OAuth login and credential management
-	h.registerOAuthRoutes(mux)
-
-	// Model list management
-	h.registerModelRoutes(mux)
-
-	// Channel catalog (for frontend navigation/config pages)
-	h.registerChannelRoutes(mux)
-
-	// Skills and tools support/actions
-	h.registerSkillRoutes(mux)
-	h.registerToolRoutes(mux)
-
-	// OS startup / launch-at-login
-	h.registerStartupRoutes(mux)
-
-	// Launcher service parameters (port/public)
 	h.registerLauncherConfigRoutes(mux)
-
-	// WeChat QR login flow
-	h.registerWeixinRoutes(mux)
-
-	// WeCom QR login flow
-	h.registerWecomRoutes(mux)
 
 	if h.startupOrchestrator {
 		h.StartPublicJobOrchestrator()
 	}
 }
 
-// Shutdown gracefully shuts down the handler, stopping the gateway if it was started by this handler.
+// Shutdown gracefully shuts down the handler and waits for background work.
 func (h *Handler) Shutdown() {
 	_ = h.StopPublicJobOrchestratorWatch()
 	h.WaitForAsyncJobs()
-	h.StopGateway()
 }
 
 func (h *Handler) WaitForAsyncJobs() {

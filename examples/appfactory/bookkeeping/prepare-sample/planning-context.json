@@ -3,7 +3,7 @@
   "job_id": "job-bookkeeping-prepare-sample",
   "prd_id": "prd-bookkeeping-prepare-sample",
   "template_id": "flutter-finance-lite",
-  "prd_subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:2c848b3e1a88da10",
+  "prd_subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:ea0f3f6cd527434d",
   "template_subject_version": "selected-template@flutter-finance-lite@v0.1.0@sha256:044bdae5cb92f850",
   "planning_policy_version": "phase1-boundary-v1",
   "planning_model_snapshot": {
@@ -80,7 +80,7 @@
       }
     ],
     "upgrade_policy": {
-      "source": "config/config.example.json:appfactory.builder_runtime.upgrade_threshold",
+      "source": "config/oneappfactory.example.json:appfactory.builder_runtime.upgrade_threshold",
       "max_attempts_before_upgrade": 2,
       "max_files_before_upgrade": 2,
       "max_schema_drift_before_upgrade": 1,

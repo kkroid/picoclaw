@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg/providers/common"
+	"github.com/sipeed/oneappfactory/pkg/providers/common"
 
-	"github.com/sipeed/picoclaw/pkg/providers/protocoltypes"
-	"github.com/sipeed/picoclaw/pkg/providers/streamctx"
+	"github.com/sipeed/oneappfactory/pkg/providers/protocoltypes"
+	"github.com/sipeed/oneappfactory/pkg/providers/streamctx"
 )
 
 type (

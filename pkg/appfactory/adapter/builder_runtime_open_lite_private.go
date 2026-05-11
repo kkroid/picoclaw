@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
 )
 
 var builderRuntimeOpenLiteTotalCountArgPattern = regexp.MustCompile(`,\s*int\s+totalCount\b`)

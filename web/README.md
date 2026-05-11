@@ -1,13 +1,13 @@
-# Picoclaw Web
+# OneAppFactory Web
 
-This directory contains the standalone web service for `picoclaw`.
-It provides a complete unified web interface, acting as a dashboard, configuration center, and interactive console (channel client) for the core `picoclaw` engine.
+This directory contains the web launcher for OneAppFactory.
+It provides the AppFactory job console, configuration screen, and embedded frontend served by the OneAppFactory launcher binary.
 
 ## Architecture
 
-The service is structured as a monorepo containing both the backend and frontend code to ensure high cohesion and simplify deployment.
+The service is structured as a monorepo containing both the backend and frontend code to simplify the launcher build.
 
-*   **`backend/`**: The Go-based web server. It provides RESTful APIs, manages WebSocket connections for chat, and handles the lifecycle of the `picoclaw` process. It eventually embeds the compiled frontend assets into a single executable.
+*   **`backend/`**: The importable Go web server. It provides AppFactory REST APIs and serves the compiled frontend assets from the launcher executable.
 *   **`frontend/`**: The Vite + React + TanStack Router single-page application (SPA). It provides the interactive user interface.
 
 ## Getting Started
@@ -40,7 +40,7 @@ Build the frontend and embed it into a single Go binary:
 make build
 ```
 
-The output binary is `backend/picoclaw-web`.
+The output binary is `build/oneappfactory-launcher`.
 
 ### Other Commands
 

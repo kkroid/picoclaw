@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
-import { patchAppConfig } from "@/api/channels"
+import { patchAppConfig } from "@/api/config"
 import {
   getAutoStartStatus,
   getLauncherConfig,
@@ -13,12 +13,8 @@ import {
   setLauncherConfig as updateLauncherConfig,
 } from "@/api/system"
 import {
-  AgentDefaultsSection,
-  CronSection,
-  DevicesSection,
-  ExecSection,
+  AppFactorySection,
   LauncherSection,
-  RuntimeSection,
 } from "@/components/config/config-sections"
 import {
   type CoreConfigForm,
@@ -27,6 +23,7 @@ import {
   type LauncherForm,
   buildFormFromConfig,
   parseCIDRText,
+  parseFloatField,
   parseIntField,
   parseMultilineList,
 } from "@/components/config/form-model"
@@ -122,6 +119,15 @@ export function ConfigPage() {
     setLauncherForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const buildModelRef = (primaryRaw: string, fallbacksRaw: string) => {
+    const primary = primaryRaw.trim()
+    const fallbacks = parseMultilineList(fallbacksRaw)
+    if (!primary) {
+      return null
+    }
+    return fallbacks.length > 0 ? { primary, fallbacks } : primary
+  }
+
   const handleReset = () => {
     setForm(baseline)
     setLauncherForm(launcherBaseline)
@@ -135,108 +141,58 @@ export function ConfigPage() {
 
       if (configDirty) {
         const workspace = form.workspace.trim()
-        const dmScope = form.dmScope.trim()
 
         if (!workspace) {
           throw new Error("Workspace path is required.")
         }
-        if (!dmScope) {
-          throw new Error("Session scope is required.")
-        }
-
-        const maxTokens = parseIntField(form.maxTokens, "Max tokens", {
-          min: 1,
-        })
-        const contextWindow = form.contextWindow.trim()
-          ? parseIntField(form.contextWindow, "Context window", { min: 1 })
-          : undefined
-        const maxToolIterations = parseIntField(
-          form.maxToolIterations,
-          "Max tool iterations",
-          { min: 1 },
+        const defaultModel = buildModelRef(
+          form.defaultModelPrimary,
+          form.defaultModelFallbacksText,
         )
-        const toolFeedbackMaxArgsLength = parseIntField(
-          form.toolFeedbackMaxArgsLength,
-          "Tool feedback max args length",
+        const upgradeModel = buildModelRef(
+          form.upgradeModelPrimary,
+          form.upgradeModelFallbacksText,
+        )
+        const maxAttemptsBeforeUpgrade = parseIntField(
+          form.maxAttemptsBeforeUpgrade,
+          "Max attempts before upgrade",
           { min: 0 },
         )
-        const summarizeMessageThreshold = parseIntField(
-          form.summarizeMessageThreshold,
-          "Summarize message threshold",
-          { min: 1 },
-        )
-        const summarizeTokenPercent = parseIntField(
-          form.summarizeTokenPercent,
-          "Summarize token percent",
-          { min: 1, max: 100 },
-        )
-        const heartbeatInterval = parseIntField(
-          form.heartbeatInterval,
-          "Heartbeat interval",
-          { min: 1 },
-        )
-        const cronExecTimeoutMinutes = parseIntField(
-          form.cronExecTimeoutMinutes,
-          "Cron exec timeout",
+        const maxFilesBeforeUpgrade = parseIntField(
+          form.maxFilesBeforeUpgrade,
+          "Max files before upgrade",
           { min: 0 },
         )
-        const execConfigPatch: Record<string, unknown> = {
-          enabled: form.execEnabled,
-        }
-
-        if (form.execEnabled) {
-          execConfigPatch.allow_remote = form.allowRemote
-          execConfigPatch.enable_deny_patterns = form.enableDenyPatterns
-          execConfigPatch.custom_allow_patterns = parseMultilineList(
-            form.customAllowPatternsText,
-          )
-          execConfigPatch.timeout_seconds = parseIntField(
-            form.execTimeoutSeconds,
-            "Exec timeout",
-            { min: 0 },
-          )
-
-          if (form.enableDenyPatterns) {
-            execConfigPatch.custom_deny_patterns = parseMultilineList(
-              form.customDenyPatternsText,
-            )
-          }
-        }
+        const maxSchemaDriftBeforeUpgrade = parseIntField(
+          form.maxSchemaDriftBeforeUpgrade,
+          "Max schema drift before upgrade",
+          { min: 0 },
+        )
+        const maxUnrelatedOperationRate = parseFloatField(
+          form.maxUnrelatedOperationRate,
+          "Max unrelated operation rate",
+          { min: 0, max: 1 },
+        )
 
         await patchAppConfig({
-          agents: {
-            defaults: {
-              workspace,
-              restrict_to_workspace: form.restrictToWorkspace,
-              split_on_marker: form.splitOnMarker,
-              tool_feedback: {
-                enabled: form.toolFeedbackEnabled,
-                max_args_length: toolFeedbackMaxArgsLength,
+          workspace,
+          appfactory: {
+            builder_runtime: {
+              enabled: form.builderRuntimeEnabled,
+              default_model: defaultModel,
+              upgrade_model: upgradeModel,
+              upgrade_threshold: {
+                max_attempts_before_upgrade: maxAttemptsBeforeUpgrade,
+                max_files_before_upgrade: maxFilesBeforeUpgrade,
+                max_schema_drift_before_upgrade:
+                  maxSchemaDriftBeforeUpgrade,
+                max_unrelated_operation_rate: maxUnrelatedOperationRate,
+                upgrade_on_validation_fail: form.upgradeOnValidationFail,
+                upgrade_on_patch_parse_fail: form.upgradeOnPatchParseFail,
+                upgrade_on_scope_violation: form.upgradeOnScopeViolation,
+                upgrade_on_semantic_conflict: form.upgradeOnSemanticConflict,
               },
-              max_tokens: maxTokens,
-              context_window: contextWindow,
-              max_tool_iterations: maxToolIterations,
-              summarize_message_threshold: summarizeMessageThreshold,
-              summarize_token_percent: summarizeTokenPercent,
             },
-          },
-          session: {
-            dm_scope: dmScope,
-          },
-          tools: {
-            cron: {
-              allow_command: form.allowCommand,
-              exec_timeout_minutes: cronExecTimeoutMinutes,
-            },
-            exec: execConfigPatch,
-          },
-          heartbeat: {
-            enabled: form.heartbeatEnabled,
-            interval: heartbeatInterval,
-          },
-          devices: {
-            enabled: form.devicesEnabled,
-            monitor_usb: form.monitorUSB,
           },
         })
 
@@ -321,23 +277,12 @@ export function ConfigPage() {
                 </div>
               )}
 
-              <AgentDefaultsSection form={form} onFieldChange={updateField} />
-
-              <RuntimeSection form={form} onFieldChange={updateField} />
-
-              <ExecSection form={form} onFieldChange={updateField} />
-
-              <CronSection form={form} onFieldChange={updateField} />
+              <AppFactorySection form={form} onFieldChange={updateField} />
 
               <LauncherSection
                 launcherForm={launcherForm}
                 onFieldChange={updateLauncherField}
                 disabled={saving || isLauncherLoading}
-              />
-
-              <DevicesSection
-                form={form}
-                onFieldChange={updateField}
                 autoStartEnabled={autoStartEnabled}
                 autoStartHint={autoStartHint}
                 autoStartDisabled={

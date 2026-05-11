@@ -18,7 +18,7 @@ prd_id=""
 template_id="${APPFACTORY_PRODUCT_FLOW_TEMPLATE_ID:-flutter-finance-lite}"
 builder_id="${APPFACTORY_PRODUCT_FLOW_BUILDER_ID:-local-builder-01}"
 display_name="${APPFACTORY_PRODUCT_FLOW_DISPLAY_NAME:-Local Builder 01}"
-builder_image="${APPFACTORY_PRODUCT_FLOW_BUILDER_IMAGE:-picoclaw/appfactory-builder:local}"
+builder_image="${APPFACTORY_PRODUCT_FLOW_BUILDER_IMAGE:-oneappfactory/builder:local}"
 timeout_seconds="${APPFACTORY_PRODUCT_FLOW_TIMEOUT_SECONDS:-2400}"
 poll_interval="${APPFACTORY_PRODUCT_FLOW_POLL_INTERVAL:-2}"
 reviewer_id="${APPFACTORY_PRODUCT_FLOW_REVIEWER_ID:-product-e2e-reviewer}"
@@ -39,7 +39,7 @@ import json
 import os
 from pathlib import Path
 
-default_workspace = os.path.expanduser("~/.picoclaw/workspace")
+default_workspace = os.path.expanduser("~/.appfactory/workspace")
 config_path = Path(os.environ["REPO_ROOT"]) / "config" / "config.json"
 workspace = default_workspace
 if config_path.is_file():
@@ -255,7 +255,7 @@ ensure_api_reachable() {
   echo "appfactory api is unavailable: $api_base$probe_path (status=${probe_status:-000})" >&2
   echo "hint: product-flow backend default is http://127.0.0.1:18800" >&2
   echo "hint: if 18800 returns 404, that launcher is stale and does not expose current AppFactory routes" >&2
-  echo "hint: start or restart picoclaw-launcher, or point APPFACTORY_PRODUCT_FLOW_API_BASE to the live launcher endpoint" >&2
+  echo "hint: start or restart oneappfactory-launcher, or point APPFACTORY_PRODUCT_FLOW_API_BASE to the live launcher endpoint" >&2
   exit 1
 }
 

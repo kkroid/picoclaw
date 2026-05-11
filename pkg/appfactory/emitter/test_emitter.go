@@ -3,7 +3,7 @@ package emitter
 import (
 	"strings"
 
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
 )
 
 // TestEmitConfig 提供 TestEmitter 的运行时配置。

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/job.schema.json",
-  "title": "PicoClaw Generation Job",
+  "$id": "https://oneappfactory.local/docs/design/schemas/job.schema.json",
+  "title": "OneAppFactory Generation Job",
   "description": "自动开发任务的正式记录对象。",
   "type": "object",
   "additionalProperties": false,

@@ -1,7 +1,7 @@
-// PicoClaw - Ultra-lightweight personal AI agent
+// OneAppFactory - Android app factory
 // License: MIT
 //
-// Copyright (c) 2026 PicoClaw contributors
+// Copyright (c) 2026 OneAppFactory contributors
 
 package providers
 
@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg/config"
-	anthropicmessages "github.com/sipeed/picoclaw/pkg/providers/anthropic_messages"
-	"github.com/sipeed/picoclaw/pkg/providers/azure"
-	"github.com/sipeed/picoclaw/pkg/providers/bedrock"
+	"github.com/sipeed/oneappfactory/pkg/config"
+	anthropicmessages "github.com/sipeed/oneappfactory/pkg/providers/anthropic_messages"
+	"github.com/sipeed/oneappfactory/pkg/providers/azure"
+	"github.com/sipeed/oneappfactory/pkg/providers/bedrock"
 )
 
 // createClaudeAuthProvider creates a Claude provider using OAuth credentials from auth store.
@@ -24,7 +24,7 @@ func createClaudeAuthProvider() (LLMProvider, error) {
 		return nil, fmt.Errorf("loading auth credentials: %w", err)
 	}
 	if cred == nil {
-		return nil, fmt.Errorf("no credentials for anthropic. Run: picoclaw auth login --provider anthropic")
+		return nil, fmt.Errorf("no credentials for anthropic. configure Anthropic credentials in model_list or auth store")
 	}
 	return NewClaudeProviderWithTokenSource(cred.AccessToken, createClaudeTokenSource()), nil
 }
@@ -36,7 +36,7 @@ func createCodexAuthProvider() (LLMProvider, error) {
 		return nil, fmt.Errorf("loading auth credentials: %w", err)
 	}
 	if cred == nil {
-		return nil, fmt.Errorf("no credentials for openai. Run: picoclaw auth login --provider openai")
+		return nil, fmt.Errorf("no credentials for openai. configure OpenAI credentials in model_list or auth store")
 	}
 	return NewCodexProviderWithTokenSource(cred.AccessToken, cred.AccountID, createCodexTokenSource()), nil
 }

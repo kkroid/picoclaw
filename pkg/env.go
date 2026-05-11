@@ -3,10 +3,10 @@
 package pkg
 
 const (
-	Logo = "🦞"
+	Logo = "OF"
 	// AppName is the name of the app
-	AppName = "PicoClaw"
+	AppName = "OneAppFactory"
 
-	DefaultPicoClawHome = ".picoclaw"
-	WorkspaceName       = "workspace"
+	DefaultOneAppFactoryHome = ".appfactory"
+	WorkspaceName            = "workspace"
 )

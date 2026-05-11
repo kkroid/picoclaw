@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg/config"
+	"github.com/sipeed/oneappfactory/pkg/config"
 )
 
 // --- Compile-time interface check ---
@@ -416,7 +416,6 @@ func TestCreateProvider_ClaudeCli(t *testing.T) {
 	cfg.ModelList = []*config.ModelConfig{
 		{ModelName: "claude-sonnet-4.6", Model: "claude-cli/claude-sonnet-4.6", Workspace: "/test/ws"},
 	}
-	cfg.Agents.Defaults.ModelName = "claude-sonnet-4.6"
 
 	provider, _, err := CreateProvider(cfg)
 	if err != nil {
@@ -437,7 +436,6 @@ func TestCreateProvider_ClaudeCode(t *testing.T) {
 	cfg.ModelList = []*config.ModelConfig{
 		{ModelName: "claude-code", Model: "claude-cli/claude-code"},
 	}
-	cfg.Agents.Defaults.ModelName = "claude-code"
 
 	provider, _, err := CreateProvider(cfg)
 	if err != nil {
@@ -453,7 +451,6 @@ func TestCreateProvider_ClaudeCodec(t *testing.T) {
 	cfg.ModelList = []*config.ModelConfig{
 		{ModelName: "claudecode", Model: "claude-cli/claudecode"},
 	}
-	cfg.Agents.Defaults.ModelName = "claudecode"
 
 	provider, _, err := CreateProvider(cfg)
 	if err != nil {
@@ -469,8 +466,7 @@ func TestCreateProvider_ClaudeCliDefaultWorkspace(t *testing.T) {
 	cfg.ModelList = []*config.ModelConfig{
 		{ModelName: "claude-cli", Model: "claude-cli/claude-sonnet"},
 	}
-	cfg.Agents.Defaults.ModelName = "claude-cli"
-	cfg.Agents.Defaults.Workspace = ""
+	cfg.Workspace = ""
 
 	provider, _, err := CreateProvider(cfg)
 	if err != nil {

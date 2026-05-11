@@ -16,7 +16,7 @@
 - `probe-only`、config drift、launcher drift、runtime blocked、seed 掩盖假阳性，一律按失败处理。
 - 当前待办按 capability、binding、surface、policy 四层组织，不再按单一样本文件前线组织。
 - `weight-tracker` 只作为 generic fixture 保留，不再充当公共修复语义来源。
-- live 与 regression 统一使用仓库根目录启动命令：`./build/picoclaw-launcher "$PWD/config/config.json"`。
+- live 与 regression 统一使用仓库根目录启动命令：`./build/oneappfactory-launcher "$PWD/config/config.json"`。
 
 ## 已完成并冻结
 

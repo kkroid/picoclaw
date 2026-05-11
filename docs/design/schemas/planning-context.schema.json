@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/planning-context.schema.json",
-  "title": "PicoClaw Planning Context",
+  "$id": "https://oneappfactory.local/docs/design/schemas/planning-context.schema.json",
+  "title": "OneAppFactory Planning Context",
   "description": "planning-engine 输入上下文快照，用于冻结规划前提与重放依据。",
   "type": "object",
   "additionalProperties": false,

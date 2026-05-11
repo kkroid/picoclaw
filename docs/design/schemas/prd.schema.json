@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/prd.schema.json",
-  "title": "PicoClaw Product Requirements Document",
-  "description": "PicoClaw 产品研发编排平台使用的结构化 PRD。",
+  "$id": "https://oneappfactory.local/docs/design/schemas/prd.schema.json",
+  "title": "OneAppFactory Product Requirements Document",
+  "description": "OneAppFactory 产品研发编排平台使用的结构化 PRD。",
   "type": "object",
   "additionalProperties": false,
   "required": [

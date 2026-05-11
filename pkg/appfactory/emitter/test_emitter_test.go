@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
 )
 
 func TestEmitTestProjectTaskTag(t *testing.T) {

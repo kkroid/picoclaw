@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-builder_image="${APPFACTORY_BUILDER_IMAGE:-picoclaw/appfactory-builder:local}"
+builder_image="${ONEAPPFACTORY_BUILDER_IMAGE:-oneappfactory/builder:local}"
 go_bin="${GO_BIN:-go}"
 test_package="./web/backend/api"
 test_name="${APPFACTORY_PUBLIC_JOB_TEST_NAME:-TestStartPublicJobDefaultExecutorWritesFlutterFallbackProbe}"
@@ -17,7 +17,7 @@ adb_timeout_seconds="${APPFACTORY_DEVICE_ADB_TIMEOUT_SECONDS:-60}"
 device_docker_args="${APPFACTORY_PUBLIC_JOB_DEVICE_DOCKER_ARGS:-}"
 adb_server_socket="${ADB_SERVER_SOCKET:-}"
 entrypoint_name="${VERIFY_APPFACTORY_ENTRYPOINT:-make verify-appfactory-public-job}"
-temp_dir_record="$(mktemp -t picoclaw-public-job-dir-XXXXXX.txt)"
+temp_dir_record="$(mktemp -t oneappfactory-public-job-dir-XXXXXX.txt)"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required" >&2
@@ -31,11 +31,11 @@ fi
 
 if ! docker image inspect "$builder_image" >/dev/null 2>&1; then
   echo "builder image not found: $builder_image" >&2
-  echo "run 'make build-appfactory-builder' first or set APPFACTORY_BUILDER_IMAGE to an existing image" >&2
+  echo "run 'make build-appfactory-builder' first or set ONEAPPFACTORY_BUILDER_IMAGE to an existing image" >&2
   exit 1
 fi
 
-temp_log="$(mktemp -t picoclaw-public-job-verify-XXXXXX.log)"
+temp_log="$(mktemp -t oneappfactory-public-job-verify-XXXXXX.log)"
 temp_dir=""
 preserved_temp_dir_announced=0
 
@@ -102,7 +102,7 @@ cleanup() {
     return
   fi
   case "$temp_dir" in
-    /tmp/picoclaw-api-test-*)
+    /tmp/oneappfactory-api-test-*|/tmp/oneappfactory-api-test-*)
       rm -rf "$temp_dir" 2>/dev/null || \
         docker run --rm -v /tmp:/tmp "$builder_image" exec bash -lc 'rm -rf -- "$1"' _ "$temp_dir" >/dev/null
       ;;
@@ -135,8 +135,8 @@ if [[ "$device_verification_enabled" == "1" ]]; then
 fi
 
 echo "[1/3] 生成真实 public-job Flutter 工作区..."
-PICOCLAW_KEEP_TEST_TEMPDIR=1 \
-PICOCLAW_TEST_TEMPDIR_RECORD_FILE="$temp_dir_record" \
+ONEAPPFACTORY_KEEP_TEST_TEMPDIR=1 \
+ONEAPPFACTORY_TEST_TEMPDIR_RECORD_FILE="$temp_dir_record" \
 "$go_bin" test "$test_package" -run "^${test_name}$" -count=1 -v -json | tee "$temp_log"
 
 temp_dir="$(tr -d '\n' < "$temp_dir_record")"

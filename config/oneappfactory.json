@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "workspace": "~/.appfactory/workspace",
+  "model_list": [
+    {
+      "model_name": "gemma4-26b-local",
+      "model": "openai/gemma4:26b",
+      "api_base": "http://127.0.0.1:11434/v1",
+      "fallbacks": [
+        "qwen2.5-coder-32b-local"
+      ]
+    },
+    {
+      "model_name": "qwen2.5-coder-32b-local",
+      "model": "openai/qwen2.5-coder:32b",
+      "api_base": "http://127.0.0.1:11434/v1"
+    }
+  ],
+  "appfactory": {
+    "planning_engine": {
+      "planning_model": {
+        "primary": "gemma4-26b-local"
+      },
+      "decision_model": {
+        "primary": "gemma4-26b-local"
+      }
+    },
+    "builder_runtime": {
+      "enabled": true,
+      "default_model": {
+        "primary": "gemma4-26b-local",
+        "fallbacks": [
+          "qwen2.5-coder-32b-local"
+        ]
+      },
+      "upgrade_model": {
+        "primary": "qwen2.5-coder-32b-local"
+      },
+      "task_routes": [
+        {
+          "task_type": "single_file_edit",
+          "model": "gemma4-26b-local"
+        },
+        {
+          "task_type": "dual_file_wiring",
+          "model": "gemma4-26b-local"
+        },
+        {
+          "task_type": "analyze_repair",
+          "model": "gemma4-26b-local"
+        },
+        {
+          "task_type": "test_repair",
+          "model": "gemma4-26b-local"
+        },
+        {
+          "task_type": "closure_repair",
+          "model": "qwen2.5-coder-32b-local"
+        }
+      ],
+      "upgrade_threshold": {
+        "max_attempts_before_upgrade": 2,
+        "max_files_before_upgrade": 2,
+        "max_schema_drift_before_upgrade": 1,
+        "max_unrelated_operation_rate": 0.4,
+        "upgrade_on_validation_fail": true,
+        "upgrade_on_patch_parse_fail": true,
+        "upgrade_on_scope_violation": true,
+        "upgrade_on_semantic_conflict": true
+      }
+    }
+  }
+}

@@ -9,12 +9,15 @@ assignees: ''
 
 ## Quick Summary
 
-##  Environment & Tools
-- **PicoClaw Version:** (e.g., v0.1.2 or commit hash)
-- **Go Version:** (e.g., go 1.22)
-- **AI Model & Provider:** (e.g., GPT-4o via OpenAI / DeepSeek via SiliconFlow)
+## Environment
+- **OneAppFactory Version:** (e.g., release tag or commit hash)
+- **Go Version:** (e.g., go 1.25)
+- **Frontend Package Manager:** (e.g., pnpm 10.x, if relevant)
+- **Model & Provider:** (e.g., qwen2.5-coder via Ollama / OpenRouter / Anthropic)
 - **Operating System:** (e.g., Ubuntu 22.04 / macOS / Android Termux)
-- **Channels:** (e.g., Discord, Telegram, Feishu, ...)
+- **Builder Runtime:** (local process / Docker image / disabled)
+- **Template:** (e.g., flutter-open-lite / flutter-finance-lite)
+- **Job ID or Run ID:** (if this happened through /jobs)
 
 ## 📸 Steps to Reproduce
 1. 

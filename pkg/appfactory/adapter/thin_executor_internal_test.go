@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
-	appconfig "github.com/sipeed/picoclaw/pkg/config"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
+	appconfig "github.com/sipeed/oneappfactory/pkg/config"
 )
 
 func TestBuildRoundInputIncludesKnowledgePack(t *testing.T) {
@@ -63,10 +63,10 @@ func TestBuildDefaultEditPlanUsesProbeForFlutterWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildDefaultEditPlan() error = %v", err)
 	}
-	if !strings.Contains(plan.Summary, "output=lib/picoclaw_executor_probe.dart") {
+	if !strings.Contains(plan.Summary, "output=lib/oneappfactory_executor_probe.dart") {
 		t.Fatalf("summary = %q, want default probe output path", plan.Summary)
 	}
-	if len(plan.Files) != 1 || plan.Files[0].Path != "lib/picoclaw_executor_probe.dart" {
+	if len(plan.Files) != 1 || plan.Files[0].Path != "lib/oneappfactory_executor_probe.dart" {
 		t.Fatalf("plan files = %+v, want only probe file", plan.Files)
 	}
 	if strings.Contains(plan.Files[0].Content, "BookkeepingApp") {
@@ -101,7 +101,7 @@ func TestBuildDefaultEditPlanUsesBuilderRuntimeSummaryWhenEnabled(t *testing.T) 
 	if err != nil {
 		t.Fatalf("buildDefaultEditPlan() error = %v", err)
 	}
-	if strings.Contains(plan.Summary, "output=lib/picoclaw_executor_probe.dart") {
+	if strings.Contains(plan.Summary, "output=lib/oneappfactory_executor_probe.dart") {
 		t.Fatalf("summary = %q, want builder runtime summary without probe output", plan.Summary)
 	}
 	if !strings.Contains(plan.Summary, "output=builder-runtime-workspace-patch") {
@@ -110,7 +110,7 @@ func TestBuildDefaultEditPlanUsesBuilderRuntimeSummaryWhenEnabled(t *testing.T) 
 	if !strings.Contains(plan.Summary, "route=task_route") {
 		t.Fatalf("summary = %q, want builder runtime route source", plan.Summary)
 	}
-	if !containsDefaultEditPath(plan.Files, "lib/picoclaw_executor_probe.dart") {
+	if !containsDefaultEditPath(plan.Files, "lib/oneappfactory_executor_probe.dart") {
 		t.Fatalf("plan files = %+v, want fallback probe file preserved", plan.Files)
 	}
 }

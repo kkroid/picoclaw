@@ -3,7 +3,7 @@
 set -euo pipefail
 
 template_ref="${1:-flutter-finance-lite}"
-builder_image="${APPFACTORY_BUILDER_IMAGE:-picoclaw/appfactory-builder:local}"
+builder_image="${ONEAPPFACTORY_BUILDER_IMAGE:-oneappfactory/builder:local}"
 cache_root="${APPFACTORY_BUILDER_CACHE_ROOT:-$PWD/workspace/appfactory/builder-cache/template-verify}"
 include_apk="${APPFACTORY_TEMPLATE_VERIFY_INCLUDE_APK:-1}"
 android_verbose="${APPFACTORY_TEMPLATE_VERIFY_ANDROID_VERBOSE:-0}"
@@ -167,7 +167,7 @@ EOF
 
 if ! docker image inspect "$builder_image" >/dev/null 2>&1; then
   echo "builder image not found: $builder_image" >&2
-  echo "run 'make build-appfactory-builder' first or set APPFACTORY_BUILDER_IMAGE to an existing image" >&2
+  echo "run 'make build-appfactory-builder' first or set ONEAPPFACTORY_BUILDER_IMAGE to an existing image" >&2
   exit 1
 fi
 

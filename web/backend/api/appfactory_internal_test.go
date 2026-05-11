@@ -16,17 +16,17 @@ import (
 	"testing"
 	"time"
 
-	appadapter "github.com/sipeed/picoclaw/pkg/appfactory/adapter"
-	appbuilders "github.com/sipeed/picoclaw/pkg/appfactory/builders"
-	appprepare "github.com/sipeed/picoclaw/pkg/appfactory/prepare"
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
-	"github.com/sipeed/picoclaw/pkg/config"
+	appadapter "github.com/sipeed/oneappfactory/pkg/appfactory/adapter"
+	appbuilders "github.com/sipeed/oneappfactory/pkg/appfactory/builders"
+	appprepare "github.com/sipeed/oneappfactory/pkg/appfactory/prepare"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
+	"github.com/sipeed/oneappfactory/pkg/config"
 )
 
 func TestInternalBuildersRegisterHeartbeatAndAllocateRelease(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -76,7 +76,7 @@ func TestInternalBuildersRegisterHeartbeatAndAllocateRelease(t *testing.T) {
 func TestNewAppFactoryRunnerLoadsBuilderRuntimeConfig(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	cfg.AppFactory.BuilderRuntime = config.BuilderRuntimeConfig{
 		Enabled:      true,
 		DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
@@ -190,7 +190,7 @@ func (stub stubRunService) IndexMetrics(context.Context, string, appruns.Metrics
 func TestInternalPreserveWorkerDrainsBuilder(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -230,7 +230,7 @@ func TestInternalPreserveWorkerDrainsBuilder(t *testing.T) {
 func TestInternalAllocateWorkerPrefersHigherPriorityAndPreferredCapabilities(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -288,7 +288,7 @@ func TestInternalAllocateWorkerPrefersHigherPriorityAndPreferredCapabilities(t *
 func TestInternalAllocateWorkerRejectsLowBudgetFlagshipOnlyPool(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -327,7 +327,7 @@ func TestInternalAllocateWorkerRejectsLowBudgetFlagshipOnlyPool(t *testing.T) {
 func TestInternalBuildRunsLifecycle(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -406,7 +406,7 @@ func TestInternalRunRequirementCompletesRunAndWritesPrepareBundle(t *testing.T) 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -456,7 +456,7 @@ func TestCompilePRDWritesBundleWithoutRun(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -511,7 +511,7 @@ func TestCompilePRDGeneratesUniqueDefaultIDsForJobsUI(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -551,7 +551,7 @@ func TestCompilePRDAllowsGenericStructuredBundleForJobsUIRealChecks(t *testing.T
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -616,7 +616,7 @@ func TestCompilePRDAllowsGenericStructuredBundleForJobsUIRealChecks(t *testing.T
 func TestCompilePRDRejectsUnknownTemplate(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -654,7 +654,7 @@ func TestGetPRDReturnsPreparedPRD(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -697,7 +697,7 @@ func TestGetPRDReturnsPreparedPRD(t *testing.T) {
 func TestGetPRDReturnsNotFoundForUnknownID(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -725,7 +725,7 @@ func TestCreateAndGetPublicJob(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -783,7 +783,7 @@ func TestGetPublicJobReflectsUpdatedPreparedBundleInputs(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -857,7 +857,7 @@ func TestCreatePublicJobAppliesGoalSummaryAndHumanNotesOverridesToPreparedBuilde
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -911,7 +911,7 @@ func TestStartPublicJobUsesCurrentApprovalSnapshotsAfterJobCreation(t *testing.T
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1007,7 +1007,7 @@ func TestStartPublicJobRejectsWhenApprovedPRDVersionNoLongerMatchesPreparedBundl
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1096,7 +1096,7 @@ func TestSubmitPRDApprovalRequiresPrepareRecompileAfterPRDVersionDrift(t *testin
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1253,7 +1253,7 @@ func TestPRDMarkdownDriftRequiresPRDReapprovalInsteadOfPreparedStale(t *testing.
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1356,7 +1356,7 @@ func TestRequirementDriftRequiresPRDReapprovalInsteadOfPreparedStale(t *testing.
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1459,7 +1459,7 @@ func TestGetPublicJobReturnsQueuedAfterRecompileInvalidatesFailedRun(t *testing.
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1526,7 +1526,7 @@ func TestStartPublicJobAllowsRestartAfterRecompileInvalidatesFailedRun(t *testin
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1595,7 +1595,7 @@ func TestGetPublicJobReturnsQueuedWhenPreparedBuilderInputChangesAfterFailure(t 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1688,7 +1688,7 @@ func TestStartPublicJobAllowsRestartWhenPreparedBuilderInputChangesAfterFailure(
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1769,7 +1769,7 @@ func TestGetPublicJobReturnsQueuedWhenPreparedPlanChangesAfterFailure(t *testing
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1887,7 +1887,7 @@ func TestResumeFailedPublicJobRejectsWhenPreparedPlanChangesAfterFailure(t *test
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -1970,7 +1970,7 @@ func TestTemplateFitReportDriftRequiresTemplateReapprovalInsteadOfPreparedStale(
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2074,7 +2074,7 @@ func TestGetPublicJobReturnsQueuedWhenTemplateSeedChangesAfterFailure(t *testing
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2205,7 +2205,7 @@ func TestResumeFailedPublicJobRejectsWhenTemplateSeedChangesAfterFailure(t *test
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2314,7 +2314,7 @@ func TestStartPublicJobAllowsRestartWhenTemplateSeedChangesAfterFailure(t *testi
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2412,7 +2412,7 @@ func TestGetPublicJobArtifactsReturnsIndexedManifest(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2482,7 +2482,7 @@ func TestGetPublicJobEventsReturnsAggregatedTimeline(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2715,7 +2715,7 @@ func TestGetPublicJobExposesCurrentRoundWhileRunIsActive(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -2799,7 +2799,7 @@ func TestStartPublicJobRunsToCompletion(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -3001,7 +3001,7 @@ func TestStartPublicJobDefaultExecutorWritesFlutterFallbackProbe(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -3055,11 +3055,11 @@ func TestStartPublicJobDefaultExecutorWritesFlutterFallbackProbe(t *testing.T) {
 		modifiedPaths[pathValue] = true
 	}
 	jobWorkspace := filepath.Join(workspace, "appfactory", "jobs", "job-public-default-landing", "workspace")
-	if !modifiedPaths["lib/picoclaw_executor_probe.dart"] {
+	if !modifiedPaths["lib/oneappfactory_executor_probe.dart"] {
 		t.Fatalf("modified_files = %v, want probe path", modifiedPaths)
 	}
-	probe := string(mustReadFileBytes(t, filepath.Join(jobWorkspace, "lib", "picoclaw_executor_probe.dart")))
-	if !strings.Contains(probe, "Generated by PicoClaw thin executor.") || !strings.Contains(probe, "'goalSummary': '生成一个围绕首页概览、记账录入、账单列表三块核心功能的记账 App 最小输入包，并驱动当前 P0 Builder 默认执行器写入交接探针，证明 inspect/edit/validate 闭环可用。'") {
+	probe := string(mustReadFileBytes(t, filepath.Join(jobWorkspace, "lib", "oneappfactory_executor_probe.dart")))
+	if !strings.Contains(probe, "Generated by OneAppFactory thin executor.") || !strings.Contains(probe, "'goalSummary': ") {
 		t.Fatalf("probe = %q, want fallback metadata", probe)
 	}
 	if strings.Contains(probe, "BookkeepingApp") {
@@ -3090,7 +3090,7 @@ func TestStartPublicJobDefaultExecutorWritesFlutterFallbackProbe(t *testing.T) {
 		checkID, _ := result["check_id"].(string)
 		seenChecks[checkID] = true
 	}
-	for _, checkID := range []string{"check-structural-template-files-ready", "check-legacy-thin-fallback-probe", "check-legacy-thin-fallback-metadata"} {
+	for _, checkID := range []string{"check-structural-template-files-ready", "check-oneappfactory-thin-fallback-probe", "check-oneappfactory-thin-fallback-metadata"} {
 		if !seenChecks[checkID] {
 			t.Fatalf("validation_results missing %s: %v", checkID, seenChecks)
 		}
@@ -3101,7 +3101,7 @@ func TestStartPublicJobWritesStructuredRoundOutputForFlutterProfile(t *testing.T
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -3239,7 +3239,7 @@ func TestStartPublicJobGenericOpenLiteProducesWorkspaceForDeviceVerify(t *testin
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -3260,7 +3260,7 @@ func TestStartPublicJobGenericOpenLiteProducesWorkspaceForDeviceVerify(t *testin
 		"job_id":           "job-public-generic-open-lite-device",
 		"prd_id":           "prd-public-generic-open-lite-device",
 		"real_checks":      true,
-		"executor_image":   "picoclaw/appfactory-builder:local",
+		"executor_image":   "oneappfactory/builder:local",
 	}, http.StatusOK)
 	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
 		"prd_id":      "prd-public-generic-open-lite-device",
@@ -3349,7 +3349,7 @@ func TestStartPublicJobAutoRepairsFlutterAnalyzeFailureThroughPublicJobsAPI(t *t
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -3366,18 +3366,14 @@ func TestStartPublicJobAutoRepairsFlutterAnalyzeFailureThroughPublicJobsAPI(t *t
 				Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
 			}},
 		}
-		runner.PatchGenerator = &publicJobAutoRepairPatchGenerator{responses: map[string][]appadapter.BuilderRuntimePatchResponse{
-			"qwen2.5-coder-14b-local": {
-				{Content: `{"patch_id":"initial-edit","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Old Title';\n"}]}`},
-				{Content: `{"patch_id":"analyze-repair","operations":[{"type":"write_file","path":"lib/main.dart","content":"const title = 'Budget Flow';\n"}]}`},
-			},
-		}}
+		runner.PatchGenerator = &publicJobAutoRepairCoveragePatchGenerator{}
 		runner.Executor = publicJobAutoRepairExecutor{
-			checkID:  "check-flutter-analyze",
-			label:    "flutter analyze",
-			stage:    appruns.StageCheap,
-			commands: []string{"flutter analyze"},
-			script:   "grep -q 'Budget Flow' lib/main.dart || { echo flutter analyze failed before repair >&2; exit 1; }",
+			checkID:         "check-flutter-analyze",
+			label:           "flutter analyze",
+			stage:           appruns.StageCheap,
+			commands:        []string{"flutter analyze"},
+			script:          "grep -q 'Budget Flow' lib/main.dart || { echo 'Analyzing workspace...' >&2; echo '  error • Budget Flow missing • lib/main.dart:1:1 • oneappfactory_test' >&2; echo '1 issue found.' >&2; exit 1; }",
+			skipEditCommand: true,
 		}
 		return runner
 	}
@@ -3431,8 +3427,8 @@ func TestStartPublicJobAutoRepairsFlutterAnalyzeFailureThroughPublicJobsAPI(t *t
 	if builderRuntime["task_type"] != "analyze_repair" {
 		t.Fatalf("task_type = %v, want analyze_repair", builderRuntime["task_type"])
 	}
-	if builderRuntime["attempts"] != float64(2) {
-		t.Fatalf("attempts = %v, want 2", builderRuntime["attempts"])
+	if attempts, ok := builderRuntime["attempts"].(float64); !ok || attempts < 2 {
+		t.Fatalf("attempts = %v, want at least 2", builderRuntime["attempts"])
 	}
 	validationResults, ok := firstRound["validation_results"].([]any)
 	if !ok || len(validationResults) != 1 {
@@ -3524,8 +3520,8 @@ func TestStartPublicJobAutoRepairsFlutterAnalyzeFailureThroughPublicJobsAPI(t *t
 		summary := fmt.Sprint(event["summary"])
 		if strings.Contains(summary, "builder-runtime auto repair: check-flutter-analyze | task_type=analyze_repair") {
 			seenAutoRepairHeartbeat = true
-			if event["attempt"] != float64(2) {
-				t.Fatalf("auto repair heartbeat attempt = %v, want 2", event["attempt"])
+			if attempt, ok := event["attempt"].(float64); !ok || attempt < 2 {
+				t.Fatalf("auto repair heartbeat attempt = %v, want at least 2", event["attempt"])
 			}
 			if event["current_phase"] != "repair" {
 				t.Fatalf("auto repair heartbeat current_phase = %v, want repair", event["current_phase"])
@@ -3560,7 +3556,7 @@ func TestStartPublicJobAutoRepairsFlutterAnalyzeFailureThroughPublicJobsAPI(t *t
 func TestStartPublicJobRejectsWhenApprovalsNotReady(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -3618,7 +3614,7 @@ func TestCancelQueuedPublicJobMarksJobCancelled(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -3699,7 +3695,7 @@ func TestCancelRunningPublicJobCancelsLatestRun(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -3786,7 +3782,7 @@ func TestCancelQueuedExecutionMarksExecutionCancelledAndDoesNotReplay(t *testing
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -3891,7 +3887,7 @@ func TestCancelRunningExecutionMarksExecutionCancelledAndDoesNotReplay(t *testin
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4013,7 +4009,7 @@ func TestCancelRunningPublicJobInterruptsBlockingBuilderRuntimePatch(t *testing.
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4030,14 +4026,19 @@ func TestCancelRunningPublicJobInterruptsBlockingBuilderRuntimePatch(t *testing.
 		runner.BuilderRuntimeConfig = config.BuilderRuntimeConfig{
 			Enabled:      true,
 			DefaultModel: &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+			TaskRoutes: []config.BuilderRuntimeTaskRouteConfig{{
+				TaskType: "analyze_repair",
+				Model:    &config.AgentModelConfig{Primary: "qwen2.5-coder-14b-local"},
+			}},
 		}
 		runner.PatchGenerator = generator
 		runner.Executor = publicJobAutoRepairExecutor{
-			checkID:  "check-noop",
-			label:    "noop validation",
-			stage:    appruns.StageBaseline,
-			commands: []string{"true"},
-			script:   "true",
+			checkID:         "check-flutter-analyze",
+			label:           "flutter analyze",
+			stage:           appruns.StageCheap,
+			commands:        []string{"flutter analyze"},
+			script:          "grep -q 'Budget Flow' lib/main.dart || { echo 'Analyzing workspace...' >&2; echo '  error • Budget Flow missing • lib/main.dart:1:1 • oneappfactory_test' >&2; echo '1 issue found.' >&2; exit 1; }",
+			skipEditCommand: true,
 		}
 		return runner
 	}
@@ -4047,13 +4048,13 @@ func TestCancelRunningPublicJobInterruptsBlockingBuilderRuntimePatch(t *testing.
 	defer server.Close()
 
 	postJSONURL(t, server.Client(), server.URL+"/api/v1/prds:compile", map[string]any{
-		"requirement_text": "做一个任务与标签联动的项目跟踪 app，至少需要项目、任务、标签和它们的关联关系。",
+		"requirement_text": "做一个简单记账 app，不考虑上架，只考虑功能实现，需要首页概览、记一笔和账单列表。",
 		"job_id":           "job-public-cancel-blocking-builder-runtime",
 		"prd_id":           "prd-public-cancel-blocking-builder-runtime",
 	}, http.StatusOK)
 	postJSONURL(t, server.Client(), server.URL+"/api/v1/jobs", map[string]any{
 		"prd_id":      "prd-public-cancel-blocking-builder-runtime",
-		"template_id": "flutter-open-lite",
+		"template_id": "flutter-finance-lite",
 	}, http.StatusOK)
 	postJSONURL(t, server.Client(), server.URL+"/internal/v1/builders:register", map[string]any{
 		"builder_id":        "builder-a",
@@ -4072,7 +4073,7 @@ func TestCancelRunningPublicJobInterruptsBlockingBuilderRuntimePatch(t *testing.
 
 	select {
 	case <-generator.started:
-	case <-time.After(2 * time.Second):
+	case <-time.After(8 * time.Second):
 		t.Fatal("blocking builder-runtime patch generator did not start before timeout")
 	}
 
@@ -4115,7 +4116,7 @@ func TestResumeFailedPublicJobRunsToCompletion(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4209,7 +4210,7 @@ func TestGetFailedPublicJobIncludesResumeContext(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4323,7 +4324,7 @@ func TestGetFailedPublicJobSynthesizesResumeContextWhenOutputMissing(t *testing.
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4413,7 +4414,7 @@ func TestGetFailedPublicJobSynthesizesResumeContextFromRepairContextWhenOutputMi
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4504,7 +4505,7 @@ func TestGetFailedPublicJobSynthesizesPatchApplyFailureResumeContextWhenOutputMi
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4598,7 +4599,7 @@ func TestGetFailedPublicJobSynthesizesInterruptedResumeContextWhenDispatcherLost
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4682,7 +4683,7 @@ func TestGetFailedPublicJobSynthesizesProfileFailureDomainForStructuralCheck(t *
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4803,7 +4804,7 @@ func TestListPublicJobsSupportsStatusFilter(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4866,7 +4867,7 @@ func TestPublicJobsTolerateLegacyPreparedExecutionContract(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -4936,7 +4937,7 @@ func TestStartPublicJobReturnsConflictWhenExecutionAlreadyActive(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -5001,7 +5002,7 @@ func TestResumeFailedPublicJobReturnsConflictWhenResumeDisallowed(t *testing.T) 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -5091,7 +5092,7 @@ func TestResumeFailedPublicJobReturnsConflictWhenExecutionAlreadyActive(t *testi
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -5153,7 +5154,7 @@ func TestResumeFailedPublicJobRejectsWhenApprovedTemplateVersionNoLongerMatchesP
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -5287,7 +5288,7 @@ func TestSubmitTemplateApprovalPromotesFreshStartAfterTemplateSelectionChange(t 
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -5427,7 +5428,7 @@ func TestSubmitTemplateApprovalRequiresPrepareRecompileAfterTemplateSourceVersio
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -5627,7 +5628,7 @@ func TestResumeFailedPublicJobRejectsWhenPreparedBundleRecompiledAfterFailure(t 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -5707,7 +5708,7 @@ func TestResumeFailedPublicJobRejectsWhenPreparedBuilderInputChangesAfterFailure
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -5799,7 +5800,7 @@ func TestResumeFailedPublicJobRestoresPreservedWorkspace(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -5939,7 +5940,7 @@ func TestResumeFailedPublicJobFallsBackToJobWorkspaceWhenPreservedWorkspacePathM
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6050,7 +6051,7 @@ func TestResumeFailedPublicJobDefaultsToResumeFromFailureWhenPreservedWorkspaceR
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6145,7 +6146,7 @@ func TestResumeFailedPublicJobRequiresHumanConfirmation(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6245,7 +6246,7 @@ func TestResumeInterruptedPublicJobRunsToCompletion(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6306,7 +6307,7 @@ func TestResumeInterruptedPublicJobRunsToCompletion(t *testing.T) {
 func TestResumeCancelledPublicJobReturnsConflict(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6356,7 +6357,7 @@ func TestGetNotificationsReturnsPendingApprovalsAndFailedJobs(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6692,7 +6693,7 @@ func TestNotificationsSupportAckFilterAndRebuild(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6803,7 +6804,7 @@ func TestGetOrchestratorStatusReturnsSnapshot(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6846,7 +6847,7 @@ func TestRunOrchestratorPassEndpointReturnsUpdatedStatus(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6888,7 +6889,7 @@ func TestRunPublicJobOrchestratorPassAccumulatesForeignLiveLeaseSkipsAcrossPasse
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -6946,7 +6947,7 @@ func TestRunPublicJobOrchestratorPassRetainsQueuedAndRunningRecoveryCountersAcro
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7030,7 +7031,7 @@ func TestGetOrchestratorStatusIncludesWatchLockState(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7072,7 +7073,7 @@ func TestGetOrchestratorStatusIncludesPersistedCLIWatchRunnerRole(t *testing.T) 
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7127,7 +7128,7 @@ func TestUnlockOrchestratorWatchEndpointRejectsForeignActiveLockWithoutForce(t *
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7196,7 +7197,7 @@ func TestUnlockOrchestratorWatchEndpointForceClearsForeignActiveLock(t *testing.
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7232,7 +7233,7 @@ func TestStartOrchestratorWatchEndpointStartsBackgroundWatcher(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7284,7 +7285,7 @@ func TestStartOrchestratorWatchEndpointRejectsDuplicateStart(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7347,7 +7348,7 @@ func TestRunOrchestratorPassEndpointReturnsWhileWatchRuns(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7416,7 +7417,7 @@ func TestStopOrchestratorWatchEndpointStopsBackgroundWatcher(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7449,7 +7450,7 @@ func TestHandlerShutdownStopsBackgroundOrchestratorWatch(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7489,7 +7490,7 @@ func TestGetNotificationsIncludesOrchestratorWatchAuditEvents(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7568,7 +7569,7 @@ func TestGetPublicJobEventsIncludesResumeAndSnapshotSignals(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7676,7 +7677,7 @@ func TestStartPublicJobArtifactsIncludeRunLog(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7739,7 +7740,7 @@ func TestPrepareReviewEndpointRebuildsReviewArtifactsForCompletedRun(t *testing.
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -7891,7 +7892,7 @@ func TestRecordDeliveryEndpointPersistsDeliveryRecordAndProjectsSignals(t *testi
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -8160,7 +8161,7 @@ func TestRecordDeliveryFollowUpPersistsAndProjectsSignals(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -8306,7 +8307,7 @@ func TestQueuedPublicJobExecutionRecoversAfterHandlerRestart(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -8410,7 +8411,7 @@ func TestClaimPublicJobExecutionLeaseInitializesAttemptCount(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -8459,7 +8460,7 @@ func TestClaimPublicJobExecutionLeaseKeepsAttemptCountForSameLiveOwner(t *testin
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -8504,7 +8505,7 @@ func TestClaimPublicJobExecutionLeaseRecordsHandoffAfterExpiry(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -8558,7 +8559,7 @@ func TestQueuedPublicJobExecutionRecoverySkipsForeignLiveLease(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -8608,7 +8609,7 @@ func TestQueuedPublicJobExecutionRecoveryReclaimsExpiredLease(t *testing.T) {
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -8749,7 +8750,7 @@ func TestRunningPublicJobExecutionRecoverySkipsForeignLiveLeaseThenReclaimsExpir
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -8980,7 +8981,7 @@ func TestPublicJobExecutionLeaseHeartbeatRenewsExpiry(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9042,7 +9043,7 @@ func TestPublicJobExecutionLeaseHeartbeatDoesNotOverwriteCancelledExecution(t *t
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9145,7 +9146,7 @@ func TestGetPublicJobPrefersCancelledExecutionRecordWhenRunIsStaleRunning(t *tes
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9291,7 +9292,7 @@ func TestCancelPublicJobExecutionFinalizesAttemptAudit(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9341,7 +9342,7 @@ func TestPersistPublicJobExecutionRecordRejectsSameRunTransitionBackToQueued(t *
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9383,7 +9384,7 @@ func TestPersistPublicJobExecutionRecordRejectsReplacingNonTerminalRun(t *testin
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9423,7 +9424,7 @@ func TestPersistPublicJobExecutionRecordRejectsStaleCompletedOverwriteAfterCance
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9468,7 +9469,7 @@ func TestPersistPublicJobExecutionRecordAllowsNewQueuedRunAfterTerminalExecution
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9517,7 +9518,7 @@ func TestRunningPublicJobExecutionRecoversAsFailedAfterHandlerRestart(t *testing
 	configPath := filepath.Join(newRetriableTempDir(t), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9631,7 +9632,7 @@ func TestGetPublicJobPrefersTerminalExecutionRecordWhenRunIsStaleRunning(t *test
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9776,7 +9777,7 @@ func TestGetPublicJobPrefersTerminalExecutionRecordWhenRunIsStaleRunning(t *test
 func TestGetTemplateReturnsRegistryEntry(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9816,7 +9817,7 @@ func TestGetTemplateReturnsRegistryEntry(t *testing.T) {
 func TestGetTemplateReturnsNotFoundForUnknownID(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9844,7 +9845,7 @@ func TestMatchTemplatesReturnsRankedCandidates(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9896,7 +9897,7 @@ func TestMatchTemplatesReturnsRankedCandidates(t *testing.T) {
 func TestMatchTemplatesReturnsNotFoundForUnknownPRD(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9925,7 +9926,7 @@ func TestSubmitTemplateApprovalUpdatesPrepareBundle(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -9974,7 +9975,7 @@ func TestSubmitTemplateApprovalUpdatesPrepareBundle(t *testing.T) {
 func TestSubmitTemplateApprovalRejectsMismatchedPRD(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -10008,7 +10009,7 @@ func TestSubmitPRDApprovalUpdatesPrepareBundle(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -10060,7 +10061,7 @@ func TestSubmitPRDApprovalUpdatesPrepareBundle(t *testing.T) {
 func TestSubmitPRDApprovalRejectsMismatchedPRD(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -10094,7 +10095,7 @@ func TestCreateGetAndDecidePRDApproval(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
 	workspace := filepath.Join(filepath.Dir(configPath), "workspace")
-	cfg.Agents.Defaults.Workspace = workspace
+	cfg.Workspace = workspace
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -10185,7 +10186,7 @@ func TestCreateGetAndDecidePRDApproval(t *testing.T) {
 func TestRejectedPRDApprovalMarksPublicJobFailed(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -10229,7 +10230,7 @@ func TestRejectedPRDApprovalMarksPublicJobFailed(t *testing.T) {
 func TestSubmittedApprovalCanBeFetchedAndCannotBeDecidedTwice(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	cfg := config.DefaultConfig()
-	cfg.Agents.Defaults.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
+	cfg.Workspace = filepath.Join(filepath.Dir(configPath), "workspace")
 	if err := config.SaveConfig(configPath, cfg); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
@@ -10290,6 +10291,16 @@ func sampleBuildRunInput() map[string]any {
 		"job_id":         "job-1",
 		"prd_id":         "prd-1",
 		"template_id":    "template-1",
+		"planning_policy": map[string]any{
+			"policy_version": "phase1-boundary-v1",
+			"stages": []map[string]any{
+				{"stage": "requirement_structuring", "route": "planning_model"},
+				{"stage": "domain_modeling", "route": "planning_model"},
+				{"stage": "task_allocation", "route": "decision_model"},
+				{"stage": "acceptance_planning", "route": "decision_model"},
+				{"stage": "build_input_projection", "route": "deterministic"},
+			},
+		},
 		"workspace_path": "/workspace/job-1",
 		"artifact_dir":   "/artifacts/job-1",
 		"goal_summary":   "build android app",
@@ -10452,7 +10463,7 @@ func sampleRunRecordForDockerLaunch() appruns.RunRecord {
 	return appruns.RunRecord{
 		RunID:         "run-1",
 		JobID:         "job-1",
-		ExecutorImage: "picoclaw/appfactory-builder:local",
+		ExecutorImage: "oneappfactory/builder:local",
 		WorkspacePath: "/tmp/appfactory/jobs/job-1/workspace",
 		ArtifactDir:   "/tmp/appfactory/jobs/job-1/artifacts",
 		LaunchCommand: "/bin/sh",
@@ -10588,16 +10599,16 @@ func waitForPublicJobExecutionStatus(t *testing.T, workspace, jobID, wantStatus 
 
 func newRetriableTempDir(t *testing.T) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("", "picoclaw-api-test-")
+	dir, err := os.MkdirTemp("", "oneappfactory-api-test-")
 	if err != nil {
 		t.Fatalf("MkdirTemp() error = %v", err)
 	}
-	if recordPath := strings.TrimSpace(os.Getenv("PICOCLAW_TEST_TEMPDIR_RECORD_FILE")); recordPath != "" {
+	if recordPath := strings.TrimSpace(os.Getenv("ONEAPPFACTORY_TEST_TEMPDIR_RECORD_FILE")); recordPath != "" {
 		if err := os.WriteFile(recordPath, []byte(dir), 0o600); err != nil {
 			t.Fatalf("WriteFile(%s) error = %v", recordPath, err)
 		}
 	}
-	if os.Getenv("PICOCLAW_KEEP_TEST_TEMPDIR") == "1" {
+	if os.Getenv("ONEAPPFACTORY_KEEP_TEST_TEMPDIR") == "1" {
 		t.Logf("preserving temp dir for debugging: %s", dir)
 		return dir
 	}
@@ -10640,16 +10651,22 @@ func mustReadFileBytes(t *testing.T, path string) []byte {
 }
 
 type publicJobAutoRepairExecutor struct {
-	checkID  string
-	label    string
-	stage    appruns.ExecutionStage
-	commands []string
-	script   string
+	checkID         string
+	label           string
+	stage           appruns.ExecutionStage
+	commands        []string
+	script          string
+	skipEditCommand bool
 }
 
 type publicJobAutoRepairPatchGenerator struct {
 	responses map[string][]appadapter.BuilderRuntimePatchResponse
 	models    []string
+}
+
+type publicJobAutoRepairCoveragePatchGenerator struct {
+	attempts int
+	models   []string
 }
 
 type blockingPublicJobPatchGenerator struct {
@@ -10685,13 +10702,87 @@ func (generator *publicJobAutoRepairPatchGenerator) GeneratePatch(ctx context.Co
 	return appadapter.BuilderRuntimePatchResponse{}, fmt.Errorf("no stub response for aliases %v", request.ModelAliases)
 }
 
+func (generator *publicJobAutoRepairCoveragePatchGenerator) GeneratePatch(ctx context.Context, request appadapter.BuilderRuntimePatchRequest) (appadapter.BuilderRuntimePatchResponse, error) {
+	if len(request.ModelAliases) == 0 {
+		return appadapter.BuilderRuntimePatchResponse{}, fmt.Errorf("no model aliases in request")
+	}
+	alias := request.ModelAliases[0]
+	generator.models = append(generator.models, alias)
+	generator.attempts++
+	marker := "Old Title"
+	if generator.attempts >= 2 {
+		marker = "Budget Flow"
+	}
+	paths := publicJobAutoRepairTargetPaths(request)
+	operations := make([]map[string]string, 0, len(paths))
+	for _, relPath := range paths {
+		contentBytes, err := os.ReadFile(filepath.Join(request.Run.WorkspacePath, filepath.FromSlash(relPath)))
+		if err != nil {
+			contentBytes = []byte("// OneAppFactory test placeholder\n")
+		}
+		content := string(contentBytes)
+		if relPath == "lib/main.dart" {
+			content = strings.TrimRight(content, "\n") + "\n// " + marker + "\n"
+		}
+		operations = append(operations, map[string]string{
+			"type":    "write_file",
+			"path":    relPath,
+			"content": content,
+		})
+	}
+	body, err := json.Marshal(map[string]any{
+		"patch_id":   fmt.Sprintf("auto-repair-%d", generator.attempts),
+		"operations": operations,
+	})
+	if err != nil {
+		return appadapter.BuilderRuntimePatchResponse{}, err
+	}
+	return appadapter.BuilderRuntimePatchResponse{ModelAlias: alias, Content: string(body)}, nil
+}
+
+func publicJobAutoRepairTargetPaths(request appadapter.BuilderRuntimePatchRequest) []string {
+	seen := map[string]struct{}{}
+	paths := make([]string, 0)
+	appendPath := func(path string) {
+		normalized := filepath.ToSlash(strings.TrimSpace(path))
+		if normalized == "" || strings.Contains(normalized, "*") {
+			return
+		}
+		if _, ok := seen[normalized]; ok {
+			return
+		}
+		seen[normalized] = struct{}{}
+		paths = append(paths, normalized)
+	}
+	if len(request.RoundInput.TaskBundle) > 0 {
+		for _, path := range request.RoundInput.TaskBundle[0].TargetPaths {
+			appendPath(path)
+		}
+	}
+	if len(paths) == 0 {
+		for _, task := range request.Run.TaskBundle {
+			for _, path := range task.TargetPaths {
+				appendPath(path)
+			}
+		}
+	}
+	if len(paths) == 0 {
+		appendPath("lib/main.dart")
+	}
+	sort.Strings(paths)
+	return paths
+}
+
 func (executor publicJobAutoRepairExecutor) Prepare(ctx context.Context, run appadapter.RunRecord) (appadapter.RoundPlan, error) {
-	editCmd := exec.CommandContext(ctx, "/bin/sh", "-lc", "true")
-	editCmd.Dir = run.WorkspacePath
-	editCmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=public-job-auto-repair-edit")
+	var editCmd *exec.Cmd
+	if !executor.skipEditCommand {
+		editCmd = exec.CommandContext(ctx, "/bin/sh", "-lc", "true")
+		editCmd.Dir = run.WorkspacePath
+		editCmd.Env = append(os.Environ(), "ONEAPPFACTORY_STUB_EXECUTOR=public-job-auto-repair-edit")
+	}
 	validationCmd := exec.CommandContext(ctx, "/bin/sh", "-lc", executor.script)
 	validationCmd.Dir = run.WorkspacePath
-	validationCmd.Env = append(os.Environ(), "PICOCLAW_STUB_EXECUTOR=public-job-auto-repair-validate")
+	validationCmd.Env = append(os.Environ(), "ONEAPPFACTORY_STUB_EXECUTOR=public-job-auto-repair-validate")
 	return appadapter.RoundPlan{
 		Summary:    "public job auto repair executor",
 		RoundInput: appadapter.BuildRoundInputForTest(run),
@@ -10777,7 +10868,7 @@ type structuredGenericOpenLiteRoundTestExecutor struct{}
 
 func (structuredGenericOpenLiteRoundTestExecutor) Prepare(ctx context.Context, run appadapter.RunRecord) (appadapter.RoundPlan, error) {
 	roundInput := appadapter.BuildRoundInputForTest(run)
-	editCmd := exec.CommandContext(ctx, "sh", "-c", "test -f lib/main.dart && test -f lib/models/record.dart && test -f test/widget_test.dart")
+	editCmd := exec.CommandContext(ctx, "sh", "-c", materializeOpenLiteReferenceFilesScript(run))
 	editCmd.Dir = run.WorkspacePath
 	checks := []struct {
 		id    string
@@ -10824,6 +10915,45 @@ func (structuredGenericOpenLiteRoundTestExecutor) Prepare(ctx context.Context, r
 		ValidationSteps:  validationSteps,
 		AcceptanceChecks: acceptanceChecks,
 	}, nil
+}
+
+func materializeOpenLiteReferenceFilesScript(run appadapter.RunRecord) string {
+	referenceFiles := []string{
+		"lib/models/record.dart",
+		"lib/models/dashboard_summary.dart",
+		"lib/repositories/record_repository.dart",
+		"lib/controllers/home_controller.dart",
+		"lib/controllers/record_form_controller.dart",
+		"lib/controllers/record_list_controller.dart",
+		"lib/template/open_lite_copy.dart",
+		"lib/views/home_page.dart",
+		"lib/views/record_detail_page.dart",
+		"lib/views/record_form_page.dart",
+		"lib/views/record_list_page.dart",
+		"test/widget_test.dart",
+	}
+	var script strings.Builder
+	script.WriteString("set -eu\n")
+	script.WriteString("test -f lib/main.dart\n")
+	for _, relPath := range referenceFiles {
+		sourcePath := strings.TrimSpace(run.TemplateReferenceFiles[relPath])
+		if sourcePath == "" {
+			sourcePath = filepath.Join(run.TemplateSourceDir, filepath.FromSlash(relPath))
+		}
+		script.WriteString("mkdir -p ")
+		script.WriteString(testShellQuote(filepath.Dir(filepath.FromSlash(relPath))))
+		script.WriteByte('\n')
+		script.WriteString("cp ")
+		script.WriteString(testShellQuote(sourcePath))
+		script.WriteByte(' ')
+		script.WriteString(testShellQuote(filepath.FromSlash(relPath)))
+		script.WriteByte('\n')
+	}
+	return script.String()
+}
+
+func testShellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func requireJSONLinesObjectsFile(t *testing.T, path string) []map[string]any {

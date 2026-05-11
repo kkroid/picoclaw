@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/acceptance-plan.schema.json",
-  "title": "PicoClaw Acceptance Plan",
+  "$id": "https://oneappfactory.local/docs/design/schemas/acceptance-plan.schema.json",
+  "title": "OneAppFactory Acceptance Plan",
   "description": "planning-engine 产出的结构、语义、行为、交付四层验收计划。",
   "type": "object",
   "additionalProperties": false,

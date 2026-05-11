@@ -1,99 +1,68 @@
-# Debugging PicoClaw
+# Debugging OneAppFactory
 
-PicoClaw performs multiple complex interactions under the hood for every single request it receives—from routing messages and evaluating complexity, to executing tools and adapting to model failures. Being able to see exactly what is happening is crucial, not just for troubleshooting potential issues, but also for truly understanding how the agent operates.
-## Starting PicoClaw in Debug Mode
+Debugging usually starts from a job id. A job connects the public `/jobs` API, builder runtime events, generated Flutter workspace, and validation artifacts.
 
-To get detailed information about what the agent is doing (LLM requests, tool calls, message routing), you can start the PicoClaw gateway with the debug flag:
+## Start With Console Logs
 
-```bash
-picoclaw gateway --debug
-# or
-picoclaw gateway -d
-```
-
-In this mode, the system will format the logs extensively and display previews of system prompts and tool execution results.
-
-## Disabling Log Truncation (Full Logs)
-
-By default, PicoClaw truncates very long strings (such as the *System Prompt* or large JSON output results) in the debug logs to keep the console readable.
-
-If you need to inspect the complete output of a command or the exact payload sent to the LLM model, you can use the `--no-truncate` flag.
-
-**Note:** This flag *only* works when combined with the `--debug` mode.
+Run the launcher with console output enabled:
 
 ```bash
-picoclaw gateway --debug --no-truncate
-
+./build/oneappfactory-launcher -console -no-browser ~/.appfactory/config.json
 ```
 
-When this flag is active, the global truncation function is disabled. This is extremely useful for:
+The web UI also includes a logs page for recent service output.
 
-* Verifying the exact syntax of the messages sent to the provider.
-* Reading the complete output of tools like `exec`, `web_fetch`, or `read_file`.
-* Debugging the session history saved in memory.
+## Inspect Job Artifacts
 
-## Tool Call Visibility in Debug Logs
+By default, runtime data lives under `~/.appfactory`. In repository-local development and regression scripts, generated data may also be under `workspace/appfactory`.
 
-When debug mode is active, the agent emits structured log entries at each stage of the tool execution lifecycle. These entries carry a `component=agent` label and use `INFO` or `DEBUG` level depending on the amount of detail:
+Useful locations:
 
-| Log message | Level | Key fields | Description |
-|---|---|---|---|
-| `LLM requested tool calls` | INFO | `tools`, `count`, `iteration` | List of tool names the model decided to call |
-| `Tool call: <name>(<args>)` | INFO | `tool`, `iteration` | The tool name and a preview of its arguments (truncated to 200 chars) |
-| `Sent tool result to user` | DEBUG | `tool`, `content_len` | Fired when a tool result is forwarded to the chat channel |
-| `TTL tick after tool execution` | DEBUG | `agent_id`, `iteration` | MCP tool-discovery TTL decrement after each tool round |
-| `Async tool completed, publishing result` | INFO | `tool`, `content_len`, `channel` | Only for tools that run asynchronously in the background |
-
-### Reading a tool call log entry
-
-A typical synchronous tool call produces two consecutive lines in the console:
-
-```
-[...] [INFO] agent: LLM requested tool calls {tools=[web_search], count=1, iteration=1}
-[...] [INFO] agent: Tool call: web_search({"query":"picoclaw release notes"}) {tool=web_search, iteration=1}
+```text
+~/.appfactory/workspace/appfactory/
+workspace/appfactory/jobs-ui-regression/latest.json
+workspace/appfactory/jobs-ui-regression/latest.md
+workspace/appfactory/jobs-ui-regression/latest.log
+workspace/appfactory/template-governance/latest.json
+workspace/appfactory/template-governance/latest.md
 ```
 
-The arguments preview is hard-capped at **200 characters** in the logs regardless of the `--no-truncate` flag, because it belongs to the `INFO`-level path. Use `--no-truncate` together with `--debug` to see the full `tools_json` field emitted by the `Full LLM request` DEBUG entry, which contains every tool definition sent to the model.
+When a regression fails, read the summary first, then open the referenced builder log and event log.
 
-## Real-Time Tool Feedback in Chat (tool_feedback)
-
-Debug logs are server-side only. If you want the agent to send a visible notification directly into the chat channel every time it executes a tool—useful when sharing the bot with other users or for transparency—enable the `tool_feedback` feature in `config.json`:
-
-```json
-{
-  "agents": {
-    "defaults": {
-      "tool_feedback": {
-        "enabled": true,
-        "max_args_length": 300
-      }
-    }
-  }
-}
-```
-
-When `enabled` is `true`, every tool call sends a short message to the chat before the tool result is returned to the model. The message looks like:
+## Run Focused Checks
 
 ```bash
-🔧 `web_search`
-{"query": "picoclaw release notes"}
+GOPROXY=https://goproxy.cn,direct go test ./pkg/appfactory/... -count=1 -timeout 300s
+GOPROXY=https://goproxy.cn,direct go test ./web/backend/... -count=1 -timeout 300s
+cd web/frontend && pnpm test:run
+bash scripts/check-appfactory-template-governance.sh
 ```
 
-
-### Options
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `enabled` | bool | `false` | Send a chat notification for each tool call |
-| `max_args_length` | int | `300` | Maximum characters of the serialised arguments included in the notification |
-
-### Environment variables
-
-Both fields can also be set via environment variables:
+For full repository verification:
 
 ```bash
-PICOCLAW_AGENTS_DEFAULTS_TOOL_FEEDBACK_ENABLED=true
-PICOCLAW_AGENTS_DEFAULTS_TOOL_FEEDBACK_MAX_ARGS_LENGTH=300
+GOPROXY=https://goproxy.cn,direct go test ./... -count=1 -timeout 600s
+cd web/frontend && pnpm build:backend && pnpm test:run
+make build && make build-launcher
 ```
 
-> **Note:** `tool_feedback` is independent of `--debug` mode. It works in production and does not require the gateway to be started with any special flag.
+## Read Builder Runtime Failures
+
+Common frontier fields in regression summaries:
+
+| Field | Meaning |
+| --- | --- |
+| `frontier` | The most specific failure boundary detected by the script |
+| `focus_path` | File or path cluster to inspect first |
+| `failure` | Short raw failure summary |
+| `explanation` | Normalized explanation for known signatures |
+| `last_success` | Last concrete success before the failure |
+| `builder_log` | Main builder runtime transcript |
+| `event_log` | Structured event stream |
+| `console_log` | Full script-side transcript |
+
+Start with `frontier` and `focus_path`. Open `builder_log` only after reading the summary fields.
+
+## Environment Gotcha
+
+In this repository, ignored `workspace/appfactory` data can contain root-owned Gradle caches from container runs. If `go test ./...` unexpectedly tries to traverse that generated directory, keep it isolated as a nested module with an ignored `workspace/appfactory/go.mod` boundary.

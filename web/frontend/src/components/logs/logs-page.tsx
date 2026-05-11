@@ -1,41 +1,64 @@
-import { IconTrash } from "@tabler/icons-react"
+import { IconLoader2 } from "@tabler/icons-react"
+import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 
-import { LogsPanel } from "@/components/logs/logs-panel"
+import { getOrchestratorStatus } from "@/api/system"
 import { PageHeader } from "@/components/page-header"
-import { Button } from "@/components/ui/button"
-import { useGatewayLogs } from "@/hooks/use-gateway-logs"
-import { useLogWrapColumns } from "@/hooks/use-log-wrap-columns"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  getOrchestratorLabel,
+  getOrchestratorToneClass,
+} from "@/lib/orchestrator-status"
 
 export function LogsPage() {
   const { t } = useTranslation()
-  const { clearLogs, clearing, logs } = useGatewayLogs()
-  const { contentRef, measureRef, wrapColumns } = useLogWrapColumns()
+  const orchestratorQuery = useQuery({
+    queryKey: ["system", "orchestrator-status"],
+    queryFn: getOrchestratorStatus,
+    refetchInterval: 5000,
+  })
+
+  const orchestrator = orchestratorQuery.data
+  const toneClass = getOrchestratorToneClass(orchestrator)
+  const label = getOrchestratorLabel(orchestrator, t)
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader
-        title={t("navigation.logs")}
-        children={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={clearLogs}
-            disabled={logs.length === 0 || clearing}
-          >
-            <IconTrash className="size-4" />
-            {t("pages.logs.clear")}
-          </Button>
-        }
-      />
+      <PageHeader title={t("navigation.logs")} />
 
-      <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4 sm:p-8">
-        <LogsPanel
-          logs={logs}
-          wrapColumns={wrapColumns}
-          contentRef={contentRef}
-          measureRef={measureRef}
-        />
+      <div className="flex flex-1 flex-col gap-4 overflow-auto p-4 sm:p-8">
+        <Card className="max-w-3xl rounded-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              {orchestratorQuery.isLoading ? (
+                <IconLoader2 className="size-4 animate-spin" />
+              ) : (
+                <span className={`inline-flex size-2 rounded-full ${toneClass}`} />
+              )}
+              {label}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            {orchestrator ? (
+              <dl className="grid gap-2 sm:grid-cols-[12rem_1fr]">
+                <dt>{t("pages.logs.state")}</dt>
+                <dd className="text-foreground">{orchestrator.state}</dd>
+                <dt>{t("pages.logs.lastTrigger")}</dt>
+                <dd className="text-foreground">
+                  {orchestrator.last_trigger || t("pages.logs.unavailable")}
+                </dd>
+                <dt>{t("pages.logs.updatedAt")}</dt>
+                <dd className="text-foreground">{orchestrator.updated_at}</dd>
+                <dt>{t("pages.logs.lastError")}</dt>
+                <dd className="text-foreground">
+                  {orchestrator.last_error || t("pages.logs.none")}
+                </dd>
+              </dl>
+            ) : (
+              <p>{t("pages.logs.loading")}</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

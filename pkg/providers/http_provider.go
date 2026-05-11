@@ -1,8 +1,8 @@
-// PicoClaw - Ultra-lightweight personal AI agent
+// OneAppFactory - Android app factory
 // Inspired by and based on nanobot: https://github.com/HKUDS/nanobot
 // License: MIT
 //
-// Copyright (c) 2026 PicoClaw contributors
+// Copyright (c) 2026 OneAppFactory contributors
 
 package providers
 
@@ -10,7 +10,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/sipeed/picoclaw/pkg/providers/openai_compat"
+	"github.com/sipeed/oneappfactory/pkg/providers/openai_compat"
 )
 
 type HTTPProvider struct {

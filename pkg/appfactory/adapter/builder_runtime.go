@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
-	appconfig "github.com/sipeed/picoclaw/pkg/config"
-	"github.com/sipeed/picoclaw/pkg/providers"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
+	appconfig "github.com/sipeed/oneappfactory/pkg/config"
+	"github.com/sipeed/oneappfactory/pkg/providers"
 	"gopkg.in/yaml.v3"
 )
 
@@ -104,7 +104,7 @@ func (generator defaultBuilderRuntimePatchGenerator) GeneratePatch(ctx context.C
 	}
 	messages := []providers.Message{{
 		Role:    "system",
-		Content: "You are PicoClaw builder-runtime patch generator. Output only compact JSON. No markdown. Stay inside the allowed path set. Before sending, verify the content is valid JSON with all arrays and objects closed.",
+		Content: "You are OneAppFactory builder-runtime patch generator. Output only compact JSON. No markdown. Stay inside the allowed path set. Before sending, verify the content is valid JSON with all arrays and objects closed.",
 	}, {
 		Role:    "user",
 		Content: prompt,

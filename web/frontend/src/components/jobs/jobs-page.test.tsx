@@ -56,7 +56,7 @@ const {
   unlockOrchestratorWatchMock: vi.fn(),
 }))
 
-vi.mock("@/api/channels", () => ({
+vi.mock("@/api/config", () => ({
   getAppConfig: getAppConfigMock,
 }))
 

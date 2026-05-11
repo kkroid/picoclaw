@@ -1,4 +1,4 @@
-package main
+package backend
 
 import (
 	"embed"
@@ -9,7 +9,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/sipeed/picoclaw/pkg/logger"
+	"github.com/sipeed/oneappfactory/pkg/logger"
 )
 
 //go:embed all:dist

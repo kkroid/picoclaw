@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 func buildRuntimeConfig(spec domainSpec) RuntimeConfig {
@@ -108,7 +108,7 @@ func buildExecutionRouteSnapshot(spec domainSpec) ExecutionRouteSnapshot {
 
 func currentBuilderRuntimeUpgradePolicy() ExecutionUpgradePolicy {
 	return ExecutionUpgradePolicy{
-		Source:                       "config/config.example.json:appfactory.builder_runtime.upgrade_threshold",
+		Source:                       "config/oneappfactory.example.json:appfactory.builder_runtime.upgrade_threshold",
 		MaxAttemptsBeforeUpgrade:     2,
 		MaxFilesBeforeUpgrade:        2,
 		MaxSchemaDriftBeforeUpgrade:  1,

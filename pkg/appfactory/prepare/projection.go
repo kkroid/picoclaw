@@ -3,7 +3,7 @@ package prepare
 import (
 	"strings"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 // ProjectBuildInput 从 6 个中间制品重建 builder-input。

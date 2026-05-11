@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://picoclaw.local/docs/design/schemas/artifact-manifest.schema.json",
-  "title": "PicoClaw Builder Artifact Manifest",
+  "$id": "https://oneappfactory.local/docs/design/schemas/artifact-manifest.schema.json",
+  "title": "OneAppFactory Builder Artifact Manifest",
   "description": "Builder 输出包中的产物清单。",
   "type": "object",
   "additionalProperties": false,

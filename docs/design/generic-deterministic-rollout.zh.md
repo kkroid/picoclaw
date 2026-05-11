@@ -141,7 +141,7 @@ APPFACTORY_JOBS_TEMPLATE_ID="flutter-open-lite" \
   --requirement "读书笔记，记录书名进度和摘抄" \
   --title "/jobs deterministic rollout" \
   --timeout-seconds 3600 \
-  --output-root /tmp/picoclaw-jobs-test \
+  --output-root /tmp/oneappfactory-jobs-test \
   --allow-non-manual-equivalent
 ```
 
@@ -149,7 +149,7 @@ APPFACTORY_JOBS_TEMPLATE_ID="flutter-open-lite" \
 
 ### 5.3 多元化矩阵验证
 
-使用至少 3 个不同领域的 fixture 作为矩阵验证。当前已完成 5 个新领域顺序验证，输出目录为 `/tmp/picoclaw-jobs-expanded/runs/*`。
+使用至少 3 个不同领域的 fixture 作为矩阵验证。当前已完成 5 个新领域顺序验证，输出目录为 `/tmp/oneappfactory-jobs-expanded/runs/*`。
 
 ---
 

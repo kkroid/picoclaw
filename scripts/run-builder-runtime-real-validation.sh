@@ -4,7 +4,7 @@ set -euo pipefail
 
 OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://10.12.11.159:11434}"
 MODEL_NAME="${MODEL_NAME:-gemma4:26b}"
-APPFACTORY_BUILDER_IMAGE="${APPFACTORY_BUILDER_IMAGE:-picoclaw/appfactory-builder:local}"
+ONEAPPFACTORY_BUILDER_IMAGE="${ONEAPPFACTORY_BUILDER_IMAGE:-oneappfactory/builder:local}"
 OUTPUT_DIR="${OUTPUT_DIR:-.runtime/builder-model-validation}"
 MAX_REPAIR_ROUNDS="${MAX_REPAIR_ROUNDS:-2}"
 
@@ -28,7 +28,7 @@ restore_workspace() {
   local workspace_dir="$2"
   docker run --rm \
     -v "${workspace_dir}:${workspace_dir}" \
-    "${APPFACTORY_BUILDER_IMAGE}" exec /bin/sh -lc "find '${workspace_dir}' -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true"
+    "${ONEAPPFACTORY_BUILDER_IMAGE}" exec /bin/sh -lc "find '${workspace_dir}' -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true"
   cp -R "${baseline_dir}/." "${workspace_dir}/"
 }
 
@@ -303,7 +303,7 @@ run_in_builder() {
 	docker run --rm \
 		-v "${workspace_dir}:${workspace_dir}" \
 		-w "${workspace_dir}" \
-		"${APPFACTORY_BUILDER_IMAGE}" exec /bin/sh -lc "$*"
+		"${ONEAPPFACTORY_BUILDER_IMAGE}" exec /bin/sh -lc "$*"
 }
 
 request_patch() {
@@ -1107,7 +1107,7 @@ EOF
 	cleanup_dir "${workspace_dir}"
 }
 
-echo "[info] running real Flutter analyze/test validation via ${APPFACTORY_BUILDER_IMAGE} using ${MODEL_NAME}"
+echo "[info] running real Flutter analyze/test validation via ${ONEAPPFACTORY_BUILDER_IMAGE} using ${MODEL_NAME}"
 MODEL_NAME="${MODEL_NAME}" run_analyze_case
 MODEL_NAME="${MODEL_NAME}" run_test_case
 MODEL_NAME="${MODEL_NAME}" run_dual_file_case

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 func TestBuildTaskAllocationLayerMapsDomainCopyAndBrandingSlots(t *testing.T) {
@@ -62,7 +62,7 @@ func TestCompileGenericSpecLayerCarriesWidgetTestSyncConstraint(t *testing.T) {
 }
 
 func TestBuildAcceptancePlanLayerProjectsCoordinationBindingRefs(t *testing.T) {
-	spec := compileGenericSpec(Request{ExecutorImage: "picoclaw/appfactory-builder:local"}, "做一个待办事项 app，需要首页摘要、新建待办、任务列表和详情页，优先保证本地可用。")
+	spec := compileGenericSpec(Request{ExecutorImage: "oneappfactory/builder:local"}, "做一个待办事项 app，需要首页摘要、新建待办、任务列表和详情页，优先保证本地可用。")
 	plan := buildAcceptancePlan(spec)
 
 	branding := findAcceptancePlanItem(plan.StructureChecks, "check-profile-open-lite-domain-branding")
@@ -104,7 +104,7 @@ func TestBuildAcceptancePlanLayerProjectsCoordinationBindingRefs(t *testing.T) {
 }
 
 func TestBuildAcceptancePlanLayerUsesPlanningSemanticsInsteadOfTemplateAcceptanceImpacts(t *testing.T) {
-	spec := compileGenericSpec(Request{TemplateID: "flutter-finance-lite", ExecutorImage: "picoclaw/appfactory-builder:local"}, "做一个待办事项 app，需要首页摘要、新建待办、任务列表和详情页，优先保证本地可用。")
+	spec := compileGenericSpec(Request{TemplateID: "flutter-finance-lite", ExecutorImage: "oneappfactory/builder:local"}, "做一个待办事项 app，需要首页摘要、新建待办、任务列表和详情页，优先保证本地可用。")
 	plan := buildAcceptancePlan(spec)
 
 	overview := findAcceptancePlanItem(plan.SemanticChecks, "ac-overview")
@@ -173,7 +173,7 @@ func TestTemplateCompileSourceVersionLayerBindsOpenLiteSlotRegistryDigest(t *tes
 }
 
 func TestPlanningArtifactsLayerKeepsMultiFileCoordinationWithoutRuntimePrompt(t *testing.T) {
-	spec := compileGenericSpec(Request{ExecutorImage: "picoclaw/appfactory-builder:local"}, "做一个待办事项 app，需要首页摘要、新建待办、任务列表和详情页，优先保证本地可用。")
+	spec := compileGenericSpec(Request{ExecutorImage: "oneappfactory/builder:local"}, "做一个待办事项 app，需要首页摘要、新建待办、任务列表和详情页，优先保证本地可用。")
 	allocation := buildTaskAllocation(spec.TaskBundle, spec)
 	plan := buildAcceptancePlan(spec)
 

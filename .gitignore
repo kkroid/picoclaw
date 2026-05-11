@@ -8,14 +8,14 @@ build/
 *.dylib
 *.test
 *.out
-/picoclaw
-/picoclaw-test
+/oneappfactory
+/oneappfactory-test
 cmd/**/workspace
 
 # Picoclaw specific
 
-# PicoClaw
-.picoclaw/
+# OneAppFactory
+.appfactory/
 config.json
 sessions/
 build/

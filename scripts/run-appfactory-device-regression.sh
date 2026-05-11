@@ -302,7 +302,7 @@ refresh_device_pool_status
 
 if [[ "$keep_temp" != "1" && -n "$preserved_temp_dir" ]]; then
   case "$preserved_temp_dir" in
-    /tmp/picoclaw-api-test-*)
+    /tmp/oneappfactory-api-test-*|/tmp/oneappfactory-api-test-*)
       rm -rf "$preserved_temp_dir" 2>/dev/null || true
       ;;
   esac

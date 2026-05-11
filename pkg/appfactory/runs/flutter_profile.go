@@ -209,25 +209,25 @@ func deviceVerificationEnabled() bool {
 func adbDeviceReadyCommand() string {
 	return strings.TrimSpace(`
 command -v adb >/dev/null 2>&1 || {
-	echo "__picoclaw_failure_signature__:environment_check_failed:adb_binary_unavailable" >&2
+	echo "__oneappfactory_failure_signature__:environment_check_failed:adb_binary_unavailable" >&2
 	exit 1
 }
 if [ -n "${APPFACTORY_DEVICE_SERIAL:-}" ]; then
 	adb -s "$APPFACTORY_DEVICE_SERIAL" wait-for-device || {
-		echo "__picoclaw_failure_signature__:device_check_failed:adb_device_unavailable" >&2
+		echo "__oneappfactory_failure_signature__:device_check_failed:adb_device_unavailable" >&2
 		exit 1
 	}
 	adb -s "$APPFACTORY_DEVICE_SERIAL" get-state | grep -qx 'device' || {
-		echo "__picoclaw_failure_signature__:device_check_failed:adb_device_unavailable" >&2
+		echo "__oneappfactory_failure_signature__:device_check_failed:adb_device_unavailable" >&2
 		exit 1
 	}
 else
 	adb wait-for-device || {
-		echo "__picoclaw_failure_signature__:device_check_failed:adb_device_unavailable" >&2
+		echo "__oneappfactory_failure_signature__:device_check_failed:adb_device_unavailable" >&2
 		exit 1
 	}
 	adb get-state | grep -qx 'device' || {
-		echo "__picoclaw_failure_signature__:device_check_failed:adb_device_unavailable" >&2
+		echo "__oneappfactory_failure_signature__:device_check_failed:adb_device_unavailable" >&2
 		exit 1
 	}
 fi
@@ -238,7 +238,7 @@ func adbInstallDebugAPKCommand() string {
 	return strings.TrimSpace(`
 APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
 test -f "$APK_PATH" || {
-	echo "__picoclaw_failure_signature__:environment_check_failed:debug_apk_missing" >&2
+	echo "__oneappfactory_failure_signature__:environment_check_failed:debug_apk_missing" >&2
 	exit 1
 }
 APP_ID="${APPFACTORY_ANDROID_APP_ID:-}"
@@ -249,7 +249,7 @@ if [ -z "$APP_ID" ] && [ -f android/app/build.gradle ]; then
 	APP_ID="$(sed -n 's/.*applicationId[[:space:]]*"\([^"]*\)".*/\1/p' android/app/build.gradle | head -n1)"
 fi
 test -n "$APP_ID" || {
-	echo "__picoclaw_failure_signature__:environment_check_failed:android_app_id_missing" >&2
+	echo "__oneappfactory_failure_signature__:environment_check_failed:android_app_id_missing" >&2
 	exit 1
 }
 install_debug_apk() {
@@ -274,7 +274,7 @@ if [ "$install_exit" -ne 0 ] && printf '%s' "$install_output" | grep -q 'INSTALL
 fi
 if [ "$install_exit" -ne 0 ]; then
 	printf '%s\n' "$install_output" >&2
-	echo "__picoclaw_failure_signature__:device_check_failed:apk_install_failed" >&2
+	echo "__oneappfactory_failure_signature__:device_check_failed:apk_install_failed" >&2
 	exit 1
 fi
 `)
@@ -282,7 +282,7 @@ fi
 
 func adbLaunchAndLogcatCommand() string {
 	return strings.TrimSpace(`
-REPORTS_DIR="${PICOCLAW_REPORTS_DIR:-../reports}"
+REPORTS_DIR="${ONEAPPFACTORY_REPORTS_DIR:-../reports}"
 mkdir -p "$REPORTS_DIR"
 APP_ID="${APPFACTORY_ANDROID_APP_ID:-}"
 if [ -z "$APP_ID" ] && [ -f android/app/build.gradle.kts ]; then
@@ -292,16 +292,16 @@ if [ -z "$APP_ID" ] && [ -f android/app/build.gradle ]; then
 	APP_ID="$(sed -n 's/.*applicationId[[:space:]]*"\([^"]*\)".*/\1/p' android/app/build.gradle | head -n1)"
 fi
 test -n "$APP_ID" || {
-	echo "__picoclaw_failure_signature__:environment_check_failed:android_app_id_missing" >&2
+	echo "__oneappfactory_failure_signature__:environment_check_failed:android_app_id_missing" >&2
 	exit 1
 }
 if [ -n "${APPFACTORY_DEVICE_SERIAL:-}" ]; then
 	adb -s "$APPFACTORY_DEVICE_SERIAL" shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1 || {
-		echo "__picoclaw_failure_signature__:device_check_failed:app_launch_failed" >&2
+		echo "__oneappfactory_failure_signature__:device_check_failed:app_launch_failed" >&2
 		exit 1
 	}
 	adb -s "$APPFACTORY_DEVICE_SERIAL" logcat -d > "$REPORTS_DIR/device-logcat.txt" || {
-		echo "__picoclaw_failure_signature__:device_check_failed:log_capture_failed" >&2
+		echo "__oneappfactory_failure_signature__:device_check_failed:log_capture_failed" >&2
 		exit 1
 	}
 	if [ "${APPFACTORY_DEVICE_CAPTURE_SCREENSHOT:-0}" = "1" ]; then
@@ -309,11 +309,11 @@ if [ -n "${APPFACTORY_DEVICE_SERIAL:-}" ]; then
 	fi
 else
 	adb shell monkey -p "$APP_ID" -c android.intent.category.LAUNCHER 1 || {
-		echo "__picoclaw_failure_signature__:device_check_failed:app_launch_failed" >&2
+		echo "__oneappfactory_failure_signature__:device_check_failed:app_launch_failed" >&2
 		exit 1
 	}
 	adb logcat -d > "$REPORTS_DIR/device-logcat.txt" || {
-		echo "__picoclaw_failure_signature__:device_check_failed:log_capture_failed" >&2
+		echo "__oneappfactory_failure_signature__:device_check_failed:log_capture_failed" >&2
 		exit 1
 	}
 	if [ "${APPFACTORY_DEVICE_CAPTURE_SCREENSHOT:-0}" = "1" ]; then
@@ -321,11 +321,11 @@ else
 	fi
 fi
 test -s "$REPORTS_DIR/device-logcat.txt" || {
-	echo "__picoclaw_failure_signature__:device_check_failed:log_capture_failed" >&2
+	echo "__oneappfactory_failure_signature__:device_check_failed:log_capture_failed" >&2
 	exit 1
 }
 grep -Eq 'FATAL EXCEPTION|AndroidRuntime|Process[[:space:]].*[[:space:]]has died' "$REPORTS_DIR/device-logcat.txt" && {
-	echo "__picoclaw_failure_signature__:device_check_failed:app_runtime_crash" >&2
+	echo "__oneappfactory_failure_signature__:device_check_failed:app_runtime_crash" >&2
 	exit 1
 }
 `)
@@ -333,9 +333,9 @@ grep -Eq 'FATAL EXCEPTION|AndroidRuntime|Process[[:space:]].*[[:space:]]has died
 
 func adbCaptureAndVerifyUISemanticsCommand() string {
 	return strings.TrimSpace(`
-REPORTS_DIR="${PICOCLAW_REPORTS_DIR:-../reports}"
+REPORTS_DIR="${ONEAPPFACTORY_REPORTS_DIR:-../reports}"
 mkdir -p "$REPORTS_DIR"
-UI_DUMP_DEVICE_PATH="/data/local/tmp/picoclaw-device-ui.xml"
+UI_DUMP_DEVICE_PATH="/data/local/tmp/oneappfactory-device-ui.xml"
 FORBIDDEN_PATTERN="${APPFACTORY_DEVICE_FORBIDDEN_UI_TEXT:-Open Lite Seed|open_lite_seed}"
 REQUIRED_PATTERN="${APPFACTORY_DEVICE_REQUIRED_UI_TEXT:-}"
 adb_shell() {
@@ -353,23 +353,23 @@ adb_exec_out() {
 	fi
 }
 adb_shell uiautomator dump "$UI_DUMP_DEVICE_PATH" >/dev/null 2>&1 || {
-	echo "__picoclaw_failure_signature__:device_check_failed:ui_dump_failed" >&2
+	echo "__oneappfactory_failure_signature__:device_check_failed:ui_dump_failed" >&2
 	exit 1
 }
 adb_exec_out cat "$UI_DUMP_DEVICE_PATH" > "$REPORTS_DIR/device-ui.xml" || {
-	echo "__picoclaw_failure_signature__:device_check_failed:ui_dump_failed" >&2
+	echo "__oneappfactory_failure_signature__:device_check_failed:ui_dump_failed" >&2
 	exit 1
 }
 test -s "$REPORTS_DIR/device-ui.xml" || {
-	echo "__picoclaw_failure_signature__:device_check_failed:ui_dump_failed" >&2
+	echo "__oneappfactory_failure_signature__:device_check_failed:ui_dump_failed" >&2
 	exit 1
 }
 if [ -n "$FORBIDDEN_PATTERN" ] && grep -Eq "$FORBIDDEN_PATTERN" "$REPORTS_DIR/device-ui.xml"; then
-	echo "__picoclaw_failure_signature__:device_check_failed:ui_semantic_mismatch" >&2
+	echo "__oneappfactory_failure_signature__:device_check_failed:ui_semantic_mismatch" >&2
 	exit 1
 fi
 if [ -n "$REQUIRED_PATTERN" ] && ! grep -Eq "$REQUIRED_PATTERN" "$REPORTS_DIR/device-ui.xml"; then
-	echo "__picoclaw_failure_signature__:device_check_failed:ui_expected_text_missing" >&2
+	echo "__oneappfactory_failure_signature__:device_check_failed:ui_expected_text_missing" >&2
 	exit 1
 fi
 `)

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://picoclaw.dev/schemas/generic-domain-profiles.schema.json",
+  "$id": "https://oneappfactory.dev/schemas/generic-domain-profiles.schema.json",
   "title": "Generic Domain Profiles",
   "type": "object",
   "additionalProperties": false,

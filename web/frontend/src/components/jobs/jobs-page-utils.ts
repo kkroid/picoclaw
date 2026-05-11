@@ -1,5 +1,5 @@
 const APPFACTORY_AUTO_START_BUILDER_PREFIX = "jobs-ui-builder"
-export const APPFACTORY_AUTO_START_BUILDER_IMAGE = "picoclaw/appfactory-builder:local"
+export const APPFACTORY_AUTO_START_BUILDER_IMAGE = "oneappfactory/builder:local"
 const APPFACTORY_AUTO_START_CAPABILITY_TAGS = ["flutter"]
 
 export type BuilderRuntimeMode = {

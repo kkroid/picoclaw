@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	appruns "github.com/sipeed/picoclaw/pkg/appfactory/runs"
+	appruns "github.com/sipeed/oneappfactory/pkg/appfactory/runs"
 )
 
 type ExecutionContract struct {
@@ -38,10 +38,10 @@ type ExecutionDomainModel struct {
 }
 
 type SurfaceRelationSchema struct {
-	AnchorCollectionPath string                             `json:"anchor_collection_path"`
-	AnchorIDPath         string                             `json:"anchor_id_path"`
-	PrimaryRefFields     []string                           `json:"primary_ref_fields,omitempty"`
-	AllowedReferences    []SurfaceRelationReferenceRule     `json:"allowed_references,omitempty"`
+	AnchorCollectionPath string                         `json:"anchor_collection_path"`
+	AnchorIDPath         string                         `json:"anchor_id_path"`
+	PrimaryRefFields     []string                       `json:"primary_ref_fields,omitempty"`
+	AllowedReferences    []SurfaceRelationReferenceRule `json:"allowed_references,omitempty"`
 }
 
 type SurfaceRelationReferenceRule struct {
