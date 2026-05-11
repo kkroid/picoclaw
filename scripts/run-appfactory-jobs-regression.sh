@@ -245,10 +245,16 @@ ensure_manual_equivalent_preflight() {
   fi
 
   if [[ -z "$preflight_config_path" ]]; then
-    failure_signature="launcher_observability_missing"
-    failure_domain="environment"
-    failure_category="runtime_preflight:launcher_observability_missing"
-    fail_with_stage "preflight" "environment" "builder runtime preflight failed: /api/gateway/status did not expose config_path; current launcher is stale or missing config-drift telemetry"
+    if [[ -n "${APPFACTORY_JOBS_CONFIG_PATH:-}" ]]; then
+      preflight_config_path="$APPFACTORY_JOBS_CONFIG_PATH"
+    elif [[ -n "${ONEAPPFACTORY_CONFIG:-}" ]]; then
+      preflight_config_path="$ONEAPPFACTORY_CONFIG"
+    elif [[ -f "$repo_root/config/oneappfactory.json" ]]; then
+      preflight_config_path="$repo_root/config/oneappfactory.json"
+    fi
+    if [[ -z "$preflight_gateway_start_reason" ]]; then
+      preflight_gateway_start_reason="gateway status unavailable"
+    fi
   fi
 
   if ! config_response="$(request_json GET "/api/config")"; then
@@ -302,7 +308,9 @@ ensure_manual_equivalent_preflight() {
     fail_with_stage "preflight" "environment" "$summary"
   fi
 
-  if [[ "$preflight_gateway_start_allowed" == "false" ]]; then
+  if [[ "$preflight_gateway_start_allowed" == "false" && "$preflight_gateway_start_reason" == "no default model configured" && -n "$preflight_builder_runtime_default_model" ]]; then
+    preflight_gateway_start_reason="no default model configured; ignored because appfactory.builder_runtime.default_model is configured"
+  elif [[ "$preflight_gateway_start_allowed" == "false" ]]; then
     failure_signature="gateway_start_blocked"
     failure_domain="environment"
     failure_category="runtime_preflight:gateway_start_blocked"
@@ -2000,6 +2008,7 @@ result = {
         "workspace": str(job_final.get("workspace_path") or ""),
         "build_report": read_artifact_path(artifacts, "build-report", "build-report"),
         "smoke_test_report": read_artifact_path(artifacts, "smoke-test-report", "smoke-test-report"),
+        "release_apk": read_artifact_path(artifacts, "release-apk", "app-release.apk"),
         "debug_apk": read_artifact_path(artifacts, "debug-apk", "app-debug.apk"),
         "device_logcat": read_artifact_path(artifacts, "device-logcat", "device-logcat"),
     },

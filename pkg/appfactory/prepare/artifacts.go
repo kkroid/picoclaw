@@ -189,6 +189,9 @@ func buildDomainModel(spec domainSpec) DomainModel {
 		},
 		CriticalFlows:           trimStringSlice(criticalFlows),
 		SemanticAcceptanceRules: semanticRules,
+		ProtocolContract:        cloneProtocolContract(spec.ProtocolContract),
+		RealtimeContract:        cloneRealtimeContract(spec.RealtimeContract),
+		RuntimeContract:         cloneRuntimeDependencyContract(spec.RuntimeContract),
 	}
 }
 
@@ -205,6 +208,93 @@ func clonePersistenceContract(contract *PersistenceContract) *PersistenceContrac
 	}
 }
 
+func cloneProtocolContract(contract *ProtocolContract) *ProtocolContract {
+	if contract == nil {
+		return nil
+	}
+	clone := &ProtocolContract{
+		BasePath: strings.TrimSpace(contract.BasePath),
+		ProjectContext: ProjectContextSpec{
+			Required:   contract.ProjectContext.Required,
+			QueryKey:   strings.TrimSpace(contract.ProjectContext.QueryKey),
+			HeaderKey:  strings.TrimSpace(contract.ProjectContext.HeaderKey),
+			EntityRefs: append([]string(nil), contract.ProjectContext.EntityRefs...),
+		},
+		Auth: AuthContract{
+			Mode:      strings.TrimSpace(contract.Auth.Mode),
+			HeaderKey: strings.TrimSpace(contract.Auth.HeaderKey),
+			Required:  contract.Auth.Required,
+		},
+		Endpoints: make([]EndpointContract, 0, len(contract.Endpoints)),
+	}
+	for _, endpoint := range contract.Endpoints {
+		clone.Endpoints = append(clone.Endpoints, EndpointContract{
+			EndpointID:     strings.TrimSpace(endpoint.EndpointID),
+			Method:         strings.TrimSpace(endpoint.Method),
+			Path:           strings.TrimSpace(endpoint.Path),
+			Purpose:        strings.TrimSpace(endpoint.Purpose),
+			EntityRefs:     append([]string(nil), endpoint.EntityRefs...),
+			CapabilityRefs: append([]string(nil), endpoint.CapabilityRefs...),
+			RequestBody:    strings.TrimSpace(endpoint.RequestBody),
+			ResponseBody:   strings.TrimSpace(endpoint.ResponseBody),
+			Required:       endpoint.Required,
+			Excluded:       endpoint.Excluded,
+		})
+	}
+	return clone
+}
+
+func cloneRealtimeContract(contract *RealtimeContract) *RealtimeContract {
+	if contract == nil {
+		return nil
+	}
+	clone := &RealtimeContract{
+		Transport:       strings.TrimSpace(contract.Transport),
+		URLPattern:      strings.TrimSpace(contract.URLPattern),
+		Subscribe:       cloneRealtimeClientMessage(contract.Subscribe),
+		Unsubscribe:     cloneRealtimeClientMessage(contract.Unsubscribe),
+		ReconnectPolicy: strings.TrimSpace(contract.ReconnectPolicy),
+		ReplayPolicy:    strings.TrimSpace(contract.ReplayPolicy),
+		ServerEvents:    make([]RealtimeServerEvent, 0, len(contract.ServerEvents)),
+	}
+	for _, event := range contract.ServerEvents {
+		clone.ServerEvents = append(clone.ServerEvents, RealtimeServerEvent{
+			EventType:      strings.TrimSpace(event.EventType),
+			Purpose:        strings.TrimSpace(event.Purpose),
+			CapabilityRefs: append([]string(nil), event.CapabilityRefs...),
+			EntityRefs:     append([]string(nil), event.EntityRefs...),
+		})
+	}
+	return clone
+}
+
+func cloneRealtimeClientMessage(message RealtimeClientMessage) RealtimeClientMessage {
+	return RealtimeClientMessage{Type: strings.TrimSpace(message.Type), Required: append([]string(nil), message.Required...)}
+}
+
+func cloneRuntimeDependencyContract(contract *RuntimeDependencyContract) *RuntimeDependencyContract {
+	if contract == nil {
+		return nil
+	}
+	clone := &RuntimeDependencyContract{
+		PackageName:     strings.TrimSpace(contract.PackageName),
+		AppEntry:        strings.TrimSpace(contract.AppEntry),
+		RouteStrategy:   strings.TrimSpace(contract.RouteStrategy),
+		StateManagement: strings.TrimSpace(contract.StateManagement),
+		SettingsStore:   strings.TrimSpace(contract.SettingsStore),
+		FakeTestHarness: append([]string(nil), contract.FakeTestHarness...),
+		Dependencies:    make([]DependencyContract, 0, len(contract.Dependencies)),
+		PlatformConfig:  make([]PlatformConfig, 0, len(contract.PlatformConfig)),
+	}
+	for _, dependency := range contract.Dependencies {
+		clone.Dependencies = append(clone.Dependencies, DependencyContract{Name: strings.TrimSpace(dependency.Name), Version: strings.TrimSpace(dependency.Version), Purpose: strings.TrimSpace(dependency.Purpose)})
+	}
+	for _, platform := range contract.PlatformConfig {
+		clone.PlatformConfig = append(clone.PlatformConfig, PlatformConfig{Platform: strings.TrimSpace(platform.Platform), Paths: append([]string(nil), platform.Paths...), Purpose: strings.TrimSpace(platform.Purpose)})
+	}
+	return clone
+}
+
 func buildTemplateSlotMap(spec domainSpec) TemplateSlotMap {
 	templateSubjectVersion := TemplateCompileSourceVersion(spec.TemplateID, spec.TemplatePinnedRef)
 	slots := templateSlotRegistrySlots(spec)
@@ -217,6 +307,9 @@ func buildTemplateSlotMap(spec domainSpec) TemplateSlotMap {
 }
 
 func templateSlotRegistrySlots(spec domainSpec) []TemplateSlot {
+	if strings.TrimSpace(spec.Kind) == "protocol-client" {
+		return flutterProtocolClientTemplateSlots()
+	}
 	templateID := strings.TrimSpace(spec.TemplateID)
 	switch templateID {
 	case "flutter-finance-lite":
@@ -225,6 +318,17 @@ func templateSlotRegistrySlots(spec domainSpec) []TemplateSlot {
 		return flutterOpenLiteTemplateSlots()
 	default:
 		return flutterOpenLiteTemplateSlots()
+	}
+}
+
+func flutterProtocolClientTemplateSlots() []TemplateSlot {
+	return []TemplateSlot{
+		{BindingID: "protocol-models", SlotID: templatePrivateSlotID("protocol-lite", "models"), SlotKind: "models", TargetPaths: []string{"lib/models/protocol_models.dart"}, OverridePolicy: "replace", RequiredInputs: []string{"domain-model.json"}, AcceptanceImpacts: []string{"ac-protocol-models"}, EmitEligible: true},
+		{BindingID: "protocol-services", SlotID: templatePrivateSlotID("protocol-lite", "services"), SlotKind: "services", TargetPaths: []string{"lib/services/api_client.dart", "lib/services/ws_client.dart", "lib/services/settings_store.dart"}, OverridePolicy: "replace", RequiredInputs: []string{"domain-model.json", "task-allocation.json"}, AcceptanceImpacts: []string{"ac-rest-client", "ac-websocket-client", "ac-settings"}, EmitEligible: true},
+		{BindingID: "protocol-state", SlotID: templatePrivateSlotID("protocol-lite", "state"), SlotKind: "state", TargetPaths: []string{"lib/providers/connection_provider.dart", "lib/providers/project_provider.dart", "lib/providers/conversation_provider.dart", "lib/providers/file_provider.dart"}, OverridePolicy: "replace", RequiredInputs: []string{"domain-model.json", "task-allocation.json"}, AcceptanceImpacts: []string{"ac-state-management"}, EmitEligible: true},
+		{BindingID: "protocol-app-entry", SlotID: templatePrivateSlotID("protocol-lite", "app-entry"), SlotKind: "app_entry", TargetPaths: []string{"lib/main.dart", "lib/app.dart", "pubspec.yaml", "android/app/src/main/AndroidManifest.xml", "android/app/src/main/res/values/strings.xml"}, OverridePolicy: "replace", RequiredInputs: []string{"planning-context.json", "domain-model.json"}, AcceptanceImpacts: []string{"ac-entry", "ac-platform-network"}, EmitEligible: true},
+		{BindingID: "protocol-surfaces", SlotID: templatePrivateSlotID("protocol-lite", "surfaces"), SlotKind: "screens", TargetPaths: []string{"lib/screens/home.dart", "lib/screens/conversations/list_page.dart", "lib/screens/conversations/detail_page.dart", "lib/screens/files/browser_page.dart", "lib/screens/files/file_preview_page.dart", "lib/screens/settings/connection_page.dart", "lib/widgets/project_drawer.dart", "lib/widgets/chat_bubble.dart", "lib/widgets/thinking_block.dart", "lib/widgets/connection_indicator.dart", "lib/widgets/file_tree_tile.dart"}, OverridePolicy: "replace", RequiredInputs: []string{"domain-model.json", "task-allocation.json"}, AcceptanceImpacts: []string{"ac-navigation", "ac-conversations", "ac-files"}, EmitEligible: true},
+		{BindingID: "protocol-tests", SlotID: templatePrivateSlotID("protocol-lite", "tests"), SlotKind: "test", TargetPaths: []string{"test/widget_test.dart"}, OverridePolicy: "replace", RequiredInputs: []string{"acceptance-plan.json", "domain-model.json"}, AcceptanceImpacts: []string{"ac-fake-protocol"}, EmitEligible: true},
 	}
 }
 

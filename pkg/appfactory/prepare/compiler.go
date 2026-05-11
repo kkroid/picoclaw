@@ -131,20 +131,101 @@ type ExecutionTaskRoute struct {
 }
 
 type DomainModel struct {
-	SchemaVersion           string                   `json:"schema_version"`
-	JobID                   string                   `json:"job_id"`
-	PRDID                   string                   `json:"prd_id"`
-	TemplateID              string                   `json:"template_id"`
-	DomainName              string                   `json:"domain_name"`
-	ComplexityLevel         string                   `json:"complexity_level,omitempty"`
-	CapabilityFlags         []string                 `json:"capability_flags,omitempty"`
-	Entities                []DataEntity             `json:"entities,omitempty"`
-	SummaryMetrics          []string                 `json:"summary_metrics,omitempty"`
-	DomainCopy              DomainCopy               `json:"domain_copy"`
-	CriticalFlows           []string                 `json:"critical_flows,omitempty"`
-	BehaviorRules           []DomainBehaviorRule     `json:"behavior_rules,omitempty"`
-	PersistenceContract     *PersistenceContract     `json:"persistence_contract,omitempty"`
-	SemanticAcceptanceRules []SemanticAcceptanceRule `json:"semantic_acceptance_rules,omitempty"`
+	SchemaVersion           string                     `json:"schema_version"`
+	JobID                   string                     `json:"job_id"`
+	PRDID                   string                     `json:"prd_id"`
+	TemplateID              string                     `json:"template_id"`
+	DomainName              string                     `json:"domain_name"`
+	ComplexityLevel         string                     `json:"complexity_level,omitempty"`
+	CapabilityFlags         []string                   `json:"capability_flags,omitempty"`
+	Entities                []DataEntity               `json:"entities,omitempty"`
+	SummaryMetrics          []string                   `json:"summary_metrics,omitempty"`
+	DomainCopy              DomainCopy                 `json:"domain_copy"`
+	CriticalFlows           []string                   `json:"critical_flows,omitempty"`
+	BehaviorRules           []DomainBehaviorRule       `json:"behavior_rules,omitempty"`
+	PersistenceContract     *PersistenceContract       `json:"persistence_contract,omitempty"`
+	ProtocolContract        *ProtocolContract          `json:"protocol_contract,omitempty"`
+	RealtimeContract        *RealtimeContract          `json:"realtime_contract,omitempty"`
+	RuntimeContract         *RuntimeDependencyContract `json:"runtime_contract,omitempty"`
+	SemanticAcceptanceRules []SemanticAcceptanceRule   `json:"semantic_acceptance_rules,omitempty"`
+}
+
+type ProtocolContract struct {
+	BasePath       string             `json:"base_path,omitempty"`
+	ProjectContext ProjectContextSpec `json:"project_context,omitempty"`
+	Auth           AuthContract       `json:"auth,omitempty"`
+	Endpoints      []EndpointContract `json:"endpoints,omitempty"`
+}
+
+type ProjectContextSpec struct {
+	Required   bool     `json:"required,omitempty"`
+	QueryKey   string   `json:"query_key,omitempty"`
+	HeaderKey  string   `json:"header_key,omitempty"`
+	EntityRefs []string `json:"entity_refs,omitempty"`
+}
+
+type AuthContract struct {
+	Mode      string `json:"mode,omitempty"`
+	HeaderKey string `json:"header_key,omitempty"`
+	Required  bool   `json:"required,omitempty"`
+}
+
+type EndpointContract struct {
+	EndpointID     string   `json:"endpoint_id"`
+	Method         string   `json:"method"`
+	Path           string   `json:"path"`
+	Purpose        string   `json:"purpose,omitempty"`
+	EntityRefs     []string `json:"entity_refs,omitempty"`
+	CapabilityRefs []string `json:"capability_refs,omitempty"`
+	RequestBody    string   `json:"request_body,omitempty"`
+	ResponseBody   string   `json:"response_body,omitempty"`
+	Required       bool     `json:"required,omitempty"`
+	Excluded       bool     `json:"excluded,omitempty"`
+}
+
+type RealtimeContract struct {
+	Transport       string                `json:"transport,omitempty"`
+	URLPattern      string                `json:"url_pattern,omitempty"`
+	Subscribe       RealtimeClientMessage `json:"subscribe,omitempty"`
+	Unsubscribe     RealtimeClientMessage `json:"unsubscribe,omitempty"`
+	ServerEvents    []RealtimeServerEvent `json:"server_events,omitempty"`
+	ReconnectPolicy string                `json:"reconnect_policy,omitempty"`
+	ReplayPolicy    string                `json:"replay_policy,omitempty"`
+}
+
+type RealtimeClientMessage struct {
+	Type     string   `json:"type,omitempty"`
+	Required []string `json:"required,omitempty"`
+}
+
+type RealtimeServerEvent struct {
+	EventType      string   `json:"event_type"`
+	Purpose        string   `json:"purpose,omitempty"`
+	CapabilityRefs []string `json:"capability_refs,omitempty"`
+	EntityRefs     []string `json:"entity_refs,omitempty"`
+}
+
+type RuntimeDependencyContract struct {
+	PackageName     string               `json:"package_name,omitempty"`
+	Dependencies    []DependencyContract `json:"dependencies,omitempty"`
+	AppEntry        string               `json:"app_entry,omitempty"`
+	RouteStrategy   string               `json:"route_strategy,omitempty"`
+	StateManagement string               `json:"state_management,omitempty"`
+	SettingsStore   string               `json:"settings_store,omitempty"`
+	PlatformConfig  []PlatformConfig     `json:"platform_config,omitempty"`
+	FakeTestHarness []string             `json:"fake_test_harness,omitempty"`
+}
+
+type DependencyContract struct {
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+	Purpose string `json:"purpose,omitempty"`
+}
+
+type PlatformConfig struct {
+	Platform string   `json:"platform"`
+	Paths    []string `json:"paths,omitempty"`
+	Purpose  string   `json:"purpose,omitempty"`
 }
 
 type DomainBehaviorRule struct {

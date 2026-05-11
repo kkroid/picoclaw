@@ -600,13 +600,13 @@
     },
     {
       "check_id": "check-flutter-build-apk",
-      "label": "构建 Debug APK",
+      "label": "构建 Release APK",
       "stage": "milestone",
       "required": true,
       "commands": [
-        "flutter build apk --debug --no-pub"
+        "flutter build apk --release --no-pub"
       ],
-      "success_criteria": "产出 app-debug.apk。",
+      "success_criteria": "产出 app-release.apk。",
       "timeout_seconds": 1800
     }
   ],

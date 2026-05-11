@@ -4,7 +4,7 @@
   "approval_type": "template",
   "job_id": "job-habit-checkin-drawer-entry-sample-001",
   "prd_id": "prd-habit-checkin-drawer-entry-sample-001",
-  "subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47@sha256:407b75d15e7bded4",
+  "subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47@sha256:7a51affb4d84414a",
   "status": "approved",
   "requested_by": {
     "actor_type": "system",

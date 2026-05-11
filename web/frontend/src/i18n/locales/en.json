@@ -154,6 +154,7 @@
     },
     "failureCategory": {
       "environment_check_failed:adb_binary_unavailable": "adb is unavailable for device verification",
+      "environment_check_failed:release_apk_missing": "Release APK is missing for device verification",
       "environment_check_failed:debug_apk_missing": "Debug APK is missing for device verification",
       "environment_check_failed:android_app_id_missing": "Android applicationId is missing for device verification",
       "device_check_failed:adb_device_unavailable": "No available adb device detected",
@@ -356,8 +357,9 @@
         "check-local-persistence-wiring": "Wire local persistence",
         "check-flutter-analyze": "Flutter analyze",
         "check-flutter-test": "Flutter test",
-        "check-flutter-build-apk": "Build the Debug APK",
+        "check-flutter-build-apk": "Build the Release APK",
         "check-adb-device-ready": "Check whether an adb device is online",
+        "check-install-release-apk": "Install the APK on the device",
         "check-install-debug-apk": "Install the APK on the device",
         "check-launch-app-and-capture-logcat": "Launch the app and capture logcat"
       }

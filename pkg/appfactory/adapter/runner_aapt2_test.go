@@ -71,11 +71,11 @@ func TestRunnerRunStepRetriesAfterRepairingAAPT2Permission(t *testing.T) {
 	step := ExecutionStep{
 		StepID:  "check-flutter-build-apk",
 		Stage:   appruns.StageMilestone,
-		Summary: "构建 Debug APK",
+		Summary: "构建 Release APK",
 		Command: cmd,
 		Check: &CheckExecutionPreview{
 			CheckID:  "check-flutter-build-apk",
-			Label:    "构建 Debug APK",
+			Label:    "构建 Release APK",
 			Stage:    appruns.StageMilestone,
 			Required: true,
 		},
@@ -160,5 +160,25 @@ func TestShouldSkipAutomaticValidationRepairForAAPT2EnvironmentFailure(t *testin
 	}
 	if shouldSkipAutomaticValidationRepair(logPath, CheckExecutionPreview{CheckID: "check-flutter-analyze"}) {
 		t.Fatal("shouldSkipAutomaticValidationRepair() = true for analyze, want false")
+	}
+}
+
+func TestShouldSkipAutomaticValidationRepairForGradleDependencyDownloadFailure(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "builder.log")
+	content := strings.Join([]string{
+		"A problem occurred configuring project ':path_provider_android'.",
+		"> Could not resolve all artifacts for configuration ':path_provider_android:classpath'.",
+		"   > Could not get resource 'https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/8.12.1/gradle-8.12.1.pom'.",
+		"      > Could not GET 'https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/8.12.1/gradle-8.12.1.pom'.",
+		"         > dl.google.com: Temporary failure in name resolution",
+	}, "\n")
+	if err := os.WriteFile(logPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("WriteFile(logPath) error = %v", err)
+	}
+	if !shouldSkipAutomaticValidationRepair(logPath, CheckExecutionPreview{CheckID: "check-flutter-build-apk"}) {
+		t.Fatal("shouldSkipAutomaticValidationRepair() = false, want true")
+	}
+	if shouldSkipAutomaticValidationRepair(logPath, CheckExecutionPreview{CheckID: "check-flutter-test"}) {
+		t.Fatal("shouldSkipAutomaticValidationRepair() = true for test, want false")
 	}
 }

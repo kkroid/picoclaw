@@ -50,6 +50,7 @@ func tryDeterministicEmit(run runRecord, roundInput appruns.RoundInput, patchID 
 		}
 	}
 	var ops []appruns.WorkspacePatchOperation
+	ops = append(ops, deterministicProtocolClientOperations(run.WorkspacePath, dm)...)
 	ops = append(ops, deterministicRelationModelOperations(dm, selectedTask.TargetPaths)...)
 	// generic model 回退：domain-model.json 读取实体字段，确定性生成 record.dart / dashboard_summary.dart。
 	if len(ops) == 0 {
@@ -984,6 +985,7 @@ func deterministicTemplateSlotOperations(slots []appprepare.TemplateSlot, ctx de
 	ops := make([]appruns.WorkspacePatchOperation, 0, len(slots))
 	seenPaths := make(map[string]struct{}, len(slots))
 	allowDeleteFlow := builderRuntimeTaskBundleHasSemanticIntentRef(ctx.run.TaskBundle, "ac-delete")
+	allowMutationFlow := builderRuntimeTaskBundleAllowsMutationFlow(ctx.run.TaskBundle)
 	appendIfTargeted := func(path, content string) {
 		normalizedPath := filepath.ToSlash(strings.TrimSpace(path))
 		if normalizedPath == "" || strings.TrimSpace(content) == "" {
@@ -1067,7 +1069,7 @@ func deterministicTemplateSlotOperations(slots []appprepare.TemplateSlot, ctx de
 			if result, emitted := emitter.EmitAppEntry(ctx.dm, ctx.planningContext); emitted {
 				appendIfTargeted(result.FilePath, result.Content)
 			} else {
-				if c := builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(ctx.run.WorkspacePath, allowDeleteFlow); c != "" {
+				if c := builderRuntimeOpenLiteCanonicalGenericAppEntryForTopology(ctx.run.WorkspacePath, allowDeleteFlow, allowMutationFlow); c != "" {
 					appendIfTargeted("lib/main.dart", c)
 				}
 			}
@@ -1105,6 +1107,13 @@ func containsMutationSlot(slots []appprepare.TemplateSlot) bool {
 		}
 	}
 	return false
+}
+
+func builderRuntimeTaskBundleAllowsMutationFlow(tasks []appruns.TaskBundleItem) bool {
+	return builderRuntimeTaskBundleHasSurfaceRef(tasks, builderRuntimeMutationSurfaceRef) ||
+		builderRuntimeTaskBundleHasSemanticIntentRef(tasks, "ac-form") ||
+		containsTargetPath(tasks, "lib/views/record_form_page.dart") ||
+		containsTargetPath(tasks, "lib/controllers/record_form_controller.dart")
 }
 
 func deterministicTemplateSlotCanEmit(slot appprepare.TemplateSlot) bool {
@@ -1166,6 +1175,9 @@ func deterministicRelationRichModelProfile(dm appprepare.DomainModel) builderRun
 
 // buildTestEmitConfig 从 runRecord 构建 TestEmitConfig，使用默认值。
 func buildTestEmitConfig(run runRecord) emitter.TestEmitConfig {
-	_ = run
-	return emitter.TestEmitConfig{AppClassName: "AppFactoryApp", RepositoryType: "InMemoryRecordRepository"}
+	return emitter.TestEmitConfig{
+		AppClassName:        "AppFactoryApp",
+		RepositoryType:      "InMemoryRecordRepository",
+		DisableMutationFlow: !builderRuntimeTaskBundleAllowsMutationFlow(run.TaskBundle),
+	}
 }

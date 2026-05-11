@@ -51,6 +51,9 @@ func TestNewFlutterAndroidProfile(t *testing.T) {
 	if checks[4].CheckID != "check-flutter-analyze" {
 		t.Fatalf("fifth check = %q, want check-flutter-analyze", checks[4].CheckID)
 	}
+	if checks[6].CheckID != "check-flutter-build-apk" || !strings.Contains(strings.Join(checks[6].Commands, "\n"), "flutter build apk --release --no-pub") || strings.Contains(strings.Join(checks[6].Commands, "\n"), "--debug") {
+		t.Fatalf("build check = %+v, want ordinary release APK build", checks[6])
+	}
 	for _, expected := range []string{
 		"grep -q . lib/models/*.dart",
 		"grep -q . lib/views/*.dart",
@@ -141,10 +144,10 @@ func TestNewFlutterAndroidProfileAddsDeviceChecksWhenEnabled(t *testing.T) {
 			if check.Stage != StageDevice {
 				t.Fatalf("check-adb-device-ready stage = %q, want %q", check.Stage, StageDevice)
 			}
-		case "check-install-debug-apk":
+		case "check-install-release-apk":
 			foundInstallAPK = true
 			if check.Stage != StageDevice {
-				t.Fatalf("check-install-debug-apk stage = %q, want %q", check.Stage, StageDevice)
+				t.Fatalf("check-install-release-apk stage = %q, want %q", check.Stage, StageDevice)
 			}
 		case "check-launch-app-and-capture-logcat":
 			foundLaunchSmoke = true
@@ -186,7 +189,7 @@ func TestFlutterDeviceCommandsEmitFailureSignatureMarkers(t *testing.T) {
 	checks := profile.AcceptanceChecks()
 	markers := map[string]string{
 		"check-adb-device-ready":              "__oneappfactory_failure_signature__:device_check_failed:adb_device_unavailable",
-		"check-install-debug-apk":             "__oneappfactory_failure_signature__:device_check_failed:apk_install_failed",
+		"check-install-release-apk":           "__oneappfactory_failure_signature__:device_check_failed:apk_install_failed",
 		"check-launch-app-and-capture-logcat": "__oneappfactory_failure_signature__:device_check_failed:app_runtime_crash",
 		"check-device-ui-semantic":            "__oneappfactory_failure_signature__:device_check_failed:ui_semantic_mismatch",
 	}
@@ -197,6 +200,9 @@ func TestFlutterDeviceCommandsEmitFailureSignatureMarkers(t *testing.T) {
 		}
 		if len(check.Commands) == 0 || !strings.Contains(check.Commands[0], want) {
 			t.Fatalf("check %s commands = %v, want marker %q", check.CheckID, check.Commands, want)
+		}
+		if check.CheckID == "check-install-release-apk" && (!strings.Contains(check.Commands[0], "app-release.apk") || !strings.Contains(check.Commands[0], "environment_check_failed:release_apk_missing")) {
+			t.Fatalf("check %s commands = %v, want release APK path and missing marker", check.CheckID, check.Commands)
 		}
 	}
 }

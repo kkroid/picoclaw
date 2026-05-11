@@ -149,6 +149,7 @@ export function collectDeviceEvidencePaths(artifacts: ArtifactItem[]) {
     "device-screenshot",
     "smoke-test-report",
     "build-report",
+    "app-release.apk",
     "app-debug.apk",
   ])
 }
@@ -159,6 +160,7 @@ export function collectFollowUpEvidencePaths(artifacts: ArtifactItem[]) {
     "device-screenshot",
     "smoke-test-report",
     "build-report",
+    "app-release.apk",
     "app-debug.apk",
   ])
 }

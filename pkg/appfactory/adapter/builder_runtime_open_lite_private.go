@@ -3300,6 +3300,10 @@ func builderRuntimeOpenLiteCanonicalGenericAppEntry(workspacePath string) string
 }
 
 func builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(workspacePath string, allowDeleteFlow bool) string {
+	return builderRuntimeOpenLiteCanonicalGenericAppEntryForTopology(workspacePath, allowDeleteFlow, true)
+}
+
+func builderRuntimeOpenLiteCanonicalGenericAppEntryForTopology(workspacePath string, allowDeleteFlow bool, allowMutationFlow bool) string {
 	appClassName := "AppFactoryApp"
 	concRepoType := builderRuntimeOpenLiteConcreteRecordRepositoryTypeName(workspacePath)
 	if concRepoType == "" {
@@ -3329,26 +3333,30 @@ func builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(workspacePath stri
 		"import 'controllers/record_list_controller.dart';",
 		"import 'views/home_page.dart';",
 		"import 'views/record_list_page.dart';",
-		"import 'views/record_form_page.dart';",
 		"import 'views/record_detail_page.dart';",
 		"import 'repositories/record_repository.dart';",
 		"import 'template/open_lite_copy.dart';",
 		"",
+	}
+	if allowMutationFlow {
+		lines = append(lines[:6], append([]string{"import 'views/record_form_page.dart';"}, lines[6:]...)...)
+	}
+	lines = append(lines,
 		"Future<void> main() async {",
 		"  WidgetsFlutterBinding.ensureInitialized();",
-		"  final repository = " + concRepoType + "();",
+		"  final repository = "+concRepoType+"();",
 		"  await repository.init();",
-		"  runApp(" + appClassName + "(repository: repository));",
+		"  runApp("+appClassName+"(repository: repository));",
 		"}",
 		"",
-		"class " + appClassName + " extends StatefulWidget {",
-		"  const " + appClassName + "({super.key, required this.repository});",
+		"class "+appClassName+" extends StatefulWidget {",
+		"  const "+appClassName+"({super.key, required this.repository});",
 		"  final RecordRepository repository;",
 		"  @override",
-		"  State<" + appClassName + "> createState() => _" + appClassName + "State();",
+		"  State<"+appClassName+"> createState() => _"+appClassName+"State();",
 		"}",
 		"",
-		"class _" + appClassName + "State extends State<" + appClassName + "> {",
+		"class _"+appClassName+"State extends State<"+appClassName+"> {",
 		"  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();",
 		"  late final HomeController _overviewController;",
 		"  late final RecordListController _collectionController;",
@@ -3367,13 +3375,26 @@ func builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(workspacePath stri
 		"    super.dispose();",
 		"  }",
 		"",
-		"  Future<void> _openCreateRecord() async {",
-		"    final created = await _navigatorKey.currentState!.push(",
-		"      MaterialPageRoute(builder: (context) => RecordFormPage(repository: widget.repository)),",
-		"    );",
-		"    if (created != null) { await _overviewController.refresh(); await _collectionController.refresh(); }",
-		"  }",
-		"",
+	)
+	if allowMutationFlow {
+		lines = append(lines,
+			"  Future<void> _openCreateRecord() async {",
+			"    final created = await _navigatorKey.currentState!.push(",
+			"      MaterialPageRoute(builder: (context) => RecordFormPage(repository: widget.repository)),",
+			"    );",
+			"    if (created != null) { await _overviewController.refresh(); await _collectionController.refresh(); }",
+			"  }",
+			"",
+		)
+	} else {
+		lines = append(lines,
+			"  Future<void> _openCreateRecord() {",
+			"    return Future<void>.value();",
+			"  }",
+			"",
+		)
+	}
+	lines = append(lines,
 		"  Future<void> _openDetail(dynamic record) async {",
 		"    final deleted = await _navigatorKey.currentState!.push(",
 		detailPageLine,
@@ -3381,7 +3402,7 @@ func builderRuntimeOpenLiteCanonicalGenericAppEntryWithDelete(workspacePath stri
 		"    if (deleted == true) { await _overviewController.refresh(); }",
 		"  }",
 		"",
-	}
+	)
 	lines = append(lines, deleteMethodLines...)
 	lines = append(lines,
 		"  Future<void> _openCollection() async {",

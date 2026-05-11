@@ -40,7 +40,7 @@ acceptance checks 最低要求：
 
 - `flutter analyze`
 - `flutter test`
-- `flutter build apk --debug`
+- `flutter build apk --release`
 
 对记账类 Flutter App，推荐附加验收信号：
 

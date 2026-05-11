@@ -30,15 +30,18 @@ func (contract *ExecutionContract) UnmarshalJSON(data []byte) error {
 }
 
 type ExecutionDomainModel struct {
-	DomainName             string               `json:"domain_name"`
-	ComplexityLevel        string               `json:"complexity_level,omitempty"`
-	CapabilityFlags        []string             `json:"capability_flags,omitempty"`
-	Entities               []DataEntity         `json:"entities,omitempty"`
-	SummaryMetrics         []string             `json:"summary_metrics,omitempty"`
-	BehaviorRules          []DomainBehaviorRule `json:"behavior_rules,omitempty"`
-	PersistenceContract    *PersistenceContract `json:"persistence_contract,omitempty"`
-	CriticalFlowRefs       []string             `json:"critical_flow_refs,omitempty"`
-	SemanticAcceptanceRefs []string             `json:"semantic_acceptance_refs,omitempty"`
+	DomainName             string                     `json:"domain_name"`
+	ComplexityLevel        string                     `json:"complexity_level,omitempty"`
+	CapabilityFlags        []string                   `json:"capability_flags,omitempty"`
+	Entities               []DataEntity               `json:"entities,omitempty"`
+	SummaryMetrics         []string                   `json:"summary_metrics,omitempty"`
+	BehaviorRules          []DomainBehaviorRule       `json:"behavior_rules,omitempty"`
+	PersistenceContract    *PersistenceContract       `json:"persistence_contract,omitempty"`
+	ProtocolContract       *ProtocolContract          `json:"protocol_contract,omitempty"`
+	RealtimeContract       *RealtimeContract          `json:"realtime_contract,omitempty"`
+	RuntimeContract        *RuntimeDependencyContract `json:"runtime_contract,omitempty"`
+	CriticalFlowRefs       []string                   `json:"critical_flow_refs,omitempty"`
+	SemanticAcceptanceRefs []string                   `json:"semantic_acceptance_refs,omitempty"`
 }
 
 type SurfaceRelationSchema struct {
@@ -178,6 +181,9 @@ func buildExecutionDomainModel(prd PRD, domainModel DomainModel) ExecutionDomain
 		SummaryMetrics:         append([]string(nil), domainModel.SummaryMetrics...),
 		BehaviorRules:          append([]DomainBehaviorRule(nil), domainModel.BehaviorRules...),
 		PersistenceContract:    clonePersistenceContract(domainModel.PersistenceContract),
+		ProtocolContract:       cloneProtocolContract(domainModel.ProtocolContract),
+		RealtimeContract:       cloneRealtimeContract(domainModel.RealtimeContract),
+		RuntimeContract:        cloneRuntimeDependencyContract(domainModel.RuntimeContract),
 		CriticalFlowRefs:       collectUserFlowRefs(prd.UserFlows),
 		SemanticAcceptanceRefs: collectAcceptanceRefs(prd.AcceptanceCriteria),
 	}

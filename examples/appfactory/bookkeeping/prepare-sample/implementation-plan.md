@@ -56,13 +56,13 @@
 
 ### 完成 analyze、test 与 APK 构建收口
 
-- 目标：在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 debug APK 全通过。
+- 目标：在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 release APK 全通过。
 - 分类：validation
 - 关联需求：ac-entry, ac-ledger, ac-persistence, ac-navigation
 - 依赖任务：task-flow-wiring
 - 目标路径：lib/main.dart, lib/views/**, lib/controllers/**, lib/repositories/**, test/**, pubspec.yaml
-- 预期输出：静态检查通过；测试通过；可构建 Debug APK
-- 完成标准：flutter analyze 无错误；flutter test 全通过；flutter build apk --debug 成功
+- 预期输出：静态检查通过；测试通过；可构建 Release APK
+- 完成标准：flutter analyze 无错误；flutter test 全通过；flutter build apk --release 成功
 - 风险提示：只做低风险收口，不把单点失败扩展为大面积自由重构
 
 ## 验收检查

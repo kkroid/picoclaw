@@ -855,6 +855,18 @@ func TestBuilderRuntimeOpenLiteGenericAppEntryDeleteUsesSchemaIdentifier(t *test
 	}
 }
 
+func TestBuilderRuntimeOpenLiteGenericAppEntryOmitsUnplannedMutationSurface(t *testing.T) {
+	content := builderRuntimeOpenLiteCanonicalGenericAppEntryForTopology(t.TempDir(), false, false)
+	for _, forbidden := range []string{"views/record_form_page.dart", "RecordFormPage(repository"} {
+		if strings.Contains(content, forbidden) {
+			t.Fatalf("generic app entry should not reference unplanned mutation surface %q: %q", forbidden, content)
+		}
+	}
+	if !strings.Contains(content, "Future<void> _openCreateRecord()") || !strings.Contains(content, "return Future<void>.value();") {
+		t.Fatalf("generic app entry should keep a compiling create callback stub for existing surface signatures: %q", content)
+	}
+}
+
 func TestBuilderRuntimeOpenLiteCanonicalNoFilterListControllerUsesCustomCollectionSurfaceContract(t *testing.T) {
 	workspacePath := createBuilderRuntimeCustomCollectionModelWorkspace(t, strings.Join([]string{
 		"class Task {",

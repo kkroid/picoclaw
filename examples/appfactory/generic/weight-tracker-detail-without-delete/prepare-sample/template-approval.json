@@ -4,7 +4,7 @@
   "approval_type": "template",
   "job_id": "job-weight-tracker-detail-without-delete-sample-001",
   "prd_id": "prd-weight-tracker-detail-without-delete-sample-001",
-  "subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47@sha256:e3e1f34b81eacaac",
+  "subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47@sha256:81c2575a4f3c5c40",
   "status": "approved",
   "requested_by": {
     "actor_type": "system",

@@ -280,7 +280,7 @@
         "local-storage"
       ],
       "task_type": "closure_repair",
-      "objective": "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 debug APK 全通过。",
+      "objective": "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 release APK 全通过。",
       "semantic_intent_refs": [
         "ac-entry",
         "ac-ledger",
@@ -315,12 +315,12 @@
       "success_evidence": [
         "flutter analyze 无错误",
         "flutter test 全通过",
-        "flutter build apk --debug 成功"
+        "flutter build apk --release 成功"
       ],
       "output_expectations": [
         "静态检查通过",
         "测试通过",
-        "可构建 Debug APK"
+        "可构建 Release APK"
       ],
       "risk_notes": [
         "只做低风险收口，不把单点失败扩展为大面积自由重构"

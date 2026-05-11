@@ -198,7 +198,7 @@ copy_if_exists() {
   cp "$source_path" "$artifacts_dir/$target_name"
 }
 
-copy_if_exists "$apk_path" "app-debug.apk"
+copy_if_exists "$apk_path" "$(basename "$apk_path")"
 copy_if_exists "$device_logcat_path" "device-logcat.txt"
 copy_if_exists "$device_screenshot_path" "device-screenshot.png"
 copy_if_exists "$device_failure_summary_path" "device-failure-summary.md"

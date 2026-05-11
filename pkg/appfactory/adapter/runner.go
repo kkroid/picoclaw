@@ -36,6 +36,8 @@ type Runner struct {
 var aapt2PermissionDeniedPattern = regexp.MustCompile(`Cannot run program "([^"]+/aapt2)": error=13, Permission denied`)
 var aapt2DaemonStartupFailurePattern = regexp.MustCompile(`(?i)AAPT2 .*Daemon #\d+: Daemon startup failed`)
 var aapt2ResourceLinkFailurePattern = regexp.MustCompile(`(?i)(:app:processDebugResources|LinkApplicationAndroidResourcesTask)`)
+var gradleDependencyDownloadFailurePattern = regexp.MustCompile(`(?is)(Could not resolve all artifacts|Could not get resource|Could not GET|Gradle threw an error while downloading artifacts from the network)`)
+var gradleNetworkFailurePattern = regexp.MustCompile(`(?is)(Temporary failure in name resolution|Name or service not known|UnknownHostException|No route to host|Network is unreachable|Connection timed out|Read timed out|i/o timeout)`)
 var dartValidationFailurePathPattern = regexp.MustCompile(`(?m)(?:^|[\s"'(])((?:lib|test)/[A-Za-z0-9_./-]+\.dart)(?:[:\s"')]|$)`)
 var dartValidationFailureWorkspacePathPattern = regexp.MustCompile(`(?m)(?:file://)?[A-Za-z0-9_./:-]*/((?:lib|test)/[A-Za-z0-9_./-]+\.dart)(?:[:\s"')]|$)`)
 var dartValidationIssueLinePattern = regexp.MustCompile(`(?m)^\s*(?:warning|error)\s+•\s+.*$`)
@@ -1460,7 +1462,11 @@ func shouldSkipAutomaticValidationRepair(logPath string, check CheckExecutionPre
 	if err != nil || len(content) == 0 {
 		return false
 	}
-	return isAAPT2EnvironmentFailureLog(content)
+	return isValidationEnvironmentFailureLog(content)
+}
+
+func isValidationEnvironmentFailureLog(content []byte) bool {
+	return isAAPT2EnvironmentFailureLog(content) || isGradleDependencyDownloadFailureLog(content)
 }
 
 func isAAPT2EnvironmentFailureLog(content []byte) bool {
@@ -1471,6 +1477,13 @@ func isAAPT2EnvironmentFailureLog(content []byte) bool {
 		return true
 	}
 	return aapt2DaemonStartupFailurePattern.Match(content) && aapt2ResourceLinkFailurePattern.Match(content)
+}
+
+func isGradleDependencyDownloadFailureLog(content []byte) bool {
+	if len(content) == 0 {
+		return false
+	}
+	return gradleDependencyDownloadFailurePattern.Match(content) && gradleNetworkFailurePattern.Match(content)
 }
 
 func repairAAPT2PermissionFailure(step ExecutionStep, workspacePath, logPath string) (bool, error) {
@@ -2480,7 +2493,7 @@ func deviceFailureSignatureForCheck(checkID string) string {
 	switch strings.TrimSpace(checkID) {
 	case "check-adb-device-ready":
 		return "device_check_failed:adb_device_unavailable"
-	case "check-install-debug-apk":
+	case "check-install-release-apk", "check-install-debug-apk":
 		return "device_check_failed:apk_install_failed"
 	case "check-launch-app-and-capture-logcat":
 		return "device_check_failed:app_launch_failed"
@@ -2601,6 +2614,24 @@ func diagnoseExecutionStepFailure(step ExecutionStep, execErr error, workspacePa
 			return diagnosis
 		}
 		if isEnvironmentClosureCheck(checkID, step.Check.Commands) {
+			if isGradleDependencyDownloadFailureLog([]byte(readExecutionLogForFailureDiagnosis(workspacePath, logPath))) {
+				diagnosis.Summary = fmt.Sprintf("environment closure check %s failed while downloading Gradle dependencies: %s", checkID, execErr.Error())
+				diagnosis.RecoverySuggestion = "restore network/DNS access to Gradle Maven repositories or prewarm the builder cache before rerun"
+				diagnosis.Signature = "environment_check_failed:gradle_dependency_download_failed"
+				diagnosis.NextAction = appruns.ControlActionStop
+				diagnosis.PreserveWorkspace = true
+				diagnosis.ResumeAllowed = false
+				diagnosis.Policy = repairFailurePolicy{
+					PreserveWorkspace:   true,
+					ResumeAllowed:       false,
+					RequiresHumanReview: true,
+					MaxRounds:           1,
+					UsedRounds:          1,
+					RemainingRounds:     0,
+					TerminationReason:   "gradle dependency download failed in builder environment",
+				}
+				return diagnosis
+			}
 			diagnosis.Summary = fmt.Sprintf("environment closure check %s failed: %s", checkID, execErr.Error())
 			diagnosis.RecoverySuggestion = "fix the builder environment or command dependencies before rerun"
 			diagnosis.Signature = failureSignatureForCheck(*step.Check)
@@ -2630,6 +2661,8 @@ func deviceVerificationRecoverySuggestion(signature, checkID string) string {
 	switch strings.TrimSpace(signature) {
 	case "environment_check_failed:adb_binary_unavailable":
 		return "install adb in the builder environment or expose Android platform-tools before rerun"
+	case "environment_check_failed:release_apk_missing":
+		return "confirm the release apk was built before device installation starts"
 	case "environment_check_failed:debug_apk_missing":
 		return "confirm the debug apk was built before device installation starts"
 	case "environment_check_failed:android_app_id_missing":
@@ -2648,7 +2681,7 @@ func deviceVerificationRecoverySuggestion(signature, checkID string) string {
 		switch strings.TrimSpace(checkID) {
 		case "check-adb-device-ready":
 			return "connect the target device or fix adb connectivity before rerun"
-		case "check-install-debug-apk":
+		case "check-install-release-apk", "check-install-debug-apk":
 			return "fix adb install prerequisites or clear conflicting packages before rerun"
 		default:
 			return "inspect device connectivity and runtime evidence before rerun"
@@ -3134,6 +3167,8 @@ func deviceFailureDomainForMetrics(category string) string {
 		return "device"
 	case normalized == "environment_check_failed:adb_binary_unavailable":
 		return "environment"
+	case normalized == "environment_check_failed:release_apk_missing":
+		return "environment"
 	case normalized == "environment_check_failed:debug_apk_missing":
 		return "environment"
 	case normalized == "environment_check_failed:android_app_id_missing":
@@ -3239,11 +3274,17 @@ func buildRuntimeArtifactOutputs(run runRecord, jobRoot, changeSummaryPath, buil
 		primary      bool
 	}{
 		{
+			artifactID:   "release-apk",
+			path:         filepath.Join(run.WorkspacePath, "build", "app", "outputs", "flutter-apk", "app-release.apk"),
+			artifactType: "apk",
+			label:        "release apk",
+			primary:      true,
+		},
+		{
 			artifactID:   "debug-apk",
 			path:         filepath.Join(run.WorkspacePath, "build", "app", "outputs", "flutter-apk", "app-debug.apk"),
 			artifactType: "apk",
 			label:        "debug apk",
-			primary:      true,
 		},
 		{
 			artifactID:   "device-logcat",

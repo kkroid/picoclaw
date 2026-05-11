@@ -33,7 +33,7 @@
       }
     ]
   },
-  "prepared_prd_subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:ea0f3f6cd527434d",
+  "prepared_prd_subject_version": "prd-bookkeeping-prepare-sample@0.1.0@sha256:de537a96989e9d88",
   "prepared_template_subject_version": "selected-template@flutter-finance-lite@v0.1.0@sha256:044bdae5cb92f850",
   "workspace_path": "/workspace/job-bookkeeping-prepare-sample",
   "artifact_dir": "/artifacts/job-bookkeeping-prepare-sample",
@@ -337,10 +337,10 @@
         "success_evidence": [
           "flutter analyze 无错误",
           "flutter test 全通过",
-          "flutter build apk --debug 成功"
+          "flutter build apk --release 成功"
         ]
       },
-      "objective": "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 debug APK 全通过。",
+      "objective": "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 release APK 全通过。",
       "priority": "p0",
       "related_requirements": [
         "ac-entry",
@@ -362,12 +362,12 @@
       "output_expectations": [
         "静态检查通过",
         "测试通过",
-        "可构建 Debug APK"
+        "可构建 Release APK"
       ],
       "completion_criteria": [
         "flutter analyze 无错误",
         "flutter test 全通过",
-        "flutter build apk --debug 成功"
+        "flutter build apk --release 成功"
       ],
       "risk_notes": [
         "只做低风险收口，不把单点失败扩展为大面积自由重构"

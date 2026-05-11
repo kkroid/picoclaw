@@ -217,6 +217,123 @@ func TestTryDeterministicEmitBrandSuccess(t *testing.T) {
 	}
 }
 
+func TestTryDeterministicEmitProtocolClientSuccess(t *testing.T) {
+	jobRoot := t.TempDir()
+	workspace := filepath.Join(jobRoot, "workspace")
+	legacyPath := filepath.Join(workspace, "lib", "views", "home_page.dart")
+	if err := os.MkdirAll(filepath.Dir(legacyPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(legacy dir) error = %v", err)
+	}
+	if err := os.WriteFile(legacyPath, []byte("class GenericHomePage {}\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(legacy home_page.dart) error = %v", err)
+	}
+	preparePath := filepath.Join(jobRoot, "prepare")
+	if err := os.MkdirAll(preparePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll(prepare) error = %v", err)
+	}
+	dm := appprepare.DomainModel{
+		TemplateID:       "flutter-open-lite",
+		CapabilityFlags:  []string{"rest-api", "websocket-streaming", "connection-settings"},
+		ProtocolContract: &appprepare.ProtocolContract{Endpoints: []appprepare.EndpointContract{{EndpointID: "endpoint-system-info", Method: "GET", Path: "/system/info", Required: true}}},
+	}
+	dmBytes, _ := json.Marshal(dm)
+	if err := os.WriteFile(filepath.Join(preparePath, "domain-model.json"), dmBytes, 0o600); err != nil {
+		t.Fatalf("WriteFile(domain-model.json) error = %v", err)
+	}
+	writeEmitRunnerTemplateSlotMap(t, preparePath,
+		emitRunnerTemplateSlot("protocol-services", "protocol-services-slot", "services", "replace", true, "lib/services/api_client.dart", "lib/services/ws_client.dart"),
+		emitRunnerTemplateSlot("protocol-surfaces", "protocol-surfaces-slot", "surface", "replace", true, "lib/screens/conversations/detail_page.dart", "lib/screens/files/browser_page.dart"),
+		emitRunnerTemplateSlot("protocol-tests", "protocol-tests-slot", "test", "replace", true, "test/widget_test.dart"),
+	)
+
+	run := runRecord{
+		WorkspacePath: workspace,
+		AllowedPaths:  []string{"pubspec.yaml", "lib/**", "test/**", "android/**"},
+		TaskBundle: []appruns.TaskBundleItem{{
+			TaskID:      "task-protocol-services",
+			RouteHint:   appruns.TaskRouteHintDeterministic,
+			TargetPaths: []string{"lib/services/api_client.dart", "lib/services/ws_client.dart"},
+		}},
+	}
+	roundInput := appruns.RoundInput{RoundID: "round-protocol", TaskBundle: run.TaskBundle}
+
+	result, err := tryDeterministicEmit(run, roundInput, "emit-patch-protocol")
+	if err != nil {
+		t.Fatalf("tryDeterministicEmit() error = %v", err)
+	}
+	if !result.Handled {
+		t.Fatal("expected Handled=true for protocol-client domain model")
+	}
+	for _, path := range []string{
+		"pubspec.yaml",
+		"android/app/build.gradle.kts",
+		"android/app/src/main/AndroidManifest.xml",
+		"lib/app.dart",
+		"lib/services/api_client.dart",
+		"lib/services/ws_client.dart",
+		"lib/providers/conversation_provider.dart",
+		"lib/screens/conversations/detail_page.dart",
+		"lib/screens/files/browser_page.dart",
+		"test/widget_test.dart",
+	} {
+		if _, err := os.Stat(filepath.Join(workspace, filepath.FromSlash(path))); err != nil {
+			t.Fatalf("expected emitted file %s: %v", path, err)
+		}
+	}
+	if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
+		t.Fatalf("expected legacy open-lite home page to be deleted, stat err = %v", err)
+	}
+	pubspec := readEmitRunnerWorkspaceFile(t, workspace, "pubspec.yaml")
+	for _, dependency := range []string{"http:", "web_socket_channel:", "flutter_markdown:", "shared_preferences:", "provider:"} {
+		if !strings.Contains(pubspec, dependency) {
+			t.Fatalf("pubspec.yaml missing dependency %q", dependency)
+		}
+	}
+	manifest := readEmitRunnerWorkspaceFile(t, workspace, "android/app/src/main/AndroidManifest.xml")
+	if !strings.Contains(manifest, "android.permission.INTERNET") || !strings.Contains(manifest, "android:usesCleartextTraffic=\"true\"") {
+		t.Fatalf("Android manifest missing protocol network config: %s", manifest)
+	}
+	buildGradle := readEmitRunnerWorkspaceFile(t, workspace, "android/app/build.gradle.kts")
+	for _, marker := range []string{`com.appfactory.onepilot`, `abiFilters.add("arm64-v8a")`, `source = "../.."`} {
+		if !strings.Contains(buildGradle, marker) {
+			t.Fatalf("build.gradle.kts missing platform marker %q, got: %s", marker, buildGradle)
+		}
+	}
+	apiClient := readEmitRunnerWorkspaceFile(t, workspace, "lib/services/api_client.dart")
+	for _, endpoint := range []string{"GET /system/info", "GET /projects", "POST /conversations/{id}/turns", "POST /conversations/{id}/emergency-stop", "GET /files/tree", "GET /files/read", "PUT /files/write"} {
+		if !strings.Contains(apiClient, endpoint) {
+			t.Fatalf("api_client.dart missing endpoint marker %q", endpoint)
+		}
+	}
+	wsClient := readEmitRunnerWorkspaceFile(t, workspace, "lib/services/ws_client.dart")
+	if !strings.Contains(wsClient, "WebSocketChannel.connect") || !strings.Contains(wsClient, "subscribe") || !strings.Contains(wsClient, "unsubscribe") {
+		t.Fatalf("ws_client.dart missing websocket subscribe flow: %s", wsClient)
+	}
+	widgetTest := readEmitRunnerWorkspaceFile(t, workspace, "test/widget_test.dart")
+	for _, marker := range []string{"FakeOnePilotWsClient", "RealtimeEvent", "流式回复", "main.go", "writeFile", "确认急停"} {
+		if !strings.Contains(widgetTest, marker) {
+			t.Fatalf("widget_test.dart missing fake protocol marker %q", marker)
+		}
+	}
+	fileProvider := readEmitRunnerWorkspaceFile(t, workspace, "lib/providers/file_provider.dart")
+	if strings.Contains(fileProvider, "dart:typed_data") {
+		t.Fatalf("file_provider.dart should rely on foundation Uint8List export, got: %s", fileProvider)
+	}
+	filePreview := readEmitRunnerWorkspaceFile(t, workspace, "lib/screens/files/file_preview_page.dart")
+	if !strings.Contains(filePreview, "import '../../services/api_client.dart';") || !strings.Contains(filePreview, "FileContent?") {
+		t.Fatalf("file_preview_page.dart missing FileContent import, got: %s", filePreview)
+	}
+}
+
+func readEmitRunnerWorkspaceFile(t *testing.T, workspace, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(workspace, filepath.FromSlash(path)))
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", path, err)
+	}
+	return string(content)
+}
+
 func TestTryDeterministicEmitAndroidBuildConfigSuccess(t *testing.T) {
 	jobRoot := t.TempDir()
 	workspace := filepath.Join(jobRoot, "workspace")
@@ -506,6 +623,16 @@ func TestTryDeterministicEmitGenericSchemaSurfacesUseDomainFields(t *testing.T) 
 			WorkspacePath: workspace,
 			AllowedPaths:  []string{"lib/**", "test/**"},
 			TaskBundle:    []appruns.TaskBundleItem{task},
+		}
+		if taskID == "task-test" {
+			run.TaskBundle = append(run.TaskBundle, appruns.TaskBundleItem{
+				TaskID:      "task-form-context",
+				RouteHint:   appruns.TaskRouteHintDeterministic,
+				TargetPaths: []string{"lib/views/record_form_page.dart"},
+				AllocationTransition: &appruns.TaskAllocationTransition{
+					BindingRefs: []string{emitRunnerBindingMutation},
+				},
+			})
 		}
 		roundInput := appruns.RoundInput{RoundID: "round-" + taskID, TaskBundle: run.TaskBundle}
 		result, err := tryDeterministicEmit(run, roundInput, "emit-patch-"+taskID)

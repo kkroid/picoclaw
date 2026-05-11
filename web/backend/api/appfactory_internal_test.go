@@ -4769,7 +4769,7 @@ func TestPublicDeviceFailureSuggestedAction(t *testing.T) {
 		want     string
 	}{
 		{name: "device domain", domain: "device", category: "device_check_failed:adb_device_unavailable", want: "inspect_device_evidence"},
-		{name: "device environment category", domain: "environment", category: "environment_check_failed:debug_apk_missing", want: "inspect_device_evidence"},
+		{name: "device environment category", domain: "environment", category: "environment_check_failed:release_apk_missing", want: "inspect_device_evidence"},
 		{name: "other environment category", domain: "environment", category: "runner_exit_nonzero", want: ""},
 	}
 

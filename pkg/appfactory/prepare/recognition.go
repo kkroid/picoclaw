@@ -33,6 +33,9 @@ type domainSpec struct {
 	CapabilityFlags         []string
 	BehaviorRules           []DomainBehaviorRule
 	PersistenceContract     *PersistenceContract
+	ProtocolContract        *ProtocolContract
+	RealtimeContract        *RealtimeContract
+	RuntimeContract         *RuntimeDependencyContract
 	TemplateConstraints     TemplateConstraints
 	AcceptanceCriteria      []AcceptanceCriterion
 	ManualReviewPoints      []ManualReviewPoint
@@ -142,6 +145,9 @@ const (
 
 func analyzeRequirement(request Request, requirementText string) domainSpec {
 	lower := strings.ToLower(requirementText)
+	if isProtocolClientRequirement(lower, requirementText) {
+		return compileProtocolClientSpec(request, requirementText)
+	}
 	if isBookkeepingRequirement(lower, requirementText) {
 		return compileBookkeepingSpec(request, requirementText)
 	}
@@ -233,8 +239,8 @@ func compileBookkeepingSpec(request Request, requirementText string) domainSpec 
 			"分类图标、视觉品牌和账单导入等非核心增强点暂不进入本轮。",
 		}
 		acceptanceChecks = flutterProfile.AcceptanceChecks()
-		goalSummary = "在 " + selectedTemplateLabel + " 模板基础上完成一个可用的离线记账 MVP，必须彻底替换默认 counter demo，至少实现收支概览、记账动作、账单集合浏览和本地持久化，并通过 analyze、test 和 debug APK 构建验证。"
-		implementationPhases = []string{"阶段 1：先冻结领域模型和本地存储边界，再补齐概览承载、记账动作和账单集合浏览三块核心承载。", "阶段 2：完成录入保存、集合回显、概览刷新和应用重启后的本地数据恢复，并保持修改范围收敛在 Flutter 应用层。", "阶段 3：通过 analyze、test、功能接线检查和 debug APK 构建完成低风险收口，不把静态占位承载当作完成。"}
+		goalSummary = "在 " + selectedTemplateLabel + " 模板基础上完成一个可用的离线记账 MVP，必须彻底替换默认 counter demo，至少实现收支概览、记账动作、账单集合浏览和本地持久化，并通过 analyze、test 和 release APK 构建验证。"
+		implementationPhases = []string{"阶段 1：先冻结领域模型和本地存储边界，再补齐概览承载、记账动作和账单集合浏览三块核心承载。", "阶段 2：完成录入保存、集合回显、概览刷新和应用重启后的本地数据恢复，并保持修改范围收敛在 Flutter 应用层。", "阶段 3：通过 analyze、test、功能接线检查和 release APK 构建完成低风险收口，不把静态占位承载当作完成。"}
 		manualConstraints = []string{"当前阶段不接入登录、远程同步、上架流程。", "日志和构建报告保留英文输出，文档与计划说明使用中文。", "真实验证默认依赖 Builder 容器镜像，不再使用 echo 级 smoke check。", "不得把现有静态 seed 页面当作交付结果，也不得通过删除或弱化验收线索来规避实现。", "如果结果仍保留 Flutter 默认 counter demo 文案、计数器状态或测试，整次 run 必须判失败。"}
 		humanNotes = []map[string]string{{"note_id": "note-real-build", "summary": "该输入包用于交付可运行的记账 MVP，不只是验证 Flutter 工具链可用。", "scope": "engineering"}, {"note_id": "note-template", "summary": selectedTemplateLabel + " 只是起始 seed，必须继续补齐概览承载、记账动作、账单集合浏览和本地持久化。", "scope": "product"}, {"note_id": "note-no-counter-demo", "summary": "默认 Flutter counter demo 必须被彻底替换，任何残留都视为当前执行器未完成任务。", "scope": "engineering"}}
 		commandProfile = flutterProfile.CommandProfile
@@ -898,7 +904,7 @@ func buildBookkeepingTaskBundle() []appruns.TaskBundleItem {
 		{TaskID: "task-storage-wiring", Title: "接通本地持久化与账单仓储边界", Category: "storage", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, Objective: "把本地持久化方案和 repository 边界固定下来，确保新增账单后可恢复概览与账单集合。", Priority: "p0", RelatedRequirements: []string{"feature-local-data"}, Dependencies: []string{"task-domain-models"}, TargetPaths: []string{"lib/repositories/entry_repository.dart", "pubspec.yaml"}, OutputExpectations: []string{"明确的本地持久化实现", "账单读写入口稳定"}, CompletionCriteria: []string{"代码或依赖中出现明确的本地持久化实现", "应用重启后仍能读取账单集合并恢复概览"}, RiskNotes: []string{"不要同时引入两个同类本地存储方案"}, AllocationTransition: genericSurfaceTransition("task-storage-wiring", []string{"ac-persistence", "mrp-data"}, surfaceRefs.AllSurfaces, surfaceRefs.SummaryEntityRefs, nil, nil, nil)},
 		{TaskID: "task-bind-core-surfaces", Title: "绑定概览、记账动作与集合浏览承载单元", Category: "screen", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, Objective: "先把概览承载、实体变更承载、集合浏览承载和主导航入口搭出来，不把默认 seed 骨架当作完成结果。", Priority: "p0", RelatedRequirements: []string{"feature-home-summary", "feature-add-entry", "feature-ledger"}, Dependencies: []string{"task-domain-models"}, TargetPaths: []string{"lib/main.dart", "lib/views/home_page.dart", "lib/views/entry_form_page.dart", "lib/views/entry_list_page.dart"}, OutputExpectations: []string{"概览承载单元骨架", "记账动作承载单元骨架", "账单集合浏览承载单元骨架"}, CompletionCriteria: []string{"概览、记账动作、账单集合浏览之间入口明确可达", "默认 counter demo 页面与文案已被移除"}, RiskNotes: []string{"承载单元骨架完成不等于记账主流程闭环已接通"}, AllocationTransition: genericSurfaceTransitionWithBindings("task-bind-core-surfaces", []string{"mrp-copy"}, []string{publicBindingDomainCopy}, surfaceRefs.AllSurfaces, surfaceRefs.SummaryEntityRefs, nil, nil, nil)},
 		{TaskID: "task-flow-wiring", Title: "接通记账动作、概览刷新与账单集合回显主流程", Category: "flow", TaskType: appruns.BuilderRuntimeTaskTypeDualFileWiring, Objective: "把账单录入保存、概览刷新和账单集合回显串成一个完整功能闭环。", Priority: "p0", RelatedRequirements: []string{"feature-add-entry", "feature-home-summary", "feature-ledger", "feature-local-data"}, Dependencies: []string{"task-storage-wiring", "task-bind-core-surfaces"}, TargetPaths: []string{"lib/controllers/home_controller.dart", "lib/controllers/entry_form_controller.dart", "lib/controllers/entry_list_controller.dart", "lib/repositories/entry_repository.dart", "test/widget_test.dart"}, OutputExpectations: []string{"保存动作可触发持久化", "概览和账单集合能看到新增账单"}, CompletionCriteria: []string{"记账动作字段齐全并可保存", "新增账单后概览与账单集合都能反映最新数据"}, RiskNotes: []string{"不要为了接线方便重做整套承载结构或状态管理"}, AllocationTransition: genericSurfaceTransition("task-flow-wiring", []string{"check-counter-demo-removed"}, surfaceRefs.AllSurfaces, surfaceRefs.SummaryEntityRefs, nil, nil, []string{"记账动作、概览刷新与账单集合回显主流程已接通"})},
-		{TaskID: "task-validation-closure", Title: "完成 analyze、test 与 APK 构建收口", Category: "validation", TaskType: appruns.BuilderRuntimeTaskTypeClosureRepair, Objective: "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 debug APK 全通过。", Priority: "p0", RelatedRequirements: []string{"ac-entry", "ac-ledger", "ac-persistence", "ac-navigation"}, Dependencies: []string{"task-flow-wiring"}, TargetPaths: []string{"lib/main.dart", "lib/views/**", "lib/controllers/**", "lib/repositories/**", "test/**", "pubspec.yaml"}, OutputExpectations: []string{"静态检查通过", "测试通过", "可构建 Debug APK"}, CompletionCriteria: []string{"flutter analyze 无错误", "flutter test 全通过", "flutter build apk --debug 成功"}, RiskNotes: []string{"只做低风险收口，不把单点失败扩展为大面积自由重构"}, AllocationTransition: genericSurfaceTransition("task-validation-closure", nil, surfaceRefs.AllSurfaces, surfaceRefs.SummaryEntityRefs, nil, nil, nil)},
+		{TaskID: "task-validation-closure", Title: "完成 analyze、test 与 APK 构建收口", Category: "validation", TaskType: appruns.BuilderRuntimeTaskTypeClosureRepair, Objective: "在功能闭环接通后，通过低风险修复把工作区收敛到 analyze、test 和 release APK 全通过。", Priority: "p0", RelatedRequirements: []string{"ac-entry", "ac-ledger", "ac-persistence", "ac-navigation"}, Dependencies: []string{"task-flow-wiring"}, TargetPaths: []string{"lib/main.dart", "lib/views/**", "lib/controllers/**", "lib/repositories/**", "test/**", "pubspec.yaml"}, OutputExpectations: []string{"静态检查通过", "测试通过", "可构建 Release APK"}, CompletionCriteria: []string{"flutter analyze 无错误", "flutter test 全通过", "flutter build apk --release 成功"}, RiskNotes: []string{"只做低风险收口，不把单点失败扩展为大面积自由重构"}, AllocationTransition: genericSurfaceTransition("task-validation-closure", nil, surfaceRefs.AllSurfaces, surfaceRefs.SummaryEntityRefs, nil, nil, nil)},
 	}
 
 }
@@ -1638,7 +1644,7 @@ func buildGenericTemplateFitReasons(signals genericDomainSignals, topology gener
 		return []string{
 			"flutter-open-lite 已覆盖概览、集合浏览、实体变更、结果检查和本地持久化所需的最小能力集合。",
 			"当前长期技术基线已冻结为 Flutter，且 generic 模板明确不依赖自建服务器。",
-			"该模板已进入 builder 镜像内的 analyze、test 与 debug APK build structural checks，可直接作为 generic real-check 的执行起点。",
+			"该模板已进入 builder 镜像内的 analyze、test 与 release APK build structural checks，可直接作为 generic real-check 的执行起点。",
 		}
 	}
 	return buildGenericNonDefaultTemplateFitReasons(topology)
@@ -1653,7 +1659,7 @@ func buildGenericNonDefaultTemplateFitReasons(topology genericTopologyPlan) []st
 	return []string{
 		"flutter-open-lite 已覆盖当前需求声明的" + capabilitySummary + "所需的最小能力集合。",
 		"当前长期技术基线已冻结为 Flutter，且 generic 模板明确不依赖自建服务器。",
-		"该模板已进入 builder 镜像内的 analyze、test 与 debug APK build structural checks，可直接作为 generic real-check 的执行起点。",
+		"该模板已进入 builder 镜像内的 analyze、test 与 release APK build structural checks，可直接作为 generic real-check 的执行起点。",
 	}
 }
 

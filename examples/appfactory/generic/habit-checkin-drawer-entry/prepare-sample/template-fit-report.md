@@ -16,7 +16,7 @@
 - 适合需要首页摘要、记录列表、表单编辑、详情页和本地持久化的单任务工具类 MVP。
 - flutter-open-lite 已覆盖当前需求声明的概览、集合浏览、实体变更和结果检查与本地持久化所需的最小能力集合。
 - 当前长期技术基线已冻结为 Flutter，且 generic 模板明确不依赖自建服务器。
-- 该模板已进入 builder 镜像内的 analyze、test 与 debug APK build structural checks，可直接作为 generic real-check 的执行起点。
+- 该模板已进入 builder 镜像内的 analyze、test 与 release APK build structural checks，可直接作为 generic real-check 的执行起点。
 
 ## 当前差距
 

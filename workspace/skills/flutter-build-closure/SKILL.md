@@ -11,7 +11,7 @@ description: "在 Flutter 工作区接近完成时做低风险收口。Use when 
 
 ## 何时使用
 
-- `flutter analyze`、`flutter test`、`flutter build apk --debug` 至少已有部分可运行基础。
+- `flutter analyze`、`flutter test`、`flutter build apk --release` 至少已有部分可运行基础。
 - 问题集中在兼容性、命名、测试对齐、导入缺失、轻量配置修补。
 - 需要一个严格受限的最终收敛步骤。
 
@@ -20,7 +20,7 @@ description: "在 Flutter 工作区接近完成时做低风险收口。Use when 
 1. 先读取 `references/closure-checklist.md`。
 2. 再运行 `dart format .`、`flutter analyze`、`flutter test`。
 3. 只修复当前失败直接指向的问题，不顺手重构无关代码。
-4. 在 analyze 与 test 通过后，再跑 `flutter build apk --debug`。
+4. 在 analyze 与 test 通过后，再跑 `flutter build apk --release`。
 5. 记录每次修复对应的失败签名，避免重复开放式尝试。
 
 ## 允许处理的问题

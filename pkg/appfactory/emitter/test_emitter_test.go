@@ -255,6 +255,47 @@ func TestEmitTestGenericUsesSchemaSeedRecord(t *testing.T) {
 	}
 }
 
+func TestEmitTestGenericNoMutationOmitsCreateFlow(t *testing.T) {
+	dm := appprepare.DomainModel{
+		DomainCopy: appprepare.DomainCopy{Title: "只读记录 App"},
+		Entities: []appprepare.DataEntity{
+			{
+				EntityID: "entity-record",
+				Name:     "通用记录",
+				Fields: []appprepare.DataField{
+					{Name: "record_id", Type: "string", Role: "identifier", Required: true},
+					{Name: "title", Type: "string", Required: true},
+				},
+			},
+		},
+	}
+	result, ok := EmitTest(dm, TestEmitConfig{AppClassName: "AppFactoryApp", DisableMutationFlow: true})
+	if !ok {
+		t.Fatal("EmitTest returned false for generic schema")
+	}
+	for _, marker := range []string{
+		"open lite app supports schema-driven browse flow",
+		"InMemoryRecordRepository(seedRecords: [Record(title: '测试记录')])",
+		"expect(find.text('测试记录'), findsOneWidget);",
+		"await tester.tap(find.text(openLiteCopy.viewAllActionLabel));",
+		"expect(find.text(openLiteCopy.listPageTitle), findsOneWidget);",
+	} {
+		if !strings.Contains(result.Content, marker) {
+			t.Fatalf("content missing no-mutation marker %q: %s", marker, result.Content)
+		}
+	}
+	for _, forbidden := range []string{
+		"import 'package:flutter/foundation.dart';",
+		"find.byKey(const Key(",
+		"openLiteCopy.createPageTitle",
+		"await tester.enterText",
+	} {
+		if strings.Contains(result.Content, forbidden) {
+			t.Fatalf("content should omit no-mutation marker %q: %s", forbidden, result.Content)
+		}
+	}
+}
+
 func TestEmitTestGenericCoversFieldDrivenWidgets(t *testing.T) {
 	dm := appprepare.DomainModel{
 		DomainCopy: appprepare.DomainCopy{Title: "行李打包清单 App"},

@@ -6,7 +6,7 @@
   "executor_image": "oneappfactory/appfactory-builder:local",
   "workspace_path": "/workspace/job-bookkeeping-lite-real",
   "artifact_dir": "/artifacts/job-bookkeeping-lite-real",
-  "goal_summary": "使用真实 Flutter Builder 镜像验证记账模板的 analyze、test 和 debug APK 构建链路。",
+  "goal_summary": "使用真实 Flutter Builder 镜像验证记账模板的 analyze、test 和 release APK 构建链路。",
   "task_bundle": [
     {
       "task_id": "task-template-verify",
@@ -22,7 +22,7 @@
       "completion_criteria": [
         "flutter analyze 通过",
         "flutter test 通过",
-        "flutter build apk --debug 产出 APK"
+        "flutter build apk --release 产出 APK"
       ]
     }
   ],
@@ -62,13 +62,13 @@
     },
     {
       "check_id": "check-flutter-build-apk",
-      "label": "构建 Debug APK",
+      "label": "构建 Release APK",
       "stage": "milestone",
       "required": true,
       "commands": [
-        "flutter build apk --debug"
+        "flutter build apk --release"
       ],
-      "success_criteria": "产出 app-debug.apk。",
+      "success_criteria": "产出 app-release.apk。",
       "timeout_seconds": 1800
     }
   ],

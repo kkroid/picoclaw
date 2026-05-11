@@ -132,4 +132,4 @@
 - 确认领域字段与文案已进入 open-lite 工作区：stage=cheap，commands=grep -ER '体重|weight|recorded_at|latest_weight|trend' lib test android/app/src/main/res/values/strings.xml >/dev/null 2>&1
 - 执行静态检查：stage=cheap，commands=flutter analyze
 - 执行模板测试：stage=cheap，commands=flutter test
-- 构建 Debug APK：stage=milestone，commands=flutter build apk --debug --no-pub
+- 构建 Release APK：stage=milestone，commands=flutter build apk --release --no-pub

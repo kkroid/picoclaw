@@ -707,7 +707,7 @@ func TestCompileBookkeepingRequirementWithRealBuild(t *testing.T) {
 	if bundle.BuilderInput.AcceptanceChecks[1].CheckID != "check-counter-demo-removed" {
 		t.Fatalf("second check id = %q, want check-counter-demo-removed", bundle.BuilderInput.AcceptanceChecks[1].CheckID)
 	}
-	if bundle.BuilderInput.GoalSummary != "在 flutter-finance-lite 模板基础上完成一个可用的离线记账 MVP，必须彻底替换默认 counter demo，至少实现收支概览、记账动作、账单集合浏览和本地持久化，并通过 analyze、test 和 debug APK 构建验证。" {
+	if bundle.BuilderInput.GoalSummary != "在 flutter-finance-lite 模板基础上完成一个可用的离线记账 MVP，必须彻底替换默认 counter demo，至少实现收支概览、记账动作、账单集合浏览和本地持久化，并通过 analyze、test 和 release APK 构建验证。" {
 		t.Fatalf("GoalSummary = %q", bundle.BuilderInput.GoalSummary)
 	}
 	planText := string(bundle.Files[planFileName])
@@ -805,7 +805,7 @@ func TestCompileGenericRequirementUsesRegistrySelection(t *testing.T) {
 	if !strings.Contains(fitReport, "summary-card") || !strings.Contains(fitReport, "detail") || !strings.Contains(fitReport, "local-storage") {
 		t.Fatalf("template fit report missing capability coverage: %s", fitReport)
 	}
-	if !strings.Contains(fitReport, "analyze、test 与 debug APK build structural checks") {
+	if !strings.Contains(fitReport, "analyze、test 与 release APK build structural checks") {
 		t.Fatalf("template fit report missing structural check narrative: %s", fitReport)
 	}
 	if strings.Contains(fitReport, "generic real-check 还没有切到真实 Flutter analyze/test/build 主链") {

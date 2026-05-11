@@ -96,13 +96,13 @@ if [ "$include_apk" = "1" ]; then
     apk_commands=$(cat <<EOF
 log_file=/workspace/logs/template-verify-android.log
 rm -f "\$log_file"
-flutter build apk --debug --no-pub --config-only -v 2>&1 | tee "\$log_file"
+flutter build apk --release --no-pub --config-only -v 2>&1 | tee "\$log_file"
 cd android
-./gradlew app:assembleDebug --console=plain --stacktrace --warning-mode=all --$android_gradle_log_level 2>&1 | tee -a "\$log_file"
+./gradlew app:assembleRelease --console=plain --stacktrace --warning-mode=all --$android_gradle_log_level 2>&1 | tee -a "\$log_file"
 EOF
 )
   else
-    apk_commands='flutter build apk --debug --no-pub'
+    apk_commands='flutter build apk --release --no-pub'
   fi
 else
   apk_commands=''

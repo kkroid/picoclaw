@@ -154,6 +154,7 @@
     },
     "failureCategory": {
       "environment_check_failed:adb_binary_unavailable": "设备验证环境缺少 adb",
+      "environment_check_failed:release_apk_missing": "设备验证缺少 release APK",
       "environment_check_failed:debug_apk_missing": "设备验证缺少 debug APK",
       "environment_check_failed:android_app_id_missing": "设备验证缺少 Android applicationId",
       "device_check_failed:adb_device_unavailable": "未检测到可用设备",
@@ -356,8 +357,9 @@
         "check-local-persistence-wiring": "本地持久化接线",
         "check-flutter-analyze": "Flutter analyze",
         "check-flutter-test": "Flutter test",
-        "check-flutter-build-apk": "构建 Debug APK",
+        "check-flutter-build-apk": "构建 Release APK",
         "check-adb-device-ready": "adb 设备在线检查",
+        "check-install-release-apk": "安装 APK 到设备",
         "check-install-debug-apk": "安装 APK 到设备",
         "check-launch-app-and-capture-logcat": "启动应用并采集 logcat"
       }

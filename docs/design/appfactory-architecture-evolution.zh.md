@@ -16,6 +16,7 @@
 | `appfactory-architecture-evolution-todo.zh.md` | 细化实施任务与执行清单 | Active |
 | `appfactory-extraction-implementation-plan.zh.md` | OneAppFactory 断兼容重构与删除执行计划 | Decisioned |
 | `appfactory-generic-policy-contract.zh.md` | generic binding-surface 语义表、repair taxonomy、policy registry 契约 | Active |
+| `appfactory-onepilot-mvp-generation-plan.zh.md` | OnePilot 协议客户端生成收口计划与任务列表 | Proposed |
 | `demand-to-android-app-platform-interfaces.zh.md` | 公共 API、内部接口、Schema | Frozen |
 
 当前补充约束如下：

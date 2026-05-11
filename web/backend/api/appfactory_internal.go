@@ -2607,6 +2607,7 @@ func publicDeviceFailureSuggestedAction(domain, category string) string {
 	}
 	switch normalizedCategory {
 	case "environment_check_failed:adb_binary_unavailable",
+		"environment_check_failed:release_apk_missing",
 		"environment_check_failed:debug_apk_missing",
 		"environment_check_failed:android_app_id_missing":
 		return "inspect_device_evidence"

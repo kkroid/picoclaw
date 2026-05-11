@@ -65,11 +65,11 @@ func NewFlutterAndroidProfile() StackProfile {
 		},
 		{
 			CheckID:         "check-flutter-build-apk",
-			Label:           "构建 Debug APK",
+			Label:           "构建 Release APK",
 			Stage:           StageMilestone,
 			Required:        true,
-			Commands:        []string{"flutter build apk --debug --no-pub"},
-			SuccessCriteria: "产出 app-debug.apk。",
+			Commands:        []string{"flutter build apk --release --no-pub"},
+			SuccessCriteria: "产出 app-release.apk。",
 			TimeoutSeconds:  1800,
 		},
 	}
@@ -85,12 +85,12 @@ func NewFlutterAndroidProfile() StackProfile {
 				TimeoutSeconds:  120,
 			},
 			AcceptanceCheck{
-				CheckID:         "check-install-debug-apk",
-				Label:           "安装 Debug APK 到设备",
+				CheckID:         "check-install-release-apk",
+				Label:           "安装 Release APK 到设备",
 				Stage:           StageDevice,
 				Required:        true,
-				Commands:        []string{adbInstallDebugAPKCommand()},
-				SuccessCriteria: "构建产出的 app-debug.apk 已成功安装到目标设备。",
+				Commands:        []string{adbInstallReleaseAPKCommand()},
+				SuccessCriteria: "构建产出的 app-release.apk 已成功安装到目标设备。",
 				TimeoutSeconds:  300,
 			},
 			AcceptanceCheck{
@@ -234,11 +234,11 @@ fi
 `)
 }
 
-func adbInstallDebugAPKCommand() string {
+func adbInstallReleaseAPKCommand() string {
 	return strings.TrimSpace(`
-APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
+APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
 test -f "$APK_PATH" || {
-	echo "__oneappfactory_failure_signature__:environment_check_failed:debug_apk_missing" >&2
+	echo "__oneappfactory_failure_signature__:environment_check_failed:release_apk_missing" >&2
 	exit 1
 }
 APP_ID="${APPFACTORY_ANDROID_APP_ID:-}"
@@ -252,7 +252,7 @@ test -n "$APP_ID" || {
 	echo "__oneappfactory_failure_signature__:environment_check_failed:android_app_id_missing" >&2
 	exit 1
 }
-install_debug_apk() {
+install_release_apk() {
 	if [ -n "${APPFACTORY_DEVICE_SERIAL:-}" ]; then
 		adb -s "$APPFACTORY_DEVICE_SERIAL" install -r "$APK_PATH"
 	else
@@ -260,7 +260,7 @@ install_debug_apk() {
 	fi
 }
 install_exit=0
-install_output="$(install_debug_apk 2>&1)" || install_exit=$?
+install_output="$(install_release_apk 2>&1)" || install_exit=$?
 install_exit="${install_exit:-0}"
 if [ "$install_exit" -ne 0 ] && printf '%s' "$install_output" | grep -q 'INSTALL_FAILED_UPDATE_INCOMPATIBLE'; then
 	if [ -n "${APPFACTORY_DEVICE_SERIAL:-}" ]; then
@@ -269,7 +269,7 @@ if [ "$install_exit" -ne 0 ] && printf '%s' "$install_output" | grep -q 'INSTALL
 		adb uninstall "$APP_ID" >/dev/null 2>&1 || true
 	fi
 	install_exit=0
-	install_output="$(install_debug_apk 2>&1)" || install_exit=$?
+	install_output="$(install_release_apk 2>&1)" || install_exit=$?
 	install_exit="${install_exit:-0}"
 fi
 if [ "$install_exit" -ne 0 ]; then

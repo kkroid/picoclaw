@@ -81,7 +81,7 @@
   - `check-counter-demo-removed` 通过
   - `check-entry-form-wiring` 通过
   - `check-local-persistence-wiring` 通过
-  - `flutter analyze`、`flutter test`、`flutter build apk --debug` 通过
+  - `flutter analyze`、`flutter test`、`flutter build apk --release` 通过
 
 ## 任务拆分提醒
 

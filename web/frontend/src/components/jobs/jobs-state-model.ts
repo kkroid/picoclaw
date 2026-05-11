@@ -57,6 +57,7 @@ export type FailureDiagnosisSummary = {
 const RUNNING_JOB_STATUSES = new Set(["running", "running_builder"])
 const DEVICE_EXECUTION_CHECK_IDS = [
   "check-adb-device-ready",
+  "check-install-release-apk",
   "check-install-debug-apk",
   "check-launch-app-and-capture-logcat",
 ]
@@ -113,9 +114,9 @@ const DEFAULT_EXECUTION_STEPS: ExecutionStepDefinition[] = [
     acceptanceCheckId: "check-adb-device-ready",
   },
   {
-    key: "check-install-debug-apk",
+    key: "check-install-release-apk",
     stageKey: "device",
-    acceptanceCheckId: "check-install-debug-apk",
+    acceptanceCheckId: "check-install-release-apk",
   },
   {
     key: "check-launch-app-and-capture-logcat",
@@ -500,6 +501,7 @@ export function buildFailureGuidance(
     ...collectProducedArtifactPaths(artifacts, [
       "build-report",
       "smoke-test-report",
+      "app-release.apk",
       "app-debug.apk",
     ]),
     ...runtimeEvidence,
@@ -882,8 +884,9 @@ function normalizeFailedCheckToCheckpointKey(label: string) {
     ["flutter test", "check-flutter-test"],
     ["flutter build apk", "check-flutter-build-apk"],
     ["build apk", "check-flutter-build-apk"],
+    ["install release apk", "check-install-release-apk"],
     ["install debug apk", "check-install-debug-apk"],
-    ["install apk", "check-install-debug-apk"],
+    ["install apk", "check-install-release-apk"],
     ["logcat", "check-launch-app-and-capture-logcat"],
     ["launch app", "check-launch-app-and-capture-logcat"],
     ["adb", "check-adb-device-ready"],
@@ -913,6 +916,7 @@ function collectDeviceEvidencePaths(artifacts: ArtifactItem[]) {
     "device-screenshot",
     "smoke-test-report",
     "build-report",
+    "app-release.apk",
     "app-debug.apk",
   ])
 }
@@ -940,6 +944,7 @@ function collectFailureDiagnosisEvidencePaths(job: PublicJobRecord, artifacts: A
 
   return collectUniquePaths([
     ...collectSuggestedEvidencePaths(artifacts),
+    ...collectProducedArtifactPaths(artifacts, ["app-release.apk"]),
     ...collectProducedArtifactPaths(artifacts, ["app-debug.apk"]),
     ...runtimeEvidence,
   ])

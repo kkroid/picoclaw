@@ -193,7 +193,7 @@ cd /workspace/job/workspace
 flutter pub get
 flutter analyze
 flutter test
-flutter build apk --debug
+flutter build apk --release
 if [[ "${APPFACTORY_DEVICE_VERIFICATION_ENABLED:-0}" == "1" ]]; then
   REPORTS_DIR="/workspace/job/reports"
   mkdir -p "$REPORTS_DIR"
@@ -205,22 +205,22 @@ if [[ "${APPFACTORY_DEVICE_VERIFICATION_ENABLED:-0}" == "1" ]]; then
     APP_ID="$(sed -n "s/.*applicationId[[:space:]]*\"\([^\"]*\)\".*/\1/p" android/app/build.gradle | head -n1)"
   fi
   test -n "$APP_ID"
-  install_debug_apk() {
+  install_release_apk() {
     if [[ -n "${APPFACTORY_DEVICE_SERIAL:-}" ]]; then
-      adb -s "$APPFACTORY_DEVICE_SERIAL" install -r build/app/outputs/flutter-apk/app-debug.apk
+      adb -s "$APPFACTORY_DEVICE_SERIAL" install -r build/app/outputs/flutter-apk/app-release.apk
     else
-      adb install -r build/app/outputs/flutter-apk/app-debug.apk
+      adb install -r build/app/outputs/flutter-apk/app-release.apk
     fi
   }
   if [[ -n "${APPFACTORY_DEVICE_SERIAL:-}" ]]; then
     timeout "${APPFACTORY_DEVICE_ADB_TIMEOUT_SECONDS:-60}s" adb -s "$APPFACTORY_DEVICE_SERIAL" wait-for-device
     install_exit=0
-    install_output="$(install_debug_apk 2>&1)" || install_exit=$?
+    install_output="$(install_release_apk 2>&1)" || install_exit=$?
     install_exit="${install_exit:-0}"
     if [[ "$install_exit" -ne 0 && "$install_output" == *"INSTALL_FAILED_UPDATE_INCOMPATIBLE"* ]]; then
       adb -s "$APPFACTORY_DEVICE_SERIAL" uninstall "$APP_ID" >/dev/null 2>&1 || true
       install_exit=0
-      install_output="$(install_debug_apk 2>&1)" || install_exit=$?
+      install_output="$(install_release_apk 2>&1)" || install_exit=$?
       install_exit="${install_exit:-0}"
     fi
     if [[ "$install_exit" -ne 0 ]]; then
@@ -235,12 +235,12 @@ if [[ "${APPFACTORY_DEVICE_VERIFICATION_ENABLED:-0}" == "1" ]]; then
   else
     timeout "${APPFACTORY_DEVICE_ADB_TIMEOUT_SECONDS:-60}s" adb wait-for-device
     install_exit=0
-    install_output="$(install_debug_apk 2>&1)" || install_exit=$?
+    install_output="$(install_release_apk 2>&1)" || install_exit=$?
     install_exit="${install_exit:-0}"
     if [[ "$install_exit" -ne 0 && "$install_output" == *"INSTALL_FAILED_UPDATE_INCOMPATIBLE"* ]]; then
       adb uninstall "$APP_ID" >/dev/null 2>&1 || true
       install_exit=0
-      install_output="$(install_debug_apk 2>&1)" || install_exit=$?
+      install_output="$(install_release_apk 2>&1)" || install_exit=$?
       install_exit="${install_exit:-0}"
     fi
     if [[ "$install_exit" -ne 0 ]]; then
@@ -259,9 +259,9 @@ fi
 
 docker "${docker_args[@]}" "$builder_image" exec bash -lc "$container_script"
 
-apk_path="$workspace_dir/build/app/outputs/flutter-apk/app-debug.apk"
+apk_path="$workspace_dir/build/app/outputs/flutter-apk/app-release.apk"
 if [[ ! -f "$apk_path" ]]; then
-  echo "expected debug apk not found: $apk_path" >&2
+  echo "expected release apk not found: $apk_path" >&2
   exit 1
 fi
 

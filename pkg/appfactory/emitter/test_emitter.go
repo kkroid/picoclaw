@@ -16,6 +16,8 @@ type TestEmitConfig struct {
 	AppClassName string
 	// RepositoryType 是 generic profile 使用的 repository 类型名，默认 "InMemoryRecordRepository"。
 	RepositoryType string
+	// DisableMutationFlow 表示当前拓扑没有 form/mutation surface。
+	DisableMutationFlow bool
 }
 
 // TestEmitResult 表示 TestEmitter 的输出。
@@ -50,7 +52,7 @@ func renderTestForProfile(profile copyProfile, packageName string, dm appprepare
 	case copyProfileInventorySheetLineItem:
 		return renderInventorySheetLineItemTest(packageName, resolveAppClassName(cfg.AppClassName, "AppFactoryApp"))
 	default:
-		return renderGenericTest(dm, packageName, resolveAppClassName(cfg.AppClassName, "MyApp"), resolveRepositoryType(cfg.RepositoryType))
+		return renderGenericTest(dm, packageName, resolveAppClassName(cfg.AppClassName, "MyApp"), resolveRepositoryType(cfg.RepositoryType), cfg.DisableMutationFlow)
 	}
 }
 
@@ -68,7 +70,7 @@ func resolveRepositoryType(configured string) string {
 	return "InMemoryRecordRepository"
 }
 
-func renderGenericTest(dm appprepare.DomainModel, packageName, appClassName, repositoryType string) string {
+func renderGenericTest(dm appprepare.DomainModel, packageName, appClassName, repositoryType string, disableMutationFlow bool) string {
 	contract := genericTestRecordContract(dm)
 	if contract.modelClassName == "" || contract.primaryField.name == "" {
 		return strings.Join([]string{
@@ -93,29 +95,49 @@ func renderGenericTest(dm appprepare.DomainModel, packageName, appClassName, rep
 		}, "\n") + "\n"
 	}
 	repositoryConstructor := repositoryType + "(seedRecords: [" + contract.modelClassName + "(" + strings.Join(contract.seedArgs, ", ") + ")])"
-	lines := []string{
-		"import 'package:flutter/foundation.dart';",
+	testName := "open lite app supports schema-driven create and inspect flow"
+	if disableMutationFlow {
+		testName = "open lite app supports schema-driven browse flow"
+	}
+	lines := []string{}
+	if !disableMutationFlow {
+		lines = append(lines, "import 'package:flutter/foundation.dart';")
+	}
+	lines = append(lines,
 		"import 'package:flutter_test/flutter_test.dart';",
 		"",
-		"import 'package:" + packageName + "/main.dart';",
-		"import 'package:" + packageName + "/models/record.dart';",
-		"import 'package:" + packageName + "/repositories/record_repository.dart';",
-		"import 'package:" + packageName + "/template/open_lite_copy.dart';",
+		"import 'package:"+packageName+"/main.dart';",
+		"import 'package:"+packageName+"/models/record.dart';",
+		"import 'package:"+packageName+"/repositories/record_repository.dart';",
+		"import 'package:"+packageName+"/template/open_lite_copy.dart';",
 		"",
 		"void main() {",
-		"  testWidgets('open lite app supports schema-driven create and inspect flow', (WidgetTester tester) async {",
-		"    final repository = " + repositoryConstructor + ";",
+		"  testWidgets('"+testName+"', (WidgetTester tester) async {",
+		"    final repository = "+repositoryConstructor+";",
 		"    await repository.init();",
 		"",
-		"    await tester.pumpWidget(" + appClassName + "(repository: repository));",
+		"    await tester.pumpWidget("+appClassName+"(repository: repository));",
 		"    await tester.pumpAndSettle();",
 		"",
 		"    expect(find.text(openLiteCopy.appTitle), findsOneWidget);",
 		"    expect(find.text(openLiteCopy.createPrimaryActionLabel), findsOneWidget);",
-		"    expect(find.text('" + contract.seedDisplay + "'), findsOneWidget);",
-	}
+		"    expect(find.text('"+contract.seedDisplay+"'), findsOneWidget);",
+	)
 	for _, summaryGetter := range genericTestSummaryLabelGetters(dm) {
 		lines = append(lines, "    expect(find.textContaining(openLiteCopy."+summaryGetter+"), findsWidgets);")
+	}
+	if disableMutationFlow {
+		lines = append(lines,
+			"",
+			"    await tester.tap(find.text(openLiteCopy.viewAllActionLabel));",
+			"    await tester.pumpAndSettle();",
+			"",
+			"    expect(find.text(openLiteCopy.listPageTitle), findsOneWidget);",
+			"    expect(find.text('"+contract.seedDisplay+"'), findsOneWidget);",
+			"  });",
+			"}",
+		)
+		return strings.Join(lines, "\n") + "\n"
 	}
 	lines = append(lines,
 		"",
@@ -371,10 +393,7 @@ func genericTestSeedValue(field genericTestField) string {
 	case "bool":
 		return "true"
 	default:
-		if strings.EqualFold(field.role, "primary_text") {
-			return "'测试记录'"
-		}
-		return "'测试值'"
+		return "'测试记录'"
 	}
 }
 

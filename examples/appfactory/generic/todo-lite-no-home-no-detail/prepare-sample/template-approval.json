@@ -4,7 +4,7 @@
   "approval_type": "template",
   "job_id": "job-todo-lite-no-home-no-detail-sample-001",
   "prd_id": "prd-todo-lite-no-home-no-detail-sample-001",
-  "subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47@sha256:502cf694a3953a16",
+  "subject_version": "selected-template@flutter-open-lite@v0.1.0@sha256:3ac09e9244eabd47@sha256:d21d1544c237bd63",
   "status": "approved",
   "requested_by": {
     "actor_type": "system",

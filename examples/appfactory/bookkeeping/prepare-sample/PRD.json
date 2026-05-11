@@ -1233,7 +1233,7 @@
         "success_evidence": [
           "flutter analyze 无错误",
           "flutter test 全通过",
-          "flutter build apk --debug 成功"
+          "flutter build apk --release 成功"
         ]
       }
     ]

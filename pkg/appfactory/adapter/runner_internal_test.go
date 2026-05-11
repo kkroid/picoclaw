@@ -29,14 +29,14 @@ func TestBuildSmokeReportIncludesDeviceAndSmokeSections(t *testing.T) {
 			{CheckID: "check-adb-device-ready", Stage: appruns.StageDevice, Outcome: "passed"},
 			{CheckID: "check-launch-app-and-capture-logcat", Stage: appruns.StageSmoke, Outcome: "passed"},
 		},
-		[]appruns.CheckResult{{CheckID: "check-install-debug-apk", Stage: appruns.StageDevice, Outcome: "failed"}},
+		[]appruns.CheckResult{{CheckID: "check-install-release-apk", Stage: appruns.StageDevice, Outcome: "failed"}},
 		[]appruns.DeviceFailureCategoryStat{{
 			Category:      "device_check_failed:apk_install_failed",
 			FailureDomain: "device",
 			Count:         1,
 		}},
 	)
-	for _, want := range []string{"## 设备验证", "check-adb-device-ready", "check-install-debug-apk", "## 冒烟检查", "check-launch-app-and-capture-logcat", "## 设备失败类别", "device_check_failed:apk_install_failed"} {
+	for _, want := range []string{"## 设备验证", "check-adb-device-ready", "check-install-release-apk", "## 冒烟检查", "check-launch-app-and-capture-logcat", "## 设备失败类别", "device_check_failed:apk_install_failed"} {
 		if !strings.Contains(report, want) {
 			t.Fatalf("buildSmokeReport() = %q, want substring %q", report, want)
 		}
@@ -111,6 +111,44 @@ func TestDiagnoseExecutionStepFailureAllowsResumeForBuilderRuntimeModelRequestFa
 	}
 	if !diagnosis.ResumeAllowed || !diagnosis.PreserveWorkspace {
 		t.Fatalf("diagnosis = %+v, want resumable preserved workspace failure", diagnosis)
+	}
+}
+
+func TestDiagnoseExecutionStepFailureClassifiesGradleDependencyDownloadFailure(t *testing.T) {
+	workspacePath := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workspace) error = %v", err)
+	}
+	logPath := filepath.Join(t.TempDir(), "builder.log")
+	content := strings.Join([]string{
+		"A problem occurred configuring project ':path_provider_android'.",
+		"> Could not resolve all artifacts for configuration ':path_provider_android:classpath'.",
+		"   > Could not get resource 'https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/8.12.1/gradle-8.12.1.pom'.",
+		"      > Could not GET 'https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/8.12.1/gradle-8.12.1.pom'.",
+		"         > dl.google.com: Temporary failure in name resolution",
+	}, "\n")
+	if err := os.WriteFile(logPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("WriteFile(logPath) error = %v", err)
+	}
+
+	diagnosis := diagnoseExecutionStepFailure(ExecutionStep{
+		StepID: "check-flutter-build-apk",
+		Stage:  appruns.StageMilestone,
+		Check: &CheckExecutionPreview{
+			CheckID:  "check-flutter-build-apk",
+			Stage:    appruns.StageMilestone,
+			Commands: []string{"flutter build apk --release --no-pub"},
+		},
+	}, errors.New("exit status 1"), workspacePath, logPath, false)
+
+	if diagnosis.Signature != "environment_check_failed:gradle_dependency_download_failed" {
+		t.Fatalf("diagnosis.Signature = %q, want gradle dependency signature", diagnosis.Signature)
+	}
+	if diagnosis.RecoverySuggestion != "restore network/DNS access to Gradle Maven repositories or prewarm the builder cache before rerun" {
+		t.Fatalf("diagnosis.RecoverySuggestion = %q, want Gradle dependency guidance", diagnosis.RecoverySuggestion)
+	}
+	if diagnosis.ResumeAllowed || diagnosis.NextAction != appruns.ControlActionStop {
+		t.Fatalf("diagnosis action = %+v, want non-resumable environment stop", diagnosis)
 	}
 }
 
@@ -226,7 +264,7 @@ func containsString(items []string, want string) bool {
 func TestBuildDeviceFailureCategoryStatsAggregatesDeviceFailures(t *testing.T) {
 	stats := buildDeviceFailureCategoryStats([]appruns.FailureSignature{
 		{Signature: "device_check_failed:adb_device_unavailable", Count: 1, LastStage: appruns.StageDevice},
-		{Signature: "environment_check_failed:debug_apk_missing", Count: 1, LastStage: appruns.StageDevice},
+		{Signature: "environment_check_failed:release_apk_missing", Count: 1, LastStage: appruns.StageDevice},
 		{Signature: "device_check_failed:adb_device_unavailable", Count: 2, LastStage: appruns.StageSmoke},
 		{Signature: "runner_exit_nonzero", Count: 1, LastStage: appruns.StageBaseline},
 	})
@@ -236,8 +274,8 @@ func TestBuildDeviceFailureCategoryStatsAggregatesDeviceFailures(t *testing.T) {
 	if stats[0].Category != "device_check_failed:adb_device_unavailable" || stats[0].FailureDomain != "device" || stats[0].Count != 3 {
 		t.Fatalf("stats[0] = %+v, want adb device unavailable x3", stats[0])
 	}
-	if stats[1].Category != "environment_check_failed:debug_apk_missing" || stats[1].FailureDomain != "environment" || stats[1].Count != 1 {
-		t.Fatalf("stats[1] = %+v, want debug_apk_missing x1", stats[1])
+	if stats[1].Category != "environment_check_failed:release_apk_missing" || stats[1].FailureDomain != "environment" || stats[1].Count != 1 {
+		t.Fatalf("stats[1] = %+v, want release_apk_missing x1", stats[1])
 	}
 }
 
@@ -251,13 +289,13 @@ func TestBuildRuntimeArtifactOutputsIncludesReportsAndOptionalArtifacts(t *testi
 	if err := os.MkdirAll(reportsDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(reports) error = %v", err)
 	}
-	debugAPKPath := filepath.Join(workspacePath, "build", "app", "outputs", "flutter-apk", "app-debug.apk")
+	releaseAPKPath := filepath.Join(workspacePath, "build", "app", "outputs", "flutter-apk", "app-release.apk")
 	changeSummaryPath := filepath.Join(reportsDir, "change-summary.md")
 	buildReportPath := filepath.Join(reportsDir, "build-report.md")
 	smokeReportPath := filepath.Join(reportsDir, "smoke-test-report.md")
 	deviceLogcatPath := filepath.Join(reportsDir, "device-logcat.txt")
 	deviceScreenshotPath := filepath.Join(reportsDir, "device-screenshot.png")
-	for _, item := range []string{debugAPKPath, changeSummaryPath, buildReportPath, smokeReportPath, deviceLogcatPath, deviceScreenshotPath} {
+	for _, item := range []string{releaseAPKPath, changeSummaryPath, buildReportPath, smokeReportPath, deviceLogcatPath, deviceScreenshotPath} {
 		if err := os.WriteFile(item, []byte("ok\n"), 0o600); err != nil {
 			t.Fatalf("WriteFile(%s) error = %v", item, err)
 		}
@@ -277,7 +315,7 @@ func TestBuildRuntimeArtifactOutputsIncludesReportsAndOptionalArtifacts(t *testi
 	for _, item := range items {
 		found[item.ArtifactID] = true
 	}
-	for _, want := range []string{"run-log", "change-summary", "build-report", "smoke-test-report", "debug-apk", "device-logcat", "device-screenshot"} {
+	for _, want := range []string{"run-log", "change-summary", "build-report", "smoke-test-report", "release-apk", "device-logcat", "device-screenshot"} {
 		if !found[want] {
 			t.Fatalf("artifact %q missing from %+v", want, items)
 		}
@@ -285,8 +323,8 @@ func TestBuildRuntimeArtifactOutputsIncludesReportsAndOptionalArtifacts(t *testi
 	if len(primaryOutputs) != 2 {
 		t.Fatalf("primary outputs len = %d, want 2", len(primaryOutputs))
 	}
-	if primaryOutputs[1].ArtifactID != "debug-apk" {
-		t.Fatalf("primary output[1] = %+v, want debug-apk", primaryOutputs[1])
+	if primaryOutputs[1].ArtifactID != "release-apk" {
+		t.Fatalf("primary output[1] = %+v, want release-apk", primaryOutputs[1])
 	}
 }
 

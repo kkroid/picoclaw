@@ -283,11 +283,11 @@
   "delivery_checks": [
     {
       "check_id": "check-flutter-build-apk",
-      "label": "构建 Debug APK",
-      "description": "产出 app-debug.apk。",
+      "label": "构建 Release APK",
+      "description": "产出 app-release.apk。",
       "stage": "milestone",
       "commands": [
-        "flutter build apk --debug --no-pub"
+        "flutter build apk --release --no-pub"
       ],
       "required": true,
       "source_type": "acceptance_check",
