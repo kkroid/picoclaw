@@ -48,19 +48,36 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
         run: flutter test
 
-      - name: Build iOS no-codesign
+      - name: Build iOS device no-codesign
         working-directory: ${{ env.APP_DIR }}
         run: flutter build ios --release --no-codesign
 
-      - name: Package iOS app bundle
+      - name: Package iOS device app bundle
         working-directory: ${{ env.APP_DIR }}
         run: |
           test -d build/ios/iphoneos/Runner.app
-          ditto -c -k --keepParent build/ios/iphoneos/Runner.app appfactory-ios-runner-app.zip
-          ls -lh appfactory-ios-runner-app.zip
+          ditto -c -k --keepParent build/ios/iphoneos/Runner.app appfactory-ios-device-runner-app.zip
+          ls -lh appfactory-ios-device-runner-app.zip
 
-      - name: Upload iOS app artifact
+      - name: Upload iOS device app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: appfactory-onepilot-ios-no-codesign
-          path: ${{ env.APP_DIR }}/appfactory-ios-runner-app.zip
+          name: appfactory-onepilot-ios-device-no-codesign
+          path: ${{ env.APP_DIR }}/appfactory-ios-device-runner-app.zip
+
+      - name: Build iOS simulator app
+        working-directory: ${{ env.APP_DIR }}
+        run: flutter build ios --simulator --debug
+
+      - name: Package iOS simulator app bundle
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          test -d build/ios/iphonesimulator/Runner.app
+          ditto -c -k --keepParent build/ios/iphonesimulator/Runner.app appfactory-ios-simulator-runner-app.zip
+          ls -lh appfactory-ios-simulator-runner-app.zip
+
+      - name: Upload iOS simulator app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appfactory-onepilot-ios-simulator-debug
+          path: ${{ env.APP_DIR }}/appfactory-ios-simulator-runner-app.zip
