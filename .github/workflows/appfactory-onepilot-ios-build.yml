@@ -1,0 +1,66 @@
+name: AppFactory OnePilot iOS Build Spike
+
+on:
+  push:
+    branches:
+      - appfactory/onepilot-ios-actions-20260512095808
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-build:
+    name: Build generated OnePilot iOS app
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      APP_DIR: onepilot-app
+      FLUTTER_VERSION: 3.29.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+          pub-cache: true
+
+      - name: Show toolchain
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          flutter --version
+          flutter doctor -v
+          xcodebuild -version
+
+      - name: Generate iOS shell
+        working-directory: ${{ env.APP_DIR }}
+        run: flutter create --platforms=ios --org com.appfactory --project-name flutter_open_lite .
+
+      - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: flutter pub get
+
+      - name: Run tests
+        working-directory: ${{ env.APP_DIR }}
+        run: flutter test
+
+      - name: Build iOS no-codesign
+        working-directory: ${{ env.APP_DIR }}
+        run: flutter build ios --release --no-codesign
+
+      - name: Package iOS app bundle
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          test -d build/ios/iphoneos/Runner.app
+          ditto -c -k --keepParent build/ios/iphoneos/Runner.app appfactory-ios-runner-app.zip
+          ls -lh appfactory-ios-runner-app.zip
+
+      - name: Upload iOS app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appfactory-onepilot-ios-no-codesign
+          path: ${{ env.APP_DIR }}/appfactory-ios-runner-app.zip

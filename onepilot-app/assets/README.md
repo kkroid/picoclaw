@@ -1,0 +1,1 @@
+Static assets for flutter-open-lite live here.
