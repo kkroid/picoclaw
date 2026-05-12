@@ -36,9 +36,15 @@ jobs:
           flutter doctor -v
           xcodebuild -version
 
-      - name: Generate iOS shell
+      - name: Verify generated iOS project
         working-directory: ${{ env.APP_DIR }}
-        run: flutter create --platforms=ios --org com.appfactory --project-name flutter_open_lite .
+        run: |
+          test -f ios/Runner.xcodeproj/project.pbxproj
+          test -f ios/Runner/Info.plist
+          test -f ios/Flutter/AppFrameworkInfo.plist
+          grep -q 'PRODUCT_BUNDLE_IDENTIFIER = com.appfactory.onepilot;' ios/Runner.xcodeproj/project.pbxproj
+          grep -q 'IPHONEOS_DEPLOYMENT_TARGET = 15.0' ios/Runner.xcodeproj/project.pbxproj
+          grep -q 'TARGETED_DEVICE_FAMILY = 1' ios/Runner.xcodeproj/project.pbxproj
 
       - name: Install dependencies
         working-directory: ${{ env.APP_DIR }}
